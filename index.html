@@ -47,6 +47,10 @@ body { background: var(--page) no-repeat, #25437a; min-height: 100vh; color: var
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
 .wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 h1::after { content: ''; display: block; width: 56px; height: 4px; margin-top: 10px; border-radius: 2px; background: linear-gradient(90deg, var(--gold), color-mix(in srgb, var(--gold) 30%, transparent)); }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#home { flex: none; font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--teal); background: transparent; color: var(--teal); cursor: pointer; }
+#homeTitle { cursor: pointer; }
+#home:hover { background: var(--teal); color: #fff; }
 h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(26px, 6vw, 38px); line-height: 1.1; margin: 0; letter-spacing: .04em; text-transform: uppercase; text-wrap: balance; }
 .sub { color: var(--muted); margin: 6px 0 0; max-width: 62ch; }
 .tabs { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -194,7 +198,7 @@ tr.detail .ftab { max-width: 100%; }
 <body>
 <div class="wrap">
   <header>
-    <h1>Bestiário de Toram</h1>
+    <div class="top"><h1 id="homeTitle" role="link" tabindex="0" title="Voltar ao início">Bestiário de Toram</h1><button id="home" type="button" aria-label="Voltar ao início">⌂ Início</button></div>
     <p class="sub">Todos os monstros do banco do coryn.club separados por tipo: normais, mini bosses e bosses. Clique numa linha para ver os itens que o monstro dropa. Dados lidos da API pública em 29/10/2026.</p>
   </header>
 
@@ -8238,6 +8242,14 @@ $('reset').addEventListener('click', () => {
   $('q').value = ''; $('lmin').value = ''; $('lmax').value = ''; $('noevent').checked = false;
   render();
 });
+function goHome() {
+  try { history.scrollRestoration = 'manual'; } catch (e) {}
+  window.scrollTo(0, 0);
+  location.reload();
+}
+$('home').addEventListener('click', goHome);
+$('homeTitle').addEventListener('click', goHome);
+$('homeTitle').addEventListener('keydown', e => { if (e.key === 'Enter') goHome(); });
 render();
 (function(){var n=document.getElementById("nojs");if(n)n.style.display="none";})();
 </script>
