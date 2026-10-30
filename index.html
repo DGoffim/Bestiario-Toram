@@ -236,7 +236,15 @@ tr.detail .ftab { max-width: 100%; }
 .mlink, button.item { font: inherit; font-size: 13px; color: var(--fg); padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); cursor: pointer; text-align: left; }
 .mlink span { color: var(--muted); font-size: 12px; }
 .mlink:hover, button.item:hover { border-color: var(--teal); }
-.dpanel a.ext { color: var(--teal); font-size: 13px; }
+.maplink { font: inherit; font-size: inherit; color: var(--teal); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; text-decoration: underline dotted; text-underline-offset: 3px; }
+.maplink:hover { text-decoration-style: solid; }
+td.map .maplink.one { display: block; }
+td.map details div .maplink { display: block; }
+button.fitem { font: inherit; font-size: 13.5px; color: var(--fg); text-align: left; cursor: pointer; }
+button.fitem:hover { border-color: var(--teal); }
+.status b { color: #fff; }
+.status .mapx, .status .maptab { font: inherit; font-size: 13px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.4); border-radius: 999px; color: #fff; padding: 1px 9px; cursor: pointer; text-decoration: none; }
+.status .mapx:hover, .status .maptab:hover { background: #d6b05e; border-color: #d6b05e; color: #2a1d05; }
 @media (max-width: 760px) { .ifilters { grid-template-columns: 1fr 1fr; } }
 /* No celular, cada item vira um cartão: nome, depois tipo e base, depois os status. */
 @media (max-width: 620px) {
@@ -326,7 +334,7 @@ tr.detail .ftab { max-width: 100%; }
   <div class="legend" id="legendBox" aria-label="Legenda das dificuldades">
     <span><b>E</b> Fácil</span><span><b>N</b> Normal</span><span><b>H</b> Difícil</span><span><b>V</b> Muito difícil</span><span><b>M</b> Pesadelo</span><span><b>U</b> Ultimate</span>
   </div>
-  <p class="foot" id="footBox">Nomes agrupados: um boss que existe em várias dificuldades aparece uma vez, com a faixa de nível entre a menor e a maior. Entradas marcadas como Evento são de eventos passados ou versões limitadas. A coluna Mapa mostra onde o monstro aparece segundo o coryn.club, e cada nome de mapa abre a busca dele na wiki do Toram; ao abrir um monstro, "Onde fica" mostra a região no mapa-múndi de Iruna ou de Toram (imagem da wiki do Toram, precisa de internet; só aparece para mapas do mapa-múndi, nunca para eventos, e a posição é aproximada); o mapa chamado "Event" é a área genérica usada em eventos. Ficaram de fora 81 NPCs, 13 lojas de orbe, 2 jogadores e 5 entradas de minigame, que a API lista junto mas não são monstros. 5 dos 3.500 registros da API não vieram na paginação. Os itens listados são os que o coryn.club registra como drop; o site não informa raridade nem taxa de drop, e quando o monstro existe em várias dificuldades os drops de todas elas são somados. Alguns monstros não têm drops cadastrados. Os dados mudam com os patches do jogo.</p>
+  <p class="foot" id="footBox">Nomes agrupados: um boss que existe em várias dificuldades aparece uma vez, com a faixa de nível entre a menor e a maior. Entradas marcadas como Evento são de eventos passados ou versões limitadas. A coluna Mapa mostra onde o monstro aparece segundo o coryn.club, e cada nome de mapa mostra todos os monstros daquele mapa; ao abrir um monstro, "Onde fica" mostra a região no mapa-múndi de Iruna ou de Toram (imagem da wiki do Toram, precisa de internet; só aparece para mapas do mapa-múndi, nunca para eventos, e a posição é aproximada); o mapa chamado "Event" é a área genérica usada em eventos. Ficaram de fora 81 NPCs, 13 lojas de orbe, 2 jogadores e 5 entradas de minigame, que a API lista junto mas não são monstros. 5 dos 3.500 registros da API não vieram na paginação. Os itens listados são os que o coryn.club registra como drop; o site não informa raridade nem taxa de drop, e quando o monstro existe em várias dificuldades os drops de todas elas são somados. Alguns monstros não têm drops cadastrados. Os dados mudam com os patches do jogo.</p>
 </div>
 
 <script>
@@ -8113,20 +8121,24 @@ const FMAP = new Map(FICHAS.map(f => [nk(f.n), f]));
 const FALIAS = { 'ancientempressmezzaluna': 'ancientempress', 'ferzentherockdragon': 'ferzen', 'finsterndarkdragon': 'finstern', 'inzaniothedarkknight': 'inzanio', 'vlamtheflamedragon': 'vlam', 'venenametacoenubiavenenaii': 'venenametacoenubia' };
 function fichaFor(name) { const k = nk(name); return FMAP.get(k) || null; }
 const fnum = s => String(s).replace(/-?\d+(?:\.\d+)?/g, m => Number(m).toLocaleString('pt-BR', { maximumFractionDigits: 2 }));
-function fichaHtml(f) {
+function fichaHtml(f, r) {
   const row = (a, fmt) => '<tr>' + a.map((c, i) => '<' + (i ? 'td' : 'th scope="row"') + '>' + esc(i && fmt ? fnum(c) : (c === '' ? '—' : String(c))) + '</' + (i ? 'td' : 'th') + '>').join('') + '</tr>';
   const head = c => '<thead><tr>' + c.map(x => '<th scope="col">' + x + '</th>').join('') + '</tr></thead>';
   const sec = (t, h) => '<div><h4>' + t + '</h4>' + h + '</div>';
   const tbl = (h, rows, fmt) => '<div class="ftab"><table>' + head(h) + '<tbody>' + rows.map(r => row(r.map(x => x === '' ? '—' : x), fmt)).join('') + '</tbody></table></div>';
-  let h = '<div class="fmeta"><span><b>Mapa:</b> ' + esc(f.mp) + '</span>' + (f.lo ? '<span><b>Local:</b> ' + esc(f.lo) + '</span>' : '') + '</div>';
+  const maps = r && r.maps.length ? r.maps.map(m => mapLink(m, '')).join(', ') : esc(f.mp);
+  let h = '<div class="fmeta"><span><b>Mapa:</b> ' + maps + '</span>' + (f.lo ? '<span><b>Local:</b> ' + esc(f.lo) + '</span>' : '') + '</div>';
   h += sec('Nível, HP e EXP' + (f.m ? '' : ' por dificuldade'), tbl(['', 'Nível', 'HP', 'EXP'], f.d.map(r => [r[0], r[1], r[2] === '-' ? '—' : r[2], r[3]]), true));
   if (f.df.length) h += sec('Defesas', f.m ? tbl(['', 'Valor'], f.df, true) : tbl(['', 'Easy', 'Normal', 'Hard', 'Nightmare', 'Ultimate'], f.df, true));
   if (f.it.length || f.in.length) h += sec('Interrupt', (f.it.length ? tbl(['', 'Cooldown', 'Duração'], f.it, false) : '') + (f.in.length ? '<ul class="flist" style="margin-top:8px">' + f.in.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul>' : ''));
   if (f.tk.length) h += sec('Dicas e mecânicas', '<ul class="flist">' + f.tk.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul>');
   if (f.pt) h += sec('Partes quebráveis', '<p class="fsrc" style="margin:0">' + esc(f.pt) + '</p>');
-  if (f.im.length) h += sec('Itens do guia', '<div class="items">' + f.im.map(i => '<div class="fitem"><b>' + esc(i[0]) + '</b>' + (i[1] ? '<span>' + esc(i[1]) + '</span>' : '') + '</div>').join('') + '</div>');
+  if (f.im.length) h += sec('Itens do guia', '<div class="items">' + f.im.map(i => {
+    const it = itemByName(i[0]), inner = '<b>' + esc(i[0]) + '</b>' + (i[1] ? '<span>' + esc(i[1]) + '</span>' : '');
+    return it ? '<button type="button" class="fitem ilink" data-in="' + esc(it.name) + '" title="Ver status de ' + esc(it.name) + '">' + inner + '</button>' : '<div class="fitem">' + inner + '</div>';
+  }).join('') + '</div>');
   if (!f.it.length && !f.in.length && !f.tk.length) h += '<p class="fsrc">Este guia não traz dicas de luta nem dados de interrupção.</p>';
-  h += '<p class="fsrc">Fonte: <a href="' + f.u + '" target="_blank" rel="noopener">Toram Yo (' + f.y + ')</a>. Dados copiados do guia da comunidade: podem ter mudado com os patches e podem ter erros de leitura, então confira na fonte.</p>';
+  h += '<p class="fsrc">Fonte: guia da comunidade Toram Yo (' + f.y + '). Os dados podem ter mudado com os patches e podem ter erros de leitura.</p>';
   return '<div class="fbody">' + h + '</div>';
 }
 
@@ -8200,7 +8212,7 @@ function locHtml(r) {
 }
 
 function mapLink(m, cls) {
-  return '<a' + (cls ? ' class="' + cls + '"' : '') + ' href="https://toram.fandom.com/wiki/Special:Search?query=' + encodeURIComponent(m) + '" target="_blank" rel="noopener" title="Procurar ' + esc(m) + ' na wiki do Toram">' + esc(m) + '</a>';
+  return '<button type="button" class="maplink' + (cls ? ' ' + cls : '') + '" data-map="' + esc(m) + '" title="Ver os monstros de ' + esc(m) + '">' + esc(m) + '</button>';
 }
 function mapCell(maps) {
   if (!maps.length) return '<span class="none">sem mapa</span>';
@@ -8218,6 +8230,7 @@ function filtered() {
     if (state.lmax !== null && r.lo > state.lmax) return false;
     if (state.mode && !r.modes.includes(state.mode)) return false;
     if (state.noevent && r.event) return false;
+    if (state.map && !r.maps.includes(state.map)) return false;
     if (state.els.size && !r.els.some(e => state.els.has(e))) return false;
     return true;
   });
@@ -8233,7 +8246,7 @@ function detailHtml(r, q, key) {
   if (!f) return dropsHtml(r, q);
   const sub = state.sub[key] || 'd';
   return '<div class="subtabs" role="tablist"><button type="button" class="subtab" role="tab" data-key="' + esc(key) + '" data-s="d" aria-selected="' + (sub === 'd') + '">Mapa e drops</button><button type="button" class="subtab" role="tab" data-key="' + esc(key) + '" data-s="r" aria-selected="' + (sub === 'r') + '">RAID</button></div>'
-    + (sub === 'r' ? fichaHtml(f) : dropsHtml(r, q));
+    + (sub === 'r' ? fichaHtml(f, r) : dropsHtml(r, q));
 }
 function dropsHtml(r, q) {
   const loc = locHtml(r);
@@ -8276,7 +8289,14 @@ function render() {
   const q = state.q.trim().toLowerCase();
   const rows = filtered();
   const total = DATA[state.type].length;
-  $('count').textContent = rows.length === total ? total + ' monstros' : rows.length + ' de ' + total + ' monstros';
+  let cnt = rows.length === total ? total + ' monstros' : rows.length + ' de ' + total + ' monstros';
+  if (state.map) {
+    const lab = { N: 'Normais', M: 'Mini Bosses', B: 'Bosses' };
+    const others = ['N', 'M', 'B'].filter(k => k !== state.type).map(k => [k, DATA[k].filter(r => r.maps.includes(state.map)).length]).filter(x => x[1]);
+    cnt = esc(cnt) + ' em <b>' + esc(state.map) + '</b> <button type="button" class="mapx" title="Tirar filtro de mapa">×</button>'
+      + (others.length ? ' · também aqui: ' + others.map(([k, n]) => '<button type="button" class="maptab" data-k="' + k + '">' + lab[k] + ' (' + n + ')</button>').join(' ') : '');
+    $('count').innerHTML = cnt;
+  } else $('count').textContent = cnt;
   const body = $('rows');
   if (!rows.length) { body.innerHTML = '<tr><td colspan="5" class="empty">Nenhum monstro com esses filtros.</td></tr>'; return; }
   body.innerHTML = rows.map(r => {
@@ -8310,6 +8330,8 @@ $('rows').addEventListener('click', e => {
   if (st) { state.sub[st.dataset.key] = st.dataset.s; render(); return; }
   const il = e.target.closest('.ilink');
   if (il) { goItem(il.dataset.in); return; }
+  const ml = e.target.closest('.maplink');
+  if (ml) { goMap(ml.dataset.map); return; }
   if (e.target.closest('details, summary, a')) return;
   const tr = e.target.closest('tr.row');
   if (tr) toggleRow(tr);
@@ -8327,8 +8349,24 @@ document.querySelectorAll('th button').forEach(b => b.addEventListener('click', 
   if (state.sort === k) state.dir = -state.dir; else { state.sort = k; state.dir = 1; }
   render();
 }));
+// Mapa: mostra os monstros daquele mapa, na aba atual se houver algum, senão na aba que tiver mais.
+function goMap(m) {
+  const n = k => DATA[k].filter(r => r.maps.includes(m)).length;
+  let k = state.type === 'I' ? 'B' : state.type;
+  if (!n(k)) k = ['B', 'M', 'N'].reduce((a, b) => n(b) > n(a) ? b : a);
+  Object.assign(state, { type: k, map: m, q: '', lmin: null, lmax: null, mode: '', noevent: false });
+  state.els.clear(); state.open = new Set();
+  $('q').value = ''; $('lmin').value = ''; $('lmax').value = ''; $('noevent').checked = false;
+  render();
+  $('statusBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+$('statusBox').addEventListener('click', e => {
+  if (e.target.closest('.mapx')) { state.map = ''; render(); return; }
+  const t = e.target.closest('.maptab');
+  if (t) { state.type = t.dataset.k; state.open = new Set(); render(); }
+});
 $('reset').addEventListener('click', () => {
-  Object.assign(state, { q: '', lmin: null, lmax: null, mode: '', noevent: false });
+  Object.assign(state, { q: '', lmin: null, lmax: null, mode: '', noevent: false, map: '' });
   state.els.clear();
   $('q').value = ''; $('lmin').value = ''; $('lmax').value = ''; $('noevent').checked = false;
   render();
@@ -16804,6 +16842,9 @@ const IT = IDB.split('\n').map(l => {
     stats: st ? st.split(';').map(s => { const p = s.split(','); return [+p[0], +p[1], +(p[2] || 0)]; }) : [] };
 });
 const ITBYID = new Map(IT.map(i => [i.id, i]));
+const ITBYNAME = new Map();
+IT.forEach(i => { const k = i.name.toLowerCase(); if (!ITBYNAME.has(k)) ITBYNAME.set(k, i); });
+function itemByName(n) { return ITBYNAME.get(String(n).trim().toLowerCase()) || null; }
 const SI = n => STATN.indexOf(n);
 const S_BATK = SI('Base ATK'), S_BDEF = SI('Base DEF'), S_BSTAB = SI('Base Stability %'), S_UPG = SI('Upgrade for');
 const DROPBY = new Map();
@@ -16916,7 +16957,7 @@ function itemDetail(i) {
     : '<p class="dnote">Nenhum monstro do bestiário dropa este item. Ele pode vir de craft, NPC, missão, evento ou baú.</p>';
   return '<div class="dpanel"><h3>' + esc(i.name) + (st.length ? ' <span>— status</span>' : '') + '</h3>' + list + upg + meta + note
     + '<div class="dgroup"><span class="lbl">Dropado por' + (by.length ? ' (' + by.length + ')' : '') + '</span>' + drops + '</div>'
-    + '<p class="dnote"><a class="ext" href="https://coryn.club/item.php?id=' + i.id + '" target="_blank" rel="noopener">Ver este item no coryn.club</a></p></div>';
+    + '</div>';
 }
 
 function goItem(name) {
@@ -16929,7 +16970,7 @@ function goItem(name) {
   $('itemBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function goMonster(k, name) {
-  Object.assign(state, { type: k, q: name, lmin: null, lmax: null, mode: '', noevent: false });
+  Object.assign(state, { type: k, q: name, lmin: null, lmax: null, mode: '', noevent: false, map: '' });
   state.els.clear();
   state.open = new Set([k + '|' + name]);
   $('q').value = name; $('lmin').value = ''; $('lmax').value = ''; $('noevent').checked = false;
