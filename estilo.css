@@ -267,6 +267,12 @@ a.fitem:hover { border-color: var(--teal-d); }
 .newl { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 
 /* ferramentas */
+.sect { font-size: 15px; margin: 18px 2px 8px; color: #f3e2b4; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+button.lk { cursor: pointer; font: inherit; font-size: 13.5px; text-align: left; }
+.prose { font-size: 14.5px; line-height: 1.6; }
+.prose p { margin: 0 0 10px; }
+.formula { font-family: var(--font-mono); font-size: 13.5px; background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--gold-d); border-radius: 6px; padding: 8px 10px; }
+.res small { display: block; margin-top: 2px; font-size: 12px; }
 .calc { display: grid; gap: 12px 14px; grid-template-columns: 1fr 1fr; }
 .calc .full { grid-column: 1 / -1; }
 @media (min-width: 900px) { .calc { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
