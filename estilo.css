@@ -273,6 +273,9 @@ button.lk { cursor: pointer; font: inherit; font-size: 13.5px; text-align: left;
 .prose p { margin: 0 0 10px; }
 .formula { font-family: var(--font-mono); font-size: 13.5px; background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--gold-d); border-radius: 6px; padding: 8px 10px; }
 .res small { display: block; margin-top: 2px; font-size: 12px; }
+.tile.now { border-left-color: var(--teal-d); background: color-mix(in srgb, var(--teal-d) 10%, var(--surface)); }
+.tile .tag { vertical-align: 2px; margin-left: 4px; }
+@media (min-width: 700px) { .evtiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .foods { display: grid; gap: 0 14px; }
 @media (min-width: 700px) { .foods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1000px) { .foods { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

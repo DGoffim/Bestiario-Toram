@@ -117,7 +117,9 @@ const ROUTES = [
   [/^#\/blacksmith$/, 'ferramentas', () => viewBlacksmith()],
   [/^#\/ninjutsu$/, 'ferramentas', () => viewScroll()],
   [/^#\/smithing$/, 'ferramentas', () => viewSmithing()],
-  [/^#\/comida$/, 'ferramentas', () => viewFood()]
+  [/^#\/comida$/, 'ferramentas', () => viewFood()],
+  [/^#\/eventos$/, 'inicio', () => viewEvents()],
+  [/^#\/evento\/([a-z-]+)$/, 'inicio', k => viewEvent(k)]
 ];
 const scrollMem = new Map();
 let curHash = location.hash || '#/';
@@ -162,7 +164,7 @@ function viewHome() {
     + '<a class="tile" href="#/mapas"><b>Mapas</b><span>' + fmt(DB.MAPLIST.length) + ' mapas</span></a>'
     + '<a class="tile" href="#/upar"><b>Onde upar</b><span>Melhores monstros pro seu nível</span></a>'
     + '<a class="tile" href="#/exp"><b>Calculadora de EXP</b><span>Quanto falta pro nível</span></a>'
-    + '<a class="tile" href="#/ferramentas"><b>Ferramentas</b><span>Todas as calculadoras</span></a>'
+    + '<a class="tile" href="#/eventos"><b>Eventos</b><span>Monstros e itens de cada evento</span></a>'
     + '</div>' + candies
     + '<div class="grid2"><section class="card"><h2>Bosses mais novos no banco</h2><div class="newl">' + newest.map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + ' <small>' + TLAB[g.t] + ' · Lv ' + lvTxt(g) + '</small></a>').join('') + '</div></section>'
     + '<section class="card"><h2>Itens mais novos</h2><div class="newl">' + newItems.map(i => '<a class="lk" href="' + itemUrl(i) + '">' + esc(i.name) + ' <small>' + esc(i.tl) + '</small></a>').join('') + '</div></section></div>';
@@ -284,7 +286,8 @@ function viewMonster(id) {
   const f = fichaFor(g);
   const candy = candyOn() ? g.els.map(candyFor).filter(Boolean) : [];
   const head = '<div class="dhead"><h1>' + esc(g.name) + '</h1><div class="dmeta"><span class="pill">' + TLAB[g.t] + '</span><span class="els">' + elHtml(g.els) + '</span>' + monTags(g)
-    + candy.map(c => '<span class="candy">🎃 Dropa ' + esc(c) + ' (Halloween)</span>').join('') + '</div></div>';
+    + candy.map(c => '<span class="candy">🎃 Dropa ' + esc(c) + ' (Halloween)</span>').join('')
+    + eventData().filter(ev => ev.key !== 'outros' && ev.mons.includes(g)).map(ev => '<a class="tl" href="#/evento/' + ev.key + '">Evento: ' + esc(ev.name) + '</a>').join('') + '</div></div>';
   const hasMode = g.t !== 'N' && g.entries.some(e => e.mode);
   // Mapa numa coluna só quando muda entre as dificuldades; se é sempre o mesmo, aparece uma vez acima da tabela.
   const oneMap = g.mapList.length <= 1;
@@ -524,6 +527,7 @@ function viewTools() {
     + t('#/ninjutsu', 'Ninjutsu Scroll', 'Que armas usar para cada pergaminho, e o que cada combinação dá')
     + t('#/itens', 'Busca avançada de itens', 'Filtre por qualquer status, arma e categoria')
     + '</div><h2 class="sect">Monstros</h2><div class="tiles">'
+    + t('#/eventos', 'Eventos', 'Monstros, mapas e itens de cada evento do ano')
     + t('#/monstros/N', 'Capturáveis (pets)', 'Use o filtro "Só capturáveis" na lista de monstros')
     + t('#/mapas', 'Mapas', 'Todos os mapas com os monstros de cada um')
     + '</div>';
@@ -788,6 +792,70 @@ function viewScroll() {
   [0, 1, 2].forEach(k => { $('#nw' + k).addEventListener('change', craft); $('#ns' + k).addEventListener('change', find); });
   $('#nfind').addEventListener('click', e => { const b = e.target.closest('[data-sc]'); if (!b) return; b.dataset.sc.split('').forEach((v, k) => { $('#nw' + k).value = v; }); craft(); $('#nres').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
   craft(); find();
+}
+
+// ---------- eventos ----------
+// Agrupados por pistas no nome do monstro/item, na origem do coryn.club e no nome do mapa.
+const EVENTS = [
+  ['ano-novo', 'Ano Novo', 'janeiro', /new ?year|kadomatsu|oshogatsu|omochi|osechi/i],
+  ['zodiaco', 'Zodíaco (Ano Lunar)', 'janeiro e fevereiro', /zodiac/i],
+  ['valentine', 'Valentine', 'fevereiro', /valentine|chocolate|creme cliff|sweet hades|douce hamlet/i],
+  ['white-day', 'White Day', 'março', /white day/i],
+  ['hanami', 'Hanami (Sakura)', 'abril', /hanami|sakura/i],
+  ['pascoa', 'Páscoa', 'abril', /easter/i],
+  ['june-bride', 'June Bride (Casamento)', 'junho', /june bride|\bbride\b|\bgroom\b/i],
+  ['chuva', 'Estação das Chuvas', 'junho', /rainy/i],
+  ['tanabata', 'Tanabata', 'julho', /tanabata/i],
+  ['verao', 'Verão', 'julho e agosto', /summer|saltau|ocean pantry|beach house/i],
+  ['aniversario', 'Aniversário do Toram', 'julho e agosto', /anniv/i],
+  ['otsukimi', 'Otsukimi (Lua)', 'setembro', /otsukimi|moon crab|usami|usakichi/i],
+  ['outono', 'Outono', 'outubro', /autumn/i],
+  ['halloween', 'Halloween', 'outubro e novembro', /halloween|pumpkin|phasma|\[trick\]|\[treat\]/i, new Date('2026-10-08T00:00:00'), CANDY_END],
+  ['natal', 'Natal', 'dezembro', /christmas|xmas|santa|navida|noeliel/i],
+  ['colab', 'Colaborações', 'variável', /collab|eagle talon|grieving souls/i],
+  ['alta-dif', 'Boss de alta dificuldade', 'variável', /high difficulty/i]
+];
+const pl = (n, s, p) => fmt(n) + ' ' + (n === 1 ? s : p);
+let EVDATA = null;
+function eventData() {
+  if (EVDATA) return EVDATA;
+  const mon = new Map(EVENTS.map(e => [e[0], new Set()])), used = new Set();
+  for (const g of DB.MONS) {
+    const txt = g.name + '\n' + g.badge + '\n' + g.mapList.map(m => m.name).join('\n');
+    for (const e of EVENTS) if (e[3].test(txt)) { mon.get(e[0]).add(g); used.add(g); }
+  }
+  mon.set('outros', new Set(DB.MONS.filter(g => g.event && !used.has(g))));
+  const items = new Map([...mon.keys()].map(k => [k, new Set()]));
+  for (const i of DB.ITEMS) {
+    const txt = i.name + '\n' + i.note + '\n' + i.badge;
+    for (const e of EVENTS) if (e[3].test(txt) || (i.event && i.by.some(g => mon.get(e[0]).has(g)))) items.get(e[0]).add(i);
+    if (i.event && i.by.some(g => mon.get('outros').has(g))) items.get('outros').add(i);
+  }
+  const list = EVENTS.map(e => ({ key: e[0], name: e[1], when: e[2], start: e[4], end: e[5] })).concat({ key: 'outros', name: 'Outros eventos e limitados', when: 'variável' });
+  list.forEach(ev => { ev.mons = [...mon.get(ev.key)]; ev.items = [...items.get(ev.key)]; const ms = new Map(); ev.mons.forEach(g => g.mapList.forEach(m => ms.set(m.id, m))); ev.maps = [...ms.values()].filter(m => m.name !== 'Event'); ev.now = ev.start && new Date() >= ev.start && new Date() <= ev.end; });
+  return (EVDATA = list);
+}
+function viewEvents() {
+  setTitle('Eventos');
+  const evs = eventData();
+  const card = ev => '<a class="tile' + (ev.now ? ' now' : '') + '" href="#/evento/' + ev.key + '"><b>' + esc(ev.name) + (ev.now ? ' <span class="tag ok">acontecendo agora</span>' : '') + '</b><span>' + esc(ev.when) + ' · ' + pl(ev.mons.length, 'monstro', 'monstros') + ' · ' + pl(ev.items.length, 'item', 'itens') + '</span></a>';
+  view.innerHTML = '<div class="ph"><div><h1>Eventos</h1><p>Monstros, mapas e itens de cada evento do ano. Os meses são os de costume; as datas exatas saem nos avisos oficiais do jogo.</p></div></div>'
+    + '<div class="tiles evtiles">' + evs.filter(e => e.now).map(card).join('') + evs.filter(e => !e.now && (e.mons.length || e.items.length)).map(card).join('') + '</div>'
+    + '<p class="note" style="color:var(--ink-2)">Os grupos são montados pelos nomes dos monstros, itens e mapas, então alguns podem ficar no evento errado ou em "Outros".</p>';
+}
+function viewEvent(key) {
+  const ev = eventData().find(e => e.key === key);
+  if (!ev) { view.innerHTML = backBtn('#/eventos') + '<p class="empty">Evento não encontrado.</p>'; return; }
+  setTitle(ev.name);
+  const mons = TYPES.map(([t, lab]) => { const gs = ev.mons.filter(g => g.t === t).sort((a, b) => a.lo - b.lo || a.name.localeCompare(b.name)); return gs.length ? '<div class="dgroup"><span class="lbl">' + lab + ' (' + gs.length + ')</span><div class="links">' + gs.map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + ' <small>Lv ' + lvTxt(g) + '</small></a>').join('') + '</div></div>' : ''; }).join('');
+  const groups = new Map();
+  ev.items.forEach(i => { if (!groups.has(i.tl)) groups.set(i.tl, []); groups.get(i.tl).push(i); });
+  const items = [...groups.keys()].sort((a, b) => groups.get(b).length - groups.get(a).length).map(t => '<details class="dgroup"' + (groups.size <= 4 ? ' open' : '') + '><summary class="lbl" style="cursor:pointer">' + esc(t || 'Outros') + ' (' + groups.get(t).length + ')</summary><div class="links" style="margin-top:6px">' + groups.get(t).sort((a, b) => a.name.localeCompare(b.name)).map(i => '<a class="lk" href="' + itemUrl(i) + '">' + esc(i.name) + '</a>').join('') + '</div></details>').join('');
+  const candies = ev.key === 'halloween' && candyOn() ? '<section class="card"><h2>Doces do evento <small>até 12/11/2026</small></h2><div class="candies">' + CANDIES.map(([n, el]) => '<div class="cd" style="--c:var(' + EL[el][1] + ')"><b>' + n + '</b><span><span class="dot" style="background:var(' + EL[el][1] + ')"></span>monstros de ' + EL[el][0] + '</span></div>').join('') + '</div><p class="note">Cada doce cai dos monstros do elemento e dá ASPD e CSPD +100 e +5% de dano contra esse elemento por 10 minutos.</p></section>' : '';
+  view.innerHTML = backBtn('#/eventos') + '<div class="dhead"><h1>' + esc(ev.name) + '</h1><div class="dmeta"><span class="pill">' + esc(ev.when) + '</span>' + (ev.now ? '<span class="tag ok">acontecendo agora</span>' : '') + '<span class="muted">' + ev.mons.length + ' monstros · ' + ev.items.length + ' itens · ' + ev.maps.length + ' mapas</span></div></div>'
+    + candies + '<div class="grid2"><div><section class="card"><h2>Monstros</h2>' + (mons || '<p class="muted" style="margin:0">Nenhum monstro encontrado para este evento.</p>') + '</section>'
+    + (ev.maps.length ? '<section class="card"><h2>Mapas</h2><div class="links">' + ev.maps.sort((a, b) => a.name.localeCompare(b.name)).map(m => '<a class="lk" href="' + mapUrl(m) + '">' + esc(m.name) + '</a>').join('') + '</div></section>' : '') + '</div>'
+    + '<div><section class="card"><h2>Itens</h2>' + (items || '<p class="muted" style="margin:0">Nenhum item encontrado para este evento.</p>') + '</section></div></div>';
 }
 
 // ---------- códigos de comida (food buff) ----------
