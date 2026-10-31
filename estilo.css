@@ -273,6 +273,17 @@ button.lk { cursor: pointer; font: inherit; font-size: 13.5px; text-align: left;
 .prose p { margin: 0 0 10px; }
 .formula { font-family: var(--font-mono); font-size: 13.5px; background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--gold-d); border-radius: 6px; padding: 8px 10px; }
 .res small { display: block; margin-top: 2px; font-size: 12px; }
+.foods { display: grid; gap: 0 14px; }
+@media (min-width: 700px) { .foods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { .foods { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.food h2 { flex-wrap: wrap; }
+.codes { display: flex; flex-wrap: wrap; gap: 8px; }
+.code { display: inline-flex; flex-direction: column; align-items: center; min-width: 96px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: 500 16px var(--font-mono); letter-spacing: .04em; cursor: pointer; }
+.code small { font: 600 10.5px var(--font-body); color: var(--event); letter-spacing: 0; }
+.code:hover { border-color: var(--teal-d); }
+.code:active { background: var(--gold); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--navh) + 18px + env(safe-area-inset-bottom, 0px)); z-index: 50; background: #1b293f; color: #fff; border: 1px solid var(--gold); padding: 9px 16px; border-radius: 999px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+@media (min-width: 900px) { .toast { bottom: 24px; } }
 .calc { display: grid; gap: 12px 14px; grid-template-columns: 1fr 1fr; }
 .calc .full { grid-column: 1 / -1; }
 @media (min-width: 900px) { .calc { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

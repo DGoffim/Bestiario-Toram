@@ -116,7 +116,8 @@ const ROUTES = [
   [/^#\/pontos$/, 'ferramentas', () => viewPoints()],
   [/^#\/blacksmith$/, 'ferramentas', () => viewBlacksmith()],
   [/^#\/ninjutsu$/, 'ferramentas', () => viewScroll()],
-  [/^#\/smithing$/, 'ferramentas', () => viewSmithing()]
+  [/^#\/smithing$/, 'ferramentas', () => viewSmithing()],
+  [/^#\/comida$/, 'ferramentas', () => viewFood()]
 ];
 const scrollMem = new Map();
 let curHash = location.hash || '#/';
@@ -516,6 +517,7 @@ function viewTools() {
     + t('#/upar', 'Onde upar', 'Melhores monstros por EXP para o seu nível, com bônus de emblema e ticket')
     + t('#/exp', 'Calculadora de EXP', 'EXP até o nível desejado, missões principais e Diário do Aventureiro')
     + t('#/pontos', 'Pontos de status e skill', 'Quantos pontos você tem pelo nível e pelos emblemas')
+    + t('#/comida', 'Códigos de comida', 'Casas com comida de buff: STR, DEX, crítico, ATK, aggro e mais')
     + '</div><h2 class="sect">Smith e equipamentos</h2><div class="tiles">'
     + t('#/smithing', 'Guia de smithing', 'Criação, status (statting), refino e materiais, em português')
     + t('#/blacksmith', 'Calculadora de blacksmith', 'Dificuldade, taxa de sucesso e potencial da criação')
@@ -787,6 +789,59 @@ function viewScroll() {
   $('#nfind').addEventListener('click', e => { const b = e.target.closest('[data-sc]'); if (!b) return; b.dataset.sc.split('').forEach((v, k) => { $('#nw' + k).value = v; }); craft(); $('#nres').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
   craft(); find();
 }
+
+// ---------- códigos de comida (food buff) ----------
+// Lista da comunidade (post "Food Buff Codes 2025" no r/ToramOnline, tradução enviada pelo Daniel). Sem nota = nível 10.
+const FOOD = [
+  ['STR', 'Bolinho de Arroz Okaka', '4016699 1110033 2020303 2017890 1010055'],
+  ['INT', 'Bolinho de Arroz Umeboshi', '6010701 6061294 5190001 1010498 1032222'],
+  ['VIT', 'Bolinho de Arroz com Atum e Maionese', '4032850 5130123 2020909'],
+  ['AGI', 'Bolinho de Arroz Mentaiko', '7162029 1110033 1220777 4262222 2020037'],
+  ['DEX', 'Bolinho de Arroz com Salmão', '2020222 1010261 1160000 1112220 1107777'],
+  ['ATK de Arma', 'Pizza Margherita', '3160777 1067777 2010136 6010024 1011122'],
+  ['ATK', 'Pizza Diavola', '7170717 1119876'],
+  ['Recuperação de MP por ataque', 'Yakisoba', '4040404 4261111 5010031 1016969 4233333'],
+  ['MaxHP', 'Refogado Dourado', '1250015 4262222 3040005 1180755 1010455'],
+  ['MaxMP', 'Arroz Frito Ankake', '1032222 2010079 1091111 1240000 1027777'],
+  ['Taxa crítica', 'Takoyaki', '7010086 1181140 1100000 5119105 2022020 53190003'],
+  ['Precisão', 'Shoyu Ramen', '2010308 4261111 1181220 701007:9'],
+  ['Aggro −', 'Ensopado Branco', '1010147 3190038 1011174 2020808 3010018'],
+  ['Aggro +', 'Ensopado de Carne', '1010207 1140008 1011340 2020606 1130832 53010043'],
+  ['Dano contra Neutro', 'Peperoncino', '1250040 5010098'],
+  ['Dano contra Vento', 'Napolitana', '3030303 2020909:9 1180020:8'],
+  ['Dano contra Água', 'Vongole', '1110111 7150030 7011001:9'],
+  ['Dano contra Fogo', 'Bolognese', '3210106:9 7088807:9'],
+  ['Dano contra Terra', 'Genovese', '2020202 4233333:9 7100666:9'],
+  ['Dano contra Trevas', 'Massa com Tinta de Lula', '6116116 5010092 1190020 2130776'],
+  ['Dano contra Luz', 'Carbonara', '1240000:9 1020345:9 1019696:?'],
+  ['Resistência física', 'Hambúrguer de Carne', '1100000 7010014 4010051 2200117 6010701'],
+  ['Resistência mágica', 'Hambúrguer de Peixe', '6190007 2020505 6234567 7010016 1111757'],
+  ['Barreira fracionada', 'Panqueca', '4010024 6150029 1010013 1012222']
+];
+let FQ = '';
+function viewFood() {
+  setTitle('Códigos de comida');
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Códigos de comida</h1><p>Casas de jogadores com comida de buff. Toque num código para copiar e use no jogo para visitar a casa e comprar a comida.</p></div></div>'
+    + '<div class="tools"><input id="fq" type="search" placeholder="Status ou comida (ex: DEX, crítico, pizza)" value="' + esc(FQ) + '" aria-label="Buscar buff"></div>'
+    + '<div id="flist"></div><p class="note" style="color:var(--ink-2)">Sem anotação, o código é de comida nível 10. Lista da comunidade (post “Food Buff Codes 2025” do r/ToramOnline). Os códigos mudam quando os donos das casas trocam os pratos; se um não funcionar, tente o próximo.</p>'
+    + '<div class="toast" id="toast" hidden>Copiado!</div>';
+  const list = () => {
+    const q = FQ.trim().toLowerCase();
+    const rows = FOOD.filter(([s, f]) => !q || (s + ' ' + f).toLowerCase().includes(q));
+    $('#flist').innerHTML = rows.length ? '<div class="foods">' + rows.map(([s, f, codes]) => '<section class="card food"><h2>' + esc(s) + ' <small>' + esc(f) + '</small></h2><div class="codes">'
+      + codes.split(' ').map(c => { const [code, lv] = c.split(':'); return '<button type="button" class="code" data-code="' + code + '">' + code + (lv ? '<small>' + (lv === '?' ? 'nível ?' : 'nível ' + lv) + '</small>' : '') + '</button>'; }).join('') + '</div></section>').join('') + '</div>'
+      : '<p class="empty" style="color:var(--ink-2)">Nenhum buff com esse nome.</p>';
+  };
+  $('#fq').addEventListener('input', e => { FQ = e.target.value; list(); });
+  $('#flist').addEventListener('click', e => {
+    const b = e.target.closest('[data-code]'); if (!b) return;
+    const done = () => { const t = $('#toast'); t.textContent = 'Código ' + b.dataset.code + ' copiado!'; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, 1600); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(b.dataset.code).then(done, () => { fallbackCopy(b.dataset.code); done(); });
+    else { fallbackCopy(b.dataset.code); done(); }
+  });
+  list();
+}
+function fallbackCopy(txt) { const ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} ta.remove(); }
 
 // ---------- guia de smithing ----------
 function viewSmithing() {
