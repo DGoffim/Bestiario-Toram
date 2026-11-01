@@ -405,7 +405,7 @@ function viewFavs() {
 const lvTxt = g => g.lo === g.hi ? String(g.lo) : g.lo + '–' + g.hi;
 
 // ---------- lista de monstros ----------
-const MS = { t: 'B', q: '', lmin: '', lmax: '', mode: '', els: new Set(), noevent: false, tame: false, map: 0, sort: 'lv', limit: 60, open: false };
+const MS = { t: 'B', q: '', lmin: '', lmax: '', mode: '', els: new Set(), noevent: false, tame: false, map: 0, sort: 'lv', dir: 1, limit: 60, open: false };
 function monFiltered() {
   const q = MS.q.trim().toLowerCase();
   const lmin = MS.lmin === '' ? null : +MS.lmin, lmax = MS.lmax === '' ? null : +MS.lmax;
@@ -421,9 +421,22 @@ function monFiltered() {
     if (MS.els.size && !g.els.some(e => MS.els.has(e))) return false;
     return true;
   });
-  const by = { lv: (a, b) => a.lo - b.lo || a.hi - b.hi, lvd: (a, b) => b.hi - a.hi || b.lo - a.lo, name: (a, b) => 0, hp: (a, b) => b.hp - a.hp, exp: (a, b) => b.exp - a.exp }[MS.sort] || (() => 0);
-  return rows.sort((a, b) => by(a, b) || a.name.localeCompare(b.name, 'pt', { ignorePunctuation: true }));
+  const nm = (a, b) => a.name.localeCompare(b.name, 'pt', { ignorePunctuation: true });
+  const ent = g => (MS.mode && g.entries.find(x => x.mode === MS.mode)) || g;
+  const elN = g => g.els.length ? EL[g.els[0]][0] : '~';
+  const mapN = g => g.mapList.length ? g.mapList[0].name : '';
+  const by = {
+    name: nm, lv: (a, b) => (ent(a).lv || a.lo) - (ent(b).lv || b.lo) || a.hi - b.hi,
+    el: (a, b) => elN(a).localeCompare(elN(b), 'pt'),
+    // Sem mapa fica sempre no fim, nas duas direções.
+    map: (a, b) => (!mapN(a) - !mapN(b)) * MS.dir || mapN(a).localeCompare(mapN(b), 'pt'),
+    hp: (a, b) => ent(a).hp - ent(b).hp, exp: (a, b) => ent(a).exp - ent(b).exp
+  }[MS.sort] || (() => 0);
+  return rows.sort((a, b) => by(a, b) * MS.dir || nm(a, b));
 }
+// Colunas que ordenam a lista; o 3º valor é a direção do 1º toque (1 = crescente, -1 = decrescente).
+const MSORTS = [['name', 'Nome', 1], ['lv', 'Nível', 1], ['el', 'Elemento', 1], ['map', 'Mapa', 1], ['hp', 'HP', -1], ['exp', 'EXP', -1]];
+const msortBtn = ([k, l]) => '<button type="button" class="sortb' + (MS.sort === k ? ' on' : '') + '" data-sort="' + k + '" aria-pressed="' + (MS.sort === k) + '">' + l + (MS.sort === k ? '<i aria-label="' + (MS.dir > 0 ? 'crescente' : 'decrescente') + '">' + (MS.dir > 0 ? '↑' : '↓') + '</i>' : '') + '</button>';
 function monActiveCount() { return (MS.lmin !== '') + (MS.lmax !== '') + !!MS.mode + MS.els.size + MS.noevent + MS.tame; }
 function viewMonsters(t) {
   if (t && t !== MS.t) { MS.t = t; MS.q = ''; MS.limit = 60; }
@@ -436,7 +449,6 @@ function viewMonsters(t) {
     + '<section class="card" id="mfp"' + (MS.open ? '' : ' hidden') + '><div class="fpanel">'
     + '<div class="field"><span class="lbl">Nível</span><div class="range"><input id="lmin" type="number" inputmode="numeric" placeholder="mín" value="' + esc(MS.lmin) + '" aria-label="Nível mínimo"><span>a</span><input id="lmax" type="number" inputmode="numeric" placeholder="máx" value="' + esc(MS.lmax) + '" aria-label="Nível máximo"></div></div>'
     + '<div class="field"' + (MS.t === 'N' ? ' hidden' : '') + '><label class="lbl" for="mmode">Dificuldade</label><select id="mmode"><option value="">Todas</option>' + MODES.map(m => '<option value="' + m[0] + '"' + (MS.mode === m[0] ? ' selected' : '') + '>' + m[2] + '</option>').join('') + '</select></div>'
-    + '<div class="field"><label class="lbl" for="msort">Ordenar por</label><select id="msort">' + [['lv', 'Nível (menor)'], ['lvd', 'Nível (maior)'], ['name', 'Nome (A–Z)'], ['hp', 'Maior HP'], ['exp', 'Maior EXP']].map(([v, l]) => '<option value="' + v + '"' + (MS.sort === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>'
     + '<div class="field"><span class="lbl">Mostrar</span><label class="check"><input id="mnoev" type="checkbox"' + (MS.noevent ? ' checked' : '') + '> Ocultar eventos</label><label class="check"><input id="mtame" type="checkbox"' + (MS.tame ? ' checked' : '') + '> Só capturáveis (pets)</label></div>'
     + '<div class="field full"><span class="lbl">Elemento</span><div class="chips" id="mels">' + EL.map((e, i) => '<button type="button" class="chip" data-el="' + i + '" aria-pressed="' + MS.els.has(i) + '"><span class="dot" style="background:var(' + e[1] + ')"></span>' + e[0] + '</button>').join('') + '</div></div>'
     + '</div></section>'
@@ -448,7 +460,13 @@ function viewMonsters(t) {
   $('#lmin').addEventListener('input', e => { MS.lmin = e.target.value; rer(); });
   $('#lmax').addEventListener('input', e => { MS.lmax = e.target.value; rer(); });
   $('#mmode').addEventListener('change', e => { MS.mode = e.target.value; rer(); });
-  $('#msort').addEventListener('change', e => { MS.sort = e.target.value; rer(); });
+  // Ordenar: tocar numa coluna ordena por ela; tocar de novo inverte.
+  $('#mlist').addEventListener('click', e => {
+    const b = e.target.closest('[data-sort]'); if (!b) return;
+    const s = MSORTS.find(x => x[0] === b.dataset.sort);
+    if (MS.sort === s[0]) MS.dir = -MS.dir; else { MS.sort = s[0]; MS.dir = s[2]; }
+    rer();
+  });
   $('#mnoev').addEventListener('change', e => { MS.noevent = e.target.checked; rer(); });
   $('#mtame').addEventListener('change', e => { MS.tame = e.target.checked; rer(); });
   $('#mels').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; const i = +b.dataset.el; MS.els.has(i) ? MS.els.delete(i) : MS.els.add(i); b.setAttribute('aria-pressed', MS.els.has(i)); rer(); });
@@ -465,7 +483,9 @@ function monList() {
   $('#mcount').textContent = (rows.length === total ? fmt(total) : fmt(rows.length) + ' de ' + fmt(total)) + (MS.t === 'B' ? ' bosses' : MS.t === 'M' ? ' mini bosses' : ' monstros');
   const list = $('#mlist'), more = $('#mmore');
   if (!rows.length) { list.innerHTML = '<p class="empty">Nenhum monstro com esses filtros.</p>'; more.hidden = true; return; }
-  list.innerHTML = '<div class="lh lm"><span>Nome</span><span>Nível</span><span>Elemento</span><span>Mapa</span><span>HP · EXP</span></div>' + rows.slice(0, MS.limit).map(g => {
+  const sb = k => msortBtn(MSORTS.find(x => x[0] === k));
+  list.innerHTML = '<div class="msortbar" role="group" aria-label="Ordenar por"><span class="lbl">Ordenar</span>' + MSORTS.map(msortBtn).join('') + '</div>'
+    + '<div class="lh lm"><span>' + sb('name') + '</span><span>' + sb('lv') + '</span><span>' + sb('el') + '</span><span>' + sb('map') + '</span><span>' + sb('hp') + ' · ' + sb('exp') + '</span></div>' + rows.slice(0, MS.limit).map(g => {
     let via = '';
     if (q && !g.text.includes(q)) { const hits = g.items.filter(i => i.name.toLowerCase().includes(q)).map(i => i.name); via = ' <small>· dropa ' + esc(hits.slice(0, 2).join(', ')) + (hits.length > 2 ? ' +' + (hits.length - 2) : '') + '</small>'; }
     const e = MS.mode ? g.entries.find(x => x.mode === MS.mode) || null : null;
