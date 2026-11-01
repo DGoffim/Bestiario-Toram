@@ -119,7 +119,8 @@ const ROUTES = [
   [/^#\/smithing$/, 'ferramentas', () => viewSmithing()],
   [/^#\/comida$/, 'ferramentas', () => viewFood()],
   [/^#\/eventos$/, 'inicio', () => viewEvents()],
-  [/^#\/evento\/([a-z-]+)$/, 'inicio', k => viewEvent(k)]
+  [/^#\/evento\/([a-z-]+)$/, 'inicio', k => viewEvent(k)],
+  [/^#\/build(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewBuild(code)]
 ];
 const scrollMem = new Map();
 let curHash = location.hash || '#/';
@@ -466,8 +467,17 @@ function viewItem(id) {
   const drops = '<section class="card"><h2>Dropado por' + (by.length ? ' <small>' + by.length + (by.length === 1 ? ' monstro' : ' monstros') + '</small>' : '') + '</h2>'
     + (by.length ? '<div class="links">' + by.map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + ' <small>' + TLAB[g.t] + ' · Lv ' + lvTxt(g) + (g.mapList[0] ? ' · ' + esc(g.mapList[0].name) : '') + '</small></a>').join('') + '</div>'
       : '<p class="muted" style="margin:0">Nenhum monstro do bestiário dropa este item. Ele pode vir de craft, NPC, missão, evento ou baú.</p>') + '</section>';
+  // Em que espaço da calculadora de status o item entra (arma, sub, armadura... ou crysta).
+  const slotFor = SLOTS.find(s => s[2].includes(i.tl)) || SLOTS.find(s => s[3].includes(i.tl));
+  const equip = slotFor ? '<p style="margin:10px 0 0"><button type="button" class="btn" id="equip">Equipar na calculadora de status</button></p>' : '';
   view.innerHTML = backBtn('#/itens') + '<div class="dhead"><h1>' + esc(i.name) + '</h1><div class="dmeta">' + meta.map(([k, v]) => '<span><span class="muted">' + k + '</span> ' + v + '</span>').join('') + itemTags(i) + '</div>'
-    + (i.note ? '<p class="inote">' + esc(i.note) + '</p>' : '') + '</div><div class="grid2"><div>' + list + tree + '</div><div>' + drops + '</div></div>';
+    + (i.note ? '<p class="inote">' + esc(i.note) + '</p>' : '') + equip + '</div><div class="grid2"><div>' + list + tree + '</div><div>' + drops + '</div></div>';
+  if (slotFor) $('#equip').addEventListener('click', () => {
+    const s = BD.sl[slotFor[0]];
+    if (slotFor[2].includes(i.tl)) s.id = i.id;
+    else { s.x = s.x || [0, 0]; const free = s.x.indexOf(0); s.x[free < 0 ? 0 : free] = i.id; }
+    saveBuild(); location.hash = '#/build';
+  });
 }
 
 // ---------- mapas ----------
@@ -522,6 +532,7 @@ function viewTools() {
     + t('#/pontos', 'Pontos de status e skill', 'Quantos pontos você tem pelo nível e pelos emblemas')
     + t('#/comida', 'Códigos de comida', 'Casas com comida de buff: STR, DEX, crítico, ATK, aggro e mais')
     + '</div><h2 class="sect">Smith e equipamentos</h2><div class="tiles">'
+    + t('#/build', 'Status do personagem', 'Monte arma, armadura, adicional, anel e crystas e veja os status somados')
     + t('#/smithing', 'Guia de smithing', 'Criação, status (statting), refino e materiais, em português')
     + t('#/blacksmith', 'Calculadora de blacksmith', 'Dificuldade, taxa de sucesso e potencial da criação')
     + t('#/ninjutsu', 'Ninjutsu Scroll', 'Que armas usar para cada pergaminho, e o que cada combinação dá')
@@ -942,6 +953,161 @@ function viewSmithing() {
     + '<div class="dgroup"><span class="lbl">Itens de suporte de refino (' + sup.length + ')</span>' + lk(sup) + '</div></div></section>'
     + '<p class="note" style="color:var(--ink-2)">Fórmulas de criação: Toram Tools (Insane23), com base nos testes de DOPR e JosuaK62. Texto do guia escrito para o Bestiário de Toram.</p>';
   $('#gsnav').addEventListener('click', e => { const b = e.target.closest('[data-to]'); if (b) document.getElementById(b.dataset.to).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+}
+
+// ---------- calculadora de status do personagem (build) ----------
+// Soma exata dos status dos itens (dados do coryn.club). ATK, MATK, HP etc. são estimativas pelas fórmulas da comunidade.
+const MAIN_W = [['1 Handed Sword', 128], ['2 Handed Sword', 64], ['Bow', 32], ['Bowgun', 16], ['Knuckles', 2], ['Magic Device', 4], ['Staff', 8], ['Halberd', 2048], ['Katana', 8192]];
+const SUB_W = [['Shield', 1], ['Dagger', 65536], ['Arrow', 262144], ['Ninjutsu Scroll', 524288], ['Magic Device', 0], ['Knuckles', 0], ['1 Handed Sword', 131072]];
+const SLOTS = [
+  ['arma', 'Arma principal', MAIN_W.map(w => w[0]), ['Weapon Crysta', 'Normal Crysta', 'Enhancer Crysta (Red)', 'Enhancer Crysta (Purple)'], true],
+  ['sub', 'Sub-arma', SUB_W.map(w => w[0]), [], true],
+  ['armadura', 'Armadura', ['Armor'], ['Armor Crysta', 'Normal Crysta', 'Enhancer Crysta (Blue)', 'Enhancer Crysta (Purple)'], true],
+  ['adicional', 'Adicional', ['Additional'], ['Additional Crysta', 'Normal Crysta', 'Enhancer Crysta (Green)', 'Enhancer Crysta (Purple)'], true],
+  ['especial', 'Anel especial', ['Special'], ['Special Crysta', 'Normal Crysta', 'Enhancer Crysta (Yellow)', 'Enhancer Crysta (Purple)'], false]
+];
+const REFS = ['0', '+1', '+2', '+3', '+4', '+5', '+6', '+7', '+8', '+9', 'E', 'D', 'C', 'B', 'A', 'S'];
+const ARMOR_KIND = [['normal', 'Normal', 0], ['leve', 'Leve (Light)', 32768], ['pesada', 'Pesada (Heavy)', 16384]];
+// ATK e MATK por arma: [STR, INT, DEX, AGI] para ATK; MATK usa INT×3 + DEX (Staff, MD e Knuckle somam o ATK da arma).
+const ATKF = { '1 Handed Sword': [2, 0, 2, 0], '2 Handed Sword': [3, 0, 1, 0], 'Bow': [1, 0, 3, 0], 'Bowgun': [0, 0, 4, 0], 'Knuckles': [0, 0, 0.5, 2], 'Magic Device': [0, 2, 0, 2], 'Staff': [3, 1, 0, 0], 'Halberd': [2.5, 0, 0, 1.5], 'Katana': [1.5, 0, 2.5, 0], '': [1, 0, 0, 0] };
+const newBuild = () => ({ lv: 300, st: { STR: 1, INT: 1, VIT: 1, AGI: 1, DEX: 1 }, ps: 'CRT', pv: 0, sl: { arma: { id: 0, r: 0, x: [0, 0] }, sub: { id: 0, r: 0, x: [] }, armadura: { id: 0, r: 0, x: [0, 0], k: 'normal' }, adicional: { id: 0, r: 0, x: [0, 0] }, especial: { id: 0, r: 0, x: [0, 0] } }, ex: [] });
+let BD = store.get('build', null) || newBuild();
+const b64e = s => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64d = s => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
+function buildEquipped() {
+  const out = [];
+  for (const [k] of SLOTS) { const s = BD.sl[k]; const it = DB.ITBYID.get(s.id); if (it) out.push([k, it, 'item']); (s.x || []).forEach(id => { const c = DB.ITBYID.get(id); if (c) out.push([k, c, 'crysta']); }); }
+  return out;
+}
+function buildBits() {
+  const main = DB.ITBYID.get(BD.sl.arma.id), sub = DB.ITBYID.get(BD.sl.sub.id);
+  let bits = 0;
+  if (main) bits |= (MAIN_W.find(w => w[0] === main.tl) || [0, 0])[1];
+  if (sub) { bits |= (SUB_W.find(w => w[0] === sub.tl) || [0, 0])[1]; if (main && main.tl === '1 Handed Sword' && sub.tl === '1 Handed Sword') bits = (bits & ~128) | 131072; }
+  bits |= (ARMOR_KIND.find(a => a[0] === BD.sl.armadura.k) || [0, 0, 0])[2];
+  return bits;
+}
+function buildTotals() {
+  const bits = buildBits(), tot = new Map(), off = [];
+  const add = (si, v) => tot.set(si, (tot.get(si) || 0) + v);
+  for (const [slot, it] of buildEquipped()) for (const s of it.stats) {
+    if (isBase(s)) continue;
+    if (s[2] && !(s[2] & bits)) { off.push([it, s]); continue; }
+    add(s[0], s[1]);
+  }
+  BD.ex.forEach(([si, v]) => add(si, +v || 0));
+  return { tot, off, bits };
+}
+function buildDerived(tot) {
+  const g = n => { const i = SI(n); return i < 0 ? 0 : tot.get(i) || 0; };
+  const L = BD.lv, f = k => Math.floor(BD.st[k] * (1 + g(k + ' %') / 100)) + g(k);
+  const STR = f('STR'), INT = f('INT'), VIT = f('VIT'), AGI = f('AGI'), DEX = f('DEX');
+  const main = DB.ITBYID.get(BD.sl.arma.id), wt = main ? main.tl : '';
+  const baseAtk = main ? ((main.stats.find(s => DB.STATN[s[0]] === 'Base ATK') || [0, 0])[1]) : 0, r = BD.sl.arma.r;
+  const watk = Math.floor(baseAtk * (1 + g('Weapon ATK %') / 100)) + g('Weapon ATK') + Math.floor(baseAtk * r * r / 100) + r;
+  const k = ATKF[wt] || ATKF[''];
+  const atkRaw = L + STR * k[0] + INT * k[1] + DEX * k[2] + AGI * k[3] + (wt === 'Knuckles' ? watk * 0.5 : watk);
+  const matkRaw = L + INT * (wt === 'Staff' || wt === 'Magic Device' ? 4 : 3) + DEX + (wt === 'Staff' || wt === 'Magic Device' ? watk : wt === 'Knuckles' ? watk * 0.5 : 0);
+  const pct = (raw, n) => Math.floor(raw * (1 + g(n + ' %') / 100)) + g(n);
+  const crt = BD.ps === 'CRT' ? BD.pv : 0, tec = BD.ps === 'TEC' ? BD.pv : 0;
+  return { STR, INT, VIT, AGI, DEX, watk,
+    ATK: pct(atkRaw, 'ATK'), MATK: pct(matkRaw, 'MATK'),
+    MaxHP: pct(93 + (VIT + 22.41) * L / 3, 'MaxHP'), MaxMP: pct(99 + L + INT / 10 + tec, 'MaxMP'),
+    CRIT: pct(25 + crt / 3.4, 'Critical Rate'), CSPD: pct(L + AGI * 1.16 + DEX * 2.94, 'CSPD'),
+    HIT: pct(L + DEX, 'Accuracy'), FLEE: pct(L + AGI, 'Dodge') };
+}
+function saveBuild() { store.set('build', BD); }
+function viewBuild(code) {
+  setTitle('Status do personagem');
+  if (code) { try { const b = JSON.parse(b64d(code)); if (b && b.sl) { BD = Object.assign(newBuild(), b); saveBuild(); } } catch (e) {} history.replaceState(null, '', '#/build'); }
+  const n = (id, lab, v, extra) => '<div class="field"><label class="lbl" for="' + id + '">' + lab + '</label><input id="' + id + '" type="number" inputmode="numeric" min="0" value="' + v + '"' + (extra || '') + '></div>';
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Status do personagem</h1><p>Monte seu equipamento e veja os status somados. A build fica salva neste aparelho e dá para compartilhar por link.</p></div></div>'
+    + '<button type="button" class="bdsum" id="bdsum" aria-label="Ver resultado completo"></button>'
+    + '<div class="grid2"><div>'
+    + '<section class="card"><h2>Personagem</h2><div class="calc">' + n('bdlv', 'Nível', BD.lv) + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => n('bd' + s, s, BD.st[s])).join('')
+    + '<div class="field"><label class="lbl" for="bdps">Status pessoal</label><select id="bdps">' + ['CRT', 'LUK', 'MTL', 'TEC'].map(p => '<option' + (BD.ps === p ? ' selected' : '') + '>' + p + '</option>').join('') + '</select></div>' + n('bdpv', 'Valor', BD.pv)
+    + '</div><p class="note" id="bdpts"></p></section>'
+    + '<div id="bdslots"></div>'
+    + '<section class="card"><h2>Bônus extras <small>comida, skills, avatar…</small></h2><div id="bdex"></div><div class="range" style="margin-top:8px"><select id="bdexs" aria-label="Status"></select><input id="bdexv" type="number" step="any" placeholder="valor" style="width:90px;flex:none" aria-label="Valor"><button id="bdexa" class="btn" type="button">+</button></div></section>'
+    + '</div><div>'
+    + '<section class="card" id="bdres"></section>'
+    + '<section class="card"><h2>Salvar e compartilhar</h2><div class="chips"><button class="btn" id="bdshare" type="button">Copiar link da build</button><button class="btn ghost" id="bdclear" type="button">Começar do zero</button></div><p class="note" id="bdmsg">A build é salva automaticamente neste aparelho.</p></section>'
+    + '</div></div>'
+    + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar item" aria-label="Buscar item"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>'
+    + '<div class="toast" id="toast" hidden></div>';
+  const statOpts = DB.STATN.map((s, i) => [s, i]).filter(x => x[0].trim() && !isBase([x[1]])).sort((a, b) => a[0].localeCompare(b[0]));
+  $('#bdexs').innerHTML = statOpts.map(([s, i]) => '<option value="' + i + '">' + esc(s) + '</option>').join('');
+  renderSlots(); renderBuild();
+  const upd = () => {
+    BD.lv = Math.max(1, +$('#bdlv').value || 1);
+    ['STR', 'INT', 'VIT', 'AGI', 'DEX'].forEach(s => { BD.st[s] = Math.max(1, +$('#bd' + s).value || 1); });
+    BD.ps = $('#bdps').value; BD.pv = Math.max(0, +$('#bdpv').value || 0);
+    saveBuild(); renderBuild();
+  };
+  ['bdlv', 'bdSTR', 'bdINT', 'bdVIT', 'bdAGI', 'bdDEX', 'bdps', 'bdpv'].forEach(id => $('#' + id).addEventListener('input', upd));
+  $('#bdexa').addEventListener('click', () => { const v = +$('#bdexv').value; if (!v) return; BD.ex.push([+$('#bdexs').value, v]); $('#bdexv').value = ''; saveBuild(); renderBuild(); });
+  $('#bdex').addEventListener('click', e => { const b = e.target.closest('[data-ex]'); if (!b) return; BD.ex.splice(+b.dataset.ex, 1); saveBuild(); renderBuild(); });
+  $('#bdshare').addEventListener('click', () => {
+    const url = location.href.split('#')[0] + '#/build/' + b64e(JSON.stringify(BD));
+    const done = () => { $('#bdmsg').textContent = 'Link copiado! Cole no grupo para mostrar a build.'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { fallbackCopy(url); done(); }); else { fallbackCopy(url); done(); }
+  });
+  $('#bdclear').addEventListener('click', () => { if (!confirm('Apagar a build atual e começar do zero?')) return; BD = newBuild(); saveBuild(); viewBuild(); });
+  $('#bdslots').addEventListener('click', e => {
+    const p = e.target.closest('[data-pick]'); if (p) { openPicker(p.dataset.pick, +p.dataset.x); return; }
+    const c = e.target.closest('[data-clr]'); if (c) { const [k, x] = c.dataset.clr.split(':'); if (x === undefined || x === '') BD.sl[k].id = 0; else BD.sl[k].x[+x] = 0; saveBuild(); renderSlots(); renderBuild(); }
+  });
+  $('#bdslots').addEventListener('change', e => {
+    const r = e.target.closest('[data-ref]'); if (r) { BD.sl[r.dataset.ref].r = +r.value; saveBuild(); renderBuild(); }
+    const kk = e.target.closest('#bdkind'); if (kk) { BD.sl.armadura.k = kk.value; saveBuild(); renderBuild(); }
+  });
+  $('#bdsum').addEventListener('click', () => $('#bdres').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  $('#pclose').addEventListener('click', () => { $('#pick').hidden = true; });
+  $('#pick').addEventListener('click', e => { if (e.target.id === 'pick') $('#pick').hidden = true; });
+}
+let PK = null;
+function openPicker(slot, x) {
+  const def = SLOTS.find(s => s[0] === slot), types = x >= 0 ? def[3] : def[2];
+  PK = { slot, x, types };
+  $('#pq').value = ''; $('#pick').hidden = false; pickList(); $('#pq').focus();
+  $('#pq').oninput = pickList;
+  $('#plist2').onclick = e => {
+    const b = e.target.closest('[data-id]'); if (!b) return;
+    const id = +b.dataset.id;
+    if (PK.x >= 0) BD.sl[PK.slot].x[PK.x] = id; else BD.sl[PK.slot].id = id;
+    saveBuild(); $('#pick').hidden = true; renderSlots(); renderBuild();
+  };
+}
+function pickList() {
+  const q = $('#pq').value.trim().toLowerCase();
+  const rows = DB.ITEMS.filter(i => PK.types.includes(i.tl) && (!q || i.text.includes(q))).sort((a, b) => b.id - a.id).slice(0, 80);
+  $('#plist2').innerHTML = rows.length ? rows.map(i => { const st = i.stats.filter(s => !isBase(s)).slice(0, 4).map(s => { const [nm, v] = sparts(s); return nm + ' ' + v; }).join(' · '); return '<button type="button" class="prow2" data-id="' + i.id + '"><b>' + esc(i.name) + '</b> <small>' + esc(i.tl) + (baseText(i) ? ' · ' + baseText(i).replace(/<[^>]+>/g, ' ') : '') + '</small><span>' + esc(st) + '</span></button>'; }).join('')
+    : '<p class="empty">Nenhum item encontrado.</p>';
+}
+function renderSlots() {
+  $('#bdslots').innerHTML = SLOTS.map(([k, lab, , xt, ref]) => {
+    const s = BD.sl[k], it = DB.ITBYID.get(s.id);
+    const one = (txt, data, clr) => '<div class="slotrow"><button type="button" class="slotbtn" data-pick="' + data[0] + '" data-x="' + data[1] + '">' + txt + '</button>' + (clr ? '<button type="button" class="slotx" data-clr="' + clr + '" aria-label="Tirar">×</button>' : '') + '</div>';
+    let h = one(it ? '<b>' + esc(it.name) + '</b><small>' + esc(it.tl) + (baseText(it) ? ' · ' + baseText(it).replace(/<[^>]+>/g, ' ') : '') + '</small>' : '<span class="muted">Escolher ' + lab.toLowerCase() + '</span>', [k, -1], it ? k + ':' : '');
+    if (ref) h += '<div class="range" style="margin-top:6px"><label class="lbl" style="flex:none">Refino</label><select data-ref="' + k + '">' + REFS.map((r2, i) => '<option value="' + i + '"' + (s.r === i ? ' selected' : '') + '>' + r2 + '</option>').join('') + '</select>'
+      + (k === 'armadura' ? '<select id="bdkind" aria-label="Tipo de armadura">' + ARMOR_KIND.map(a => '<option value="' + a[0] + '"' + (s.k === a[0] ? ' selected' : '') + '>' + a[1] + '</option>').join('') + '</select>' : '') + '</div>';
+    if (xt.length) h += [0, 1].map(xi => { const c = DB.ITBYID.get((s.x || [])[xi]); return one(c ? '<b>' + esc(c.name) + '</b><small>' + esc(c.tl) + '</small>' : '<span class="muted">Crysta ' + (xi + 1) + '</span>', [k, xi], c ? k + ':' + xi : ''); }).join('');
+    return '<section class="card slot"><h2>' + lab + '</h2>' + h + '</section>';
+  }).join('');
+}
+function renderBuild() {
+  const { tot, off } = buildTotals(), d = buildDerived(tot);
+  const used = ['STR', 'INT', 'VIT', 'AGI', 'DEX'].reduce((a, s) => a + BD.st[s] - 1, 0) + BD.pv, have = statPts(BD.lv) + lvEmblemPts(BD.lv);
+  $('#bdpts').textContent = 'Pontos usados: ' + fmt(used) + ' de ' + fmt(have) + ' (2 por nível + emblema de nível; sem os emblemas de função).';
+  $('#bdex').innerHTML = BD.ex.length ? '<div class="chips">' + BD.ex.map(([si, v], i) => '<button type="button" class="chip" data-ex="' + i + '">' + esc(DB.STATN[si]) + ' ' + (v > 0 ? '+' : '') + fmt(v) + ' <span class="x">×</span></button>').join('') + '</div>' : '<p class="muted" style="margin:0;font-size:13.5px">Nenhum bônus extra.</p>';
+  const box = (l, v) => '<div><span class="lbl">' + l + '</span><div class="big">' + fmt(Math.floor(v)) + '</div></div>';
+  $('#bdsum').innerHTML = [['ATK', d.ATK], ['MATK', d.MATK], ['Crít.', d.CRIT], ['HP', d.MaxHP]].map(([l, v]) => '<span><small>' + l + '</small>' + fmt(Math.floor(v)) + '</span>').join('') + '<em>ver tudo ↓</em>';
+  const rows = [...tot.entries()].filter(([, v]) => v).sort((a, b) => DB.STATN[a[0]].localeCompare(DB.STATN[b[0]]));
+  $('#bdres').innerHTML = '<h2>Resultado</h2><div class="res">' + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => box(s, d[s])).join('') + '</div>'
+    + '<h4 class="sub4">Estimativas</h4><div class="res">' + [['ATK', d.ATK], ['MATK', d.MATK], ['ATK da arma', d.watk], ['MaxHP', d.MaxHP], ['MaxMP', d.MaxMP], ['Taxa crítica', d.CRIT], ['CSPD', d.CSPD], ['Precisão', d.HIT], ['Esquiva', d.FLEE]].map(([l, v]) => box(l, v)).join('') + '</div>'
+    + '<h4 class="sub4">Soma dos equipamentos e bônus <small>exata</small></h4>' + (rows.length ? '<div class="slist">' + rows.map(([si, v]) => { const [nm, vv] = sparts([si, v, 0]); return '<div class="' + (v < 0 ? 'neg' : '') + '"><span>' + esc(nm) + '</span><b>' + vv + '</b></div>'; }).join('') + '</div>' : '<p class="muted" style="margin:0">Escolha equipamentos para ver a soma.</p>')
+    + (off.length ? '<p class="note">Não contam com a arma e armadura atuais: ' + off.map(([it, s]) => { const [nm, vv, c] = sparts(s); return esc(nm + ' ' + vv + ' (' + c + ', ' + it.name + ')'); }).join('; ') + '.</p>' : '')
+    + '<p class="note">As estimativas usam fórmulas da comunidade (ATK por tipo de arma, refino ≈ ATK base × refino² ÷ 100 + refino) e não incluem skills passivas. Use para comparar builds, não como valor exato do jogo.</p>';
 }
 
 // ---------- busca única ----------
