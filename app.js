@@ -108,6 +108,9 @@ const ROUTES = [
   [/^#\/monstros(?:\/([BMN]))?$/, 'monstros', t => viewMonsters(t)],
   [/^#\/monstro\/(\d+)$/, 'monstros', id => viewMonster(+id)],
   [/^#\/itens$/, 'itens', () => viewItems()],
+  [/^#\/crystas$/, 'itens', () => viewCrystas()],
+  [/^#\/registlets$/, 'itens', () => viewRegistlets()],
+  [/^#\/traits$/, 'itens', () => viewTraits()],
   [/^#\/item\/(\d+)$/, 'itens', id => viewItem(+id)],
   [/^#\/mapas$/, 'inicio', () => viewMaps()],
   [/^#\/mapa\/(\d+)$/, 'inicio', id => viewMap(+id)],
@@ -219,6 +222,105 @@ function viewFarm(id) {
   $('#fsug').addEventListener('click', e => { const b = e.target.closest('[data-fi]'); if (!b) return; FS.id = +b.dataset.fi; sug(); res(); });
   const cur = DB.ITBYID.get(FS.id); if (cur && !FS.q) { FS.q = cur.name; $('#fq').value = cur.name; }
   sug(); res();
+}
+
+// ---------- buscas separadas (como no Cy's Grimoire): Itens · Crystas · Registlets · Traits ----------
+const ISUB = [['#/itens', 'Itens'], ['#/crystas', 'Crystas'], ['#/registlets', 'Registlets'], ['#/traits', 'Traits']];
+const isubNav = cur => '<nav class="seg isub" aria-label="Buscas">' + ISUB.map(([h, l]) => '<a href="' + h + '" class="' + (h === cur ? 'on' : '') + '">' + l + '</a>').join('') + '</nav>';
+
+// Crystas com a cadeia de evolução (quem evolui de quem), montada pelo status "Upgrade for" dos itens.
+const XS2 = { q: '', t: '', limit: 40 };
+function viewCrystas() {
+  setTitle('Crystas');
+  const all = DB.ITEMS.filter(i => XTAL_T.includes(i.tl));
+  const rootOf = i => { let r = i, n = 0; while (r.from && XTAL_T.includes(r.from.tl) && n++ < 20) r = r.from; return r; };
+  const chains = new Map();
+  all.forEach(i => { const r = rootOf(i); if (!chains.has(r)) chains.set(r, []); });
+  const walk = (i, d, out) => { out.push([i, d]); i.up.filter(u => XTAL_T.includes(u.tl)).sort((a, b) => a.id - b.id).forEach(u => walk(u, d + 1, out)); return out; };
+  const groups = [...chains.keys()].map(r => ({ root: r, list: walk(r, 0, []) })).sort((a, b) => b.list.length - a.list.length || b.root.id - a.root.id);
+  const tally = {}; all.forEach(i => { tally[i.tl] = (tally[i.tl] || 0) + 1; });
+  view.innerHTML = isubNav('#/crystas') + '<div class="ph"><div><h1>Crystas</h1><p>Todas as crystas com a cadeia de evolução: de qual crysta cada uma sai e para qual evolui.</p></div></div>'
+    + '<div class="tools"><input id="xq" type="search" placeholder="Nome ou status (ex: Kuzto, Critical)" value="' + esc(XS2.q) + '" aria-label="Buscar crysta"></div>'
+    + '<div class="chips" id="xt" style="margin:0 0 10px">' + [['', 'Todas']].concat(XTAL_T.filter(t => tally[t]).map(t => [t, t.replace(' Crysta', '').replace('Enhancer', 'Enhancer') + ' (' + tally[t] + ')'])).map(([v, l]) => '<button type="button" class="chip" data-t="' + esc(v) + '" aria-pressed="' + (XS2.t === v) + '">' + esc(l) + '</button>').join('') + '</div>'
+    + '<div class="status"><span id="xcount"></span></div><div id="xlist"></div><button class="more" id="xmore" type="button" hidden></button>';
+  const statTxt = i => i.stats.filter(s => !isBase(s)).map(s => { const [n, v] = sparts(s); return n + ' ' + v; }).join(' ').toLowerCase();
+  const draw = () => {
+    const q = XS2.q.trim().toLowerCase();
+    const rows = groups.filter(g => g.list.some(([i]) => (!XS2.t || i.tl === XS2.t) && (!q || i.name.toLowerCase().includes(q) || statTxt(i).includes(q))));
+    $('#xcount').textContent = rows.length + (rows.length === 1 ? ' cadeia' : ' cadeias') + ' · ' + rows.reduce((a, g) => a + g.list.length, 0) + ' crystas';
+    $('#xlist').innerHTML = rows.slice(0, XS2.limit).map(g => '<section class="card xchain">' + g.list.map(([i, d]) => {
+      const pills = i.stats.filter(s => !isBase(s)).slice(0, 6).map(s => { const [n, v, c] = sparts(s); return '<span class="sp' + (s[1] < 0 ? ' neg' : '') + '">' + esc(n) + ' ' + v + (c ? ' <i>(' + esc(c) + ')</i>' : '') + '</span>'; }).join('');
+      return '<div class="xstep" style="--d:' + d + '">' + (d ? '<span class="xarrow" aria-hidden="true">↳</span>' : '') + '<div><a class="tl" href="' + itemUrl(i) + '"><b>' + esc(i.name) + '</b></a> <small class="muted">' + esc(i.tl) + (i.by.length ? ' · drop de ' + i.by.length : '') + '</small><div class="st" style="margin-top:4px">' + pills + '</div></div></div>';
+    }).join('') + '</section>').join('') || '<p class="empty" style="color:var(--ink-2)">Nenhuma crysta com esse filtro.</p>';
+    const left = rows.length - XS2.limit; $('#xmore').hidden = left <= 0; $('#xmore').textContent = 'Mostrar mais (faltam ' + left + ')';
+  };
+  $('#xq').addEventListener('input', e => { XS2.q = e.target.value; XS2.limit = 40; draw(); });
+  $('#xt').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (!b) return; XS2.t = b.dataset.t; XS2.limit = 40; view.querySelectorAll('#xt .chip').forEach(c => c.setAttribute('aria-pressed', c.dataset.t === XS2.t)); draw(); });
+  $('#xmore').addEventListener('click', () => { XS2.limit += 40; draw(); });
+  draw();
+}
+
+// Registlets: efeitos do coryn.club (em inglês); onde dropa vem do nosso banco de monstros.
+let REGS = null; const RS = { q: '', f: '' };
+function viewRegistlets() {
+  setTitle('Registlets');
+  if (!REGS) { view.innerHTML = isubNav('#/registlets') + '<p class="loading">Carregando registlets…</p>'; load('registlets').then(d => { REGS = d.regs; if (location.hash.startsWith('#/registlets')) viewRegistlets(); }); return; }
+  view.innerHTML = isubNav('#/registlets') + '<div class="ph"><div><h1>Registlets</h1><p>O que cada registlet faz, até que nível vai e qual skill ele muda.</p></div></div>'
+    + '<div class="tools"><input id="rq" type="search" placeholder="Nome, skill ou efeito (ex: Arrow Rain, Accuracy)" value="' + esc(RS.q) + '" aria-label="Buscar registlet"></div>'
+    + '<div class="chips" id="rf" style="margin:0 0 10px">' + [['', 'Todos'], ['skill', 'Mudam uma skill'], ['status', 'Status e outros']].concat(REGS.some(r => { const it = DB.ITBYNAME.get(r[0].toLowerCase()); return it && it.by.length; }) ? [['drop', 'Dropam de monstro']] : []).map(([v, l]) => '<button type="button" class="chip" data-f="' + v + '" aria-pressed="' + (RS.f === v) + '">' + l + '</button>').join('') + '</div>'
+    + '<div class="status"><span id="rcount"></span></div><div class="regs" id="rlist"></div>'
+    + '<p class="note" style="color:var(--ink-2)">Efeitos do coryn.club, em inglês como no jogo. “Dropa de” cruza o nome do registlet com os drops do bestiário.</p>';
+  const item = n => DB.ITBYNAME.get(n.toLowerCase());
+  const draw = () => {
+    const q = RS.q.trim().toLowerCase();
+    const rows = REGS.filter(r => { const it = item(r[0]); if (RS.f === 'skill' && !r[2]) return false; if (RS.f === 'status' && r[2]) return false; if (RS.f === 'drop' && !(it && it.by.length)) return false; return !q || (r[0] + ' ' + r[2] + ' ' + r[3]).toLowerCase().includes(q); });
+    $('#rcount').textContent = rows.length + ' registlets';
+    $('#rlist').innerHTML = rows.map(r => { const it = item(r[0]); return '<section class="card reg"><h2>' + esc(r[0]) + '</h2><div class="chips" style="margin:-4px 0 8px"><span class="tag info">Nível máx. ' + (r[1] || '?') + '</span>' + (r[2] ? '<span class="tag ok">Muda: ' + esc(r[2]) + '</span>' : '') + '</div><p class="reff">' + esc(r[3]) + '</p>'
+      + (it && it.by.length ? '<div class="dgroup"><span class="lbl">Dropa de</span><div class="links">' + it.by.slice(0, 6).map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + ' <small>' + TLAB[g.t] + '</small></a>').join('') + (it.by.length > 6 ? '<a class="lk" href="' + itemUrl(it) + '">+' + (it.by.length - 6) + '</a>' : '') + '</div></div>' : '') + '</section>'; }).join('') || '<p class="empty" style="color:var(--ink-2)">Nenhum registlet com esse filtro.</p>';
+  };
+  $('#rq').addEventListener('input', e => { RS.q = e.target.value; draw(); });
+  $('#rf').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; RS.f = b.dataset.f; view.querySelectorAll('#rf .chip').forEach(c => c.setAttribute('aria-pressed', c.dataset.f === RS.f)); draw(); });
+  draw();
+}
+
+// Traits: regras de transferência (texto nosso), calculadora de custo (fórmula do coryn.club) e lista de traits.
+let TRT = null; const TS = { q: '', c: '' };
+const TRAIT_CAT = { 'Common Effects': 'Efeitos comuns', 'Damage Triggered': 'Ao causar dano', 'Counter / Defense': 'Contra-ataque / defesa', 'Miss / Graze': 'Ao errar / graze', 'Unavailable': 'Indisponíveis' };
+function viewTraits() {
+  setTitle('Traits');
+  if (!TRT) { view.innerHTML = isubNav('#/traits') + '<p class="loading">Carregando traits…</p>'; load('traits').then(d => { TRT = d; if (location.hash.startsWith('#/traits')) viewTraits(); }); return; }
+  const cats = [...new Set(TRT.traits.map(t => t[1]))];
+  view.innerHTML = isubNav('#/traits') + '<div class="ph"><div><h1>Traits</h1><p>Habilidades especiais que aparecem em armas e armaduras: como transferir, quanto custa e o que cada uma faz.</p></div></div>'
+    + '<div class="grid2"><div><section class="card prose"><h2>Como funciona a transferência</h2>'
+    + '<p>A transferência é feita no <b>Ferreiro da cidade</b>, em <i>Customize Equipment</i>. O equipamento nunca quebra: só os traits mudam.</p>'
+    + '<p><b>Só entre o mesmo tipo:</b> espada de uma mão para espada de uma mão funciona; de uma mão para duas mãos, não.</p>'
+    + '<p><b>Chance de sucesso:</b> usando o mesmo item, 100%. Com outro item do mesmo tipo, começa em 10%, antes do Radiant Chance e dos martelos.</p>'
+    + '<p><b>O trait do alvo sempre é trocado:</b> se der certo, ele recebe o trait da origem; se falhar, ganha <b>Radiant Chance</b>.</p>'
+    + '<p><b>Radiant Chance:</b> cada nível soma +10% de chance nas próximas tentativas, até o nível 9. Se os dois equipamentos tiverem, as chances somam; se falhar, o maior nível sobe 1.</p>'
+    + '<p><b>Magic Hammer:</b> baixa a chance de propósito (até 0%) para acumular Radiant Chance mais rápido.</p></section></div>'
+    + '<div><section class="card"><h2>Custo da transferência</h2><div class="calc"><div class="field"><label class="lbl" for="tfe">Equipamento</label><select id="tfe">' + TRT.fees.map(([n, v]) => '<option value="' + v + '">' + esc(n) + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label class="lbl" for="tft">Nível do trait (tier)</label><select id="tft">' + [1, 2, 3, 4, 5].map(x => '<option>' + x + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label class="lbl" for="tfs">ATK/DEF da origem</label><input id="tfs" type="number" inputmode="numeric" min="0" value="0"></div>'
+    + '<div class="field"><label class="lbl" for="tfa">ATK/DEF do alvo</label><input id="tfa" type="number" inputmode="numeric" min="0" value="0"></div></div>'
+    + '<div class="res" style="margin-top:12px"><div><span class="lbl">Custo por tentativa</span><div class="big" id="tfr">—</div><small class="muted">spina</small></div></div><p class="note">Fórmula do coryn.club.</p></section></div></div>'
+    + '<h2 class="sect">Lista de traits <small style="font-family:var(--font-body);font-weight:400">' + TRT.traits.length + '</small></h2>'
+    + '<div class="tools"><input id="tq" type="search" placeholder="Nome, status ou gatilho (ex: ASPD, HP, Evasion)" value="' + esc(TS.q) + '" aria-label="Buscar trait"></div>'
+    + '<div class="chips" id="tc" style="margin:0 0 10px">' + [['', 'Todos']].concat(cats.map(c => [c, TRAIT_CAT[c] || c])).map(([v, l]) => '<button type="button" class="chip" data-c="' + esc(v) + '" aria-pressed="' + (TS.c === v) + '">' + esc(l) + '</button>').join('') + '</div>'
+    + '<div class="regs" id="tlist"></div><p class="note" style="color:var(--ink-2)">Efeitos do coryn.club, em inglês como no jogo. “Tier” é o nível do trait (1 a 5).</p>';
+  const fee = () => {
+    const eqf = +$('#tfe').value || 0, src = Math.max(0, +$('#tfs').value || 0), tgt = Math.max(0, +$('#tfa').value || 0), tier = Math.max(1, +$('#tft').value || 1);
+    const delta = Math.max(0, Math.floor(tgt * eqf / 10000) - Math.floor(src * eqf / 10000));
+    $('#tfr').textContent = fmt(Math.round((Math.floor(delta * delta / 100) + 100) * 100 * (tier * (25 * tier - 25) + 100) * 0.01));
+  };
+  ['tfe', 'tft', 'tfs', 'tfa'].forEach(id => $('#' + id).addEventListener('input', fee)); fee();
+  const draw = () => {
+    const q = TS.q.trim().toLowerCase();
+    const rows = TRT.traits.filter(t => (!TS.c || t[1] === TS.c) && (!q || (t[0] + ' ' + t[2] + ' ' + (t[3] || []).join(' ')).toLowerCase().includes(q)));
+    $('#tlist').innerHTML = rows.map(t => '<section class="card reg"><h2>' + esc(t[0]) + '</h2><div class="chips" style="margin:-4px 0 8px"><span class="tag info">' + esc(TRAIT_CAT[t[1]] || t[1]) + '</span></div><p class="reff">' + esc(t[2]) + '</p>' + ((t[3] || []).length ? '<ul class="flist" style="font-size:13px">' + t[3].map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') + '</section>').join('') || '<p class="empty" style="color:var(--ink-2)">Nenhum trait com esse filtro.</p>';
+  };
+  $('#tq').addEventListener('input', e => { TS.q = e.target.value; draw(); });
+  $('#tc').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b) return; TS.c = b.dataset.c; view.querySelectorAll('#tc .chip').forEach(c => c.setAttribute('aria-pressed', c.dataset.c === TS.c)); draw(); });
+  draw();
 }
 
 // ---------- comparar itens lado a lado ----------
@@ -457,7 +559,7 @@ const PRINC_DEF = [['ATK', ['ATK %', 'ATK']], ['MATK', ['MATK %', 'MATK']], ['DE
   ['Pierce físico', ['Physical Pierce %']], ['Pierce mágico', ['Magic Pierce %']], ['Curta distância', ['Short Range Damage %']], ['Longa distância', ['Long Range Damage %']], ['Precisão', ['Accuracy', 'Accuracy %']], ['Esquiva', ['Dodge', 'Dodge %']],
   ['Estabilidade', ['Stability %']], ['Motion Speed', ['Motion Speed %']], ['Res. física', ['Physical Resistance %']], ['Res. mágica', ['Magic Resistance %']], ['Aggro +', ['Aggro %']], ['Aggro −', ['Aggro %'], -1]];
 let PRINC = null;
-const IS = { q: '', cat: '', weap: store.get('weap', 0), sort: 'name', chips: new Set(), fl: [], drop: false, noevent: false, limit: 60, open: false };
+const IS = { q: '', cat: '', obt: '', weap: store.get('weap', 0), sort: 'name', chips: new Set(), fl: [], drop: false, noevent: false, limit: 60, open: false };
 const SI = n => DB.STATN.indexOf(n);
 function isBase(s) { const n = DB.STATN[s[0]]; return n === 'Base ATK' || n === 'Base DEF' || n === 'Base Stability %' || s[0] === DB.S_UPG; }
 function sval(i, si) { const w = IS.weap; let v = 0; for (const [s, a, ap] of i.stats) if (s === si && (!ap || !w || !(ap & MAINW) || (ap & w))) v += a; return v; }
@@ -483,6 +585,7 @@ function itemsFiltered() {
     if (q && !i.text.includes(q)) return false;
     if (!catOk(i, IS.cat)) return false;
     if (IS.drop && !i.by.length) return false;
+    if (IS.obt === 'none' ? i.by.length : IS.obt && !i.by.some(g => g.t === IS.obt)) return false;
     if (IS.noevent && i.event) return false;
     for (const c of chipsOn) if (!c.idx.some(si => c.sign * sval(i, si) > 0)) return false;
     for (const f of IS.fl) { const v = sval(i, f.s); if (f.op > 0 ? !(v !== 0 && v >= f.v) : !(v !== 0 && v <= f.v)) return false; }
@@ -499,7 +602,7 @@ function itemsFiltered() {
   } else rows.sort(byName);
   return rows;
 }
-function itemActiveCount() { return !!IS.cat + !!IS.weap + IS.chips.size + IS.fl.length + IS.drop + IS.noevent + (IS.sort !== 'name'); }
+function itemActiveCount() { return !!IS.obt + !!IS.cat + !!IS.weap + IS.chips.size + IS.fl.length + IS.drop + IS.noevent + (IS.sort !== 'name'); }
 function viewItems() {
   setTitle('Itens');
   if (!PRINC) PRINC = PRINC_DEF.map(([lab, names, sign]) => ({ lab, idx: names.map(SI).filter(x => x >= 0), sign: sign || 1 }));
@@ -507,7 +610,7 @@ function viewItems() {
   DB.ITEMS.forEach(i => { tally[i.tl] = (tally[i.tl] || 0) + 1; });
   const statOpts = DB.STATN.map((n, i) => [n, i]).filter(x => x[0].trim() && !isBase([x[1]])).sort((a, b) => a[0].localeCompare(b[0]));
   const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(l) + '</option>';
-  view.innerHTML = '<div class="ph"><div><h1>Itens</h1><p>Armas, armaduras, crystas e materiais com status, quem dropa e de onde evoluem.</p></div></div>'
+  view.innerHTML = isubNav('#/itens') + '<div class="ph"><div><h1>Itens</h1><p>Armas, armaduras, crystas e materiais com status, quem dropa e de onde evoluem.</p></div></div>'
     + '<div class="tools"><input id="iq" type="search" placeholder="Item, nota ou monstro (ex: Mithril)" value="' + esc(IS.q) + '" aria-label="Buscar item">'
     + '<button class="fbtn" id="ifb" type="button" aria-expanded="' + IS.open + '">Filtros<b id="ifn"></b></button></div>'
     + '<section class="card" id="ifp"' + (IS.open ? '' : ' hidden') + '><div class="fpanel">'
@@ -515,6 +618,7 @@ function viewItems() {
     + [['Armas', 'W', 'Todas as armas', WEAP_T], ['Equipamentos', '', '', EQUIP_T], ['Crystas', 'X', 'Todas as crystas', XTAL_T], ['Outros', '', '', OTHER_T]].map(([g, all, allLab, list]) => '<optgroup label="' + g + '">' + (all ? opt(all, allLab, IS.cat === all) : '') + list.filter(t => tally[t]).map(t => opt(t, t + ' (' + tally[t] + ')', IS.cat === t)).join('') + '</optgroup>').join('') + '</select></div>'
     + '<div class="field"><label class="lbl" for="iweap">Sua arma</label><select id="iweap">' + IWEAP.map(([v, l]) => opt(v, l, IS.weap === v)).join('') + '</select></div>'
     + '<div class="field"><label class="lbl" for="isort">Ordenar por</label><select id="isort">' + opt('name', 'Nome (A–Z)', IS.sort === 'name') + opt('new', 'Mais novos', IS.sort === 'new') + opt('base', 'Base ATK/DEF', IS.sort === 'base') + '<optgroup label="Maior valor de">' + statOpts.map(([n, i]) => opt('s:' + i, n, IS.sort === 's:' + i)).join('') + '</optgroup></select></div>'
+    + '<div class="field"><label class="lbl" for="iobt">Forma de obter</label><select id="iobt">' + [['', 'Todas'], ['B', 'Drop de boss'], ['M', 'Drop de mini boss'], ['N', 'Drop de monstro normal'], ['none', 'Não dropa (craft, NPC, missão, troca)']].map(([v, l]) => opt(v, l, IS.obt === v)).join('') + '</select></div>'
     + '<div class="field"><span class="lbl">Mostrar</span><label class="check"><input id="idrop" type="checkbox"' + (IS.drop ? ' checked' : '') + '> Só os que monstros dropam</label><label class="check"><input id="inoev" type="checkbox"' + (IS.noevent ? ' checked' : '') + '> Ocultar eventos</label></div>'
     + '<div class="field full"><span class="lbl">Status principais</span><div class="chips" id="ichips">' + PRINC.map((p, n) => '<button type="button" class="chip" data-c="' + n + '" aria-pressed="' + IS.chips.has(n) + '">' + p.lab + '</button>').join('') + '</div></div>'
     + '<div class="field full"><span class="lbl">Status específico</span><div class="range"><select id="istat" aria-label="Status">' + statOpts.map(([n, i]) => opt(i, n)).join('') + '</select><select id="iop" style="width:64px;flex:none" aria-label="Comparação"><option value="1">≥</option><option value="-1">≤</option></select><input id="imin" type="number" step="any" placeholder="valor" style="width:90px;flex:none" aria-label="Valor"><button id="iadd" class="btn" type="button">+</button></div></div>'
@@ -525,6 +629,7 @@ function viewItems() {
   $('#iq').addEventListener('input', e => { IS.q = e.target.value; rer(); });
   $('#ifb').addEventListener('click', () => { IS.open = !IS.open; $('#ifp').hidden = !IS.open; $('#ifb').setAttribute('aria-expanded', IS.open); });
   $('#icat').addEventListener('change', e => { IS.cat = e.target.value; rer(); });
+  $('#iobt').addEventListener('change', e => { IS.obt = e.target.value; rer(); });
   $('#iweap').addEventListener('change', e => { IS.weap = +e.target.value; store.set('weap', IS.weap); rer(); });
   $('#isort').addEventListener('change', e => { IS.sort = e.target.value; rer(); });
   $('#idrop').addEventListener('change', e => { IS.drop = e.target.checked; rer(); });
@@ -538,7 +643,7 @@ function viewItems() {
     if (b.dataset.fl) IS.fl.splice(+b.dataset.fl, 1); else if (b.dataset.c) { IS.chips.delete(+b.dataset.c); const cb = view.querySelector('#ichips [data-c="' + b.dataset.c + '"]'); if (cb) cb.setAttribute('aria-pressed', 'false'); }
     rer();
   });
-  $('#ireset').addEventListener('click', () => { Object.assign(IS, { q: '', cat: '', sort: 'name', fl: [], drop: false, noevent: false, limit: 60 }); IS.chips.clear(); viewItems(); });
+  $('#ireset').addEventListener('click', () => { Object.assign(IS, { q: '', cat: '', obt: '', sort: 'name', fl: [], drop: false, noevent: false, limit: 60 }); IS.chips.clear(); viewItems(); });
   $('#imore').addEventListener('click', () => { IS.limit += 60; itemList(); });
   itemList();
 }
@@ -650,7 +755,10 @@ function viewTools() {
     + t('#/statting', 'Simulador de statting', 'Monte a fórmula passo a passo: potencial, sucesso e materiais')
     + t('#/blacksmith', 'Calculadora de blacksmith', 'Dificuldade, taxa de sucesso e potencial da criação')
     + t('#/ninjutsu', 'Ninjutsu Scroll', 'Que armas usar para cada pergaminho, e o que cada combinação dá')
-    + t('#/itens', 'Busca avançada de itens', 'Filtre por qualquer status, arma e categoria')
+    + t('#/itens', 'Busca avançada de itens', 'Filtre por qualquer status, arma, categoria e forma de obter')
+    + t('#/crystas', 'Crystas', 'Todas as crystas com a cadeia de evolução')
+    + t('#/registlets', 'Registlets', 'O que cada registlet faz e qual skill ele muda')
+    + t('#/traits', 'Traits', 'Efeitos, regras de transferência e custo no ferreiro')
     + '</div><h2 class="sect">Monstros</h2><div class="tiles">'
     + t('#/eventos', 'Eventos', 'Monstros, mapas e itens de cada evento do ano')
     + t('#/monstros/N', 'Capturáveis (pets)', 'Use o filtro "Só capturáveis" na lista de monstros')

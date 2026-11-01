@@ -322,6 +322,16 @@ button.lk { cursor: pointer; font: inherit; font-size: 13.5px; text-align: left;
 .tbl.bcmp td.dz { color: var(--muted); }
 .tbl.bcmp tr.chg td, .tbl.bcmp tr.chg th { background: color-mix(in srgb, var(--gold-d) 10%, var(--surface)); }
 
+/* buscas: barra Itens · Crystas · Registlets · Traits, cadeias de crysta e cartões */
+.isub { margin-bottom: 14px; }
+.xchain { display: flex; flex-direction: column; gap: 10px; }
+.xstep { display: flex; gap: 6px; padding-left: calc(min(var(--d), 4) * 14px); }
+.xarrow { color: var(--gold-d); font-weight: 700; flex: none; }
+.regs { display: grid; gap: 0 14px; }
+@media (min-width: 900px) { .regs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.reg h2 { font-size: 15px; }
+.reff { margin: 0; font-size: 14px; line-height: 1.5; }
+
 /* notícias */
 .nrow { grid-template-columns: 1fr; gap: 3px; }
 .nrow .rn { font-weight: 500; }
