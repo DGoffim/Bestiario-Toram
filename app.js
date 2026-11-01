@@ -261,7 +261,7 @@ function viewCrystas() {
   draw();
 }
 
-// Registlets: efeitos do coryn.club (em inglês); onde dropa vem do nosso banco de monstros.
+// Registlets: efeitos do coryn.club, traduzidos (o original em inglês fica no índice 5 para a busca); onde dropa vem do nosso banco de monstros.
 let REGS = null; const RS = { q: '', f: '' };
 function viewRegistlets() {
   setTitle('Registlets');
@@ -270,11 +270,11 @@ function viewRegistlets() {
     + '<div class="tools"><input id="rq" type="search" placeholder="Nome, skill ou efeito (ex: Arrow Rain, Accuracy)" value="' + esc(RS.q) + '" aria-label="Buscar registlet"></div>'
     + '<div class="chips" id="rf" style="margin:0 0 10px">' + [['', 'Todos'], ['skill', 'Mudam uma skill'], ['status', 'Status e outros']].concat(REGS.some(r => { const it = DB.ITBYNAME.get(r[0].toLowerCase()); return it && it.by.length; }) ? [['drop', 'Dropam de monstro']] : []).map(([v, l]) => '<button type="button" class="chip" data-f="' + v + '" aria-pressed="' + (RS.f === v) + '">' + l + '</button>').join('') + '</div>'
     + '<div class="status"><span id="rcount"></span></div><div class="regs" id="rlist"></div>'
-    + '<p class="note" style="color:var(--ink-2)">Efeitos do coryn.club, em inglês como no jogo. “Dropa de” cruza o nome do registlet com os drops do bestiário.</p>';
+    + '<p class="note" style="color:var(--ink-2)">Efeitos do coryn.club, traduzidos; nomes de skills e status ficam em inglês, como no jogo. “Dropa de” cruza o nome do registlet com os drops do bestiário.</p>';
   const item = n => DB.ITBYNAME.get(n.toLowerCase());
   const draw = () => {
     const q = RS.q.trim().toLowerCase();
-    const rows = REGS.filter(r => { const it = item(r[0]); if (RS.f === 'skill' && !r[2]) return false; if (RS.f === 'status' && r[2]) return false; if (RS.f === 'drop' && !(it && it.by.length)) return false; return !q || (r[0] + ' ' + r[2] + ' ' + r[3]).toLowerCase().includes(q); });
+    const rows = REGS.filter(r => { const it = item(r[0]); if (RS.f === 'skill' && !r[2]) return false; if (RS.f === 'status' && r[2]) return false; if (RS.f === 'drop' && !(it && it.by.length)) return false; return !q || (r[0] + ' ' + r[2] + ' ' + r[3] + ' ' + (r[5] || '')).toLowerCase().includes(q); });
     $('#rcount').textContent = rows.length + ' registlets';
     $('#rlist').innerHTML = rows.map(r => { const it = item(r[0]); return '<section class="card reg"><h2>' + esc(r[0]) + '</h2><div class="chips" style="margin:-4px 0 8px"><span class="tag info">Nível máx. ' + (r[1] || '?') + '</span>' + (r[2] ? '<span class="tag ok">Muda: ' + esc(r[2]) + '</span>' : '') + '</div><p class="reff">' + esc(r[3]) + '</p>'
       + (it && it.by.length ? '<div class="dgroup"><span class="lbl">Dropa de</span><div class="links">' + it.by.slice(0, 6).map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + ' <small>' + TLAB[g.t] + '</small></a>').join('') + (it.by.length > 6 ? '<a class="lk" href="' + itemUrl(it) + '">+' + (it.by.length - 6) + '</a>' : '') + '</div></div>' : '') + '</section>'; }).join('') || '<p class="empty" style="color:var(--ink-2)">Nenhum registlet com esse filtro.</p>';
@@ -1560,14 +1560,14 @@ function viewCharRegs() {
   view.innerHTML = '<section class="card"><h2>Registlets equipados <small>' + BD.rg.length + ' de ' + REG_MAX_SLOTS + '</small></h2>'
     + (bonus.length ? '<p style="margin:0 0 8px;font-size:14px"><span class="muted">Somam na build:</span> ' + bonus.map(([s, v]) => '<b>' + esc(s) + ' +' + fmt(v) + '</b>').join(' · ') + '</p>' : '')
     + '<div class="chips"><button type="button" class="btn" id="rgadd"' + (BD.rg.length >= REG_MAX_SLOTS ? ' disabled' : '') + '>+ Adicionar registlet</button></div>'
-    + '<p class="note">Os registlets de status (ATK, MATK, DEF, MDEF, Precisão, Esquiva, ASPD, CSPD, HP e MP) entram na soma da build e nas calculadoras. Os que mudam skills ficam anotados aqui. Efeitos do coryn.club, em inglês como no jogo.</p></section>'
+    + '<p class="note">Os registlets de status (ATK, MATK, DEF, MDEF, Precisão, Esquiva, ASPD, CSPD, HP e MP) entram na soma da build e nas calculadoras. Os que mudam skills ficam anotados aqui. Efeitos do coryn.club, traduzidos.</p></section>'
     + (cards ? '<div class="regs">' + cards + '</div>' : '')
     + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar registlet (nome, skill ou efeito)" aria-label="Buscar registlet"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>';
   const rerender = () => { saveBuild(); viewChar('registlets'); };
   view.querySelectorAll('[data-rglv]').forEach(s => s.addEventListener('change', () => { BD.rg[+s.dataset.rglv][1] = +s.value; rerender(); }));
   view.querySelectorAll('[data-rmreg]').forEach(b => b.addEventListener('click', () => { BD.rg.splice(+b.dataset.rmreg, 1); rerender(); }));
   const list = () => { const q = $('#pq').value.trim().toLowerCase(); const have = new Set(BD.rg.map(x => x[0]));
-    $('#plist2').innerHTML = REGS.filter(r => !have.has(r[0]) && (!q || (r[0] + ' ' + r[2] + ' ' + r[3]).toLowerCase().includes(q))).sort((a, b) => (REG_STAT[b[0]] ? 1 : 0) - (REG_STAT[a[0]] ? 1 : 0) || a[0].localeCompare(b[0])).slice(0, 80)
+    $('#plist2').innerHTML = REGS.filter(r => !have.has(r[0]) && (!q || (r[0] + ' ' + r[2] + ' ' + r[3] + ' ' + (r[5] || '')).toLowerCase().includes(q))).sort((a, b) => (REG_STAT[b[0]] ? 1 : 0) - (REG_STAT[a[0]] ? 1 : 0) || a[0].localeCompare(b[0])).slice(0, 80)
       .map(r => '<button type="button" class="prow2" data-reg="' + esc(r[0]) + '"><b>' + esc(r[0]) + '</b> <small>nível máx. ' + r[1] + (r[2] ? ' · muda ' + esc(r[2]) : '') + (REG_STAT[r[0]] ? ' · soma ' + esc(REG_STAT[r[0]][0]) : '') + '</small><span>' + esc(r[3]) + '</span></button>').join('') || '<p class="empty">Nenhum registlet.</p>'; };
   $('#rgadd').addEventListener('click', () => { $('#pq').value = ''; $('#pick').hidden = false; list(); $('#pq').focus(); });
   $('#pq').addEventListener('input', list);
