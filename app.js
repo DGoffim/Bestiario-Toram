@@ -122,7 +122,8 @@ const ROUTES = [
   [/^#\/evento\/([a-z-]+)$/, 'inicio', k => viewEvent(k)],
   [/^#\/build(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewBuild(code)],
   [/^#\/dano$/, 'ferramentas', () => viewDamage()],
-  [/^#\/skills(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewSkills(code)]
+  [/^#\/skills(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewSkills(code)],
+  [/^#\/statting(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewStatting(code)]
 ];
 const scrollMem = new Map();
 let curHash = location.hash || '#/';
@@ -541,6 +542,7 @@ function viewTools() {
     + t('#/dano', 'Calculadora de dano', 'Quanto a sua build bate num boss e quantos golpes para derrubar')
     + t('#/skills', 'Simulador de skills', 'As 33 árvores de skill, com pré-requisitos e contagem de pontos')
     + t('#/smithing', 'Guia de smithing', 'Criação, status (statting), refino e materiais, em português')
+    + t('#/statting', 'Simulador de statting', 'Monte a fórmula passo a passo: potencial, sucesso e materiais')
     + t('#/blacksmith', 'Calculadora de blacksmith', 'Dificuldade, taxa de sucesso e potencial da criação')
     + t('#/ninjutsu', 'Ninjutsu Scroll', 'Que armas usar para cada pergaminho, e o que cada combinação dá')
     + t('#/itens', 'Busca avançada de itens', 'Filtre por qualquer status, arma e categoria')
@@ -1205,6 +1207,206 @@ function skClick(e) {
     return;
   }
   if (e.target.closest('#skclear')) { if (confirm('Zerar todas as árvores?')) { SKS.lv = {}; SKS.open.forEach(k => openTree(k, true)); skRefresh(); } }
+}
+
+// ---------- simulador de statting ----------
+// Fórmulas e tabelas do simulador de statting do coryn.club (statting_simulator_v4_1.js):
+// custo de potencial por status, penalidade por categoria repetida, materiais e taxa de sucesso = 160 + 230 × pot. restante ÷ pot.
+const SMAX = 8, SCTR_LIMIT = 20, SMATS = ['', 'Beast', 'Wood', 'Metal', 'Cloth', 'Medicine', 'Mana'];
+let SDATA = null, SSTAT = null, SF = null;
+const SSET = store.get('statset', { type: '8', eq: '', pot: 0, ori: 0, me: '0', prof: 0, lv: store.get('lv', 300) });
+const sStat = id => SSTAT.get(+id);
+// stat: [id, nome, material, pot, mat_base, cheap_limit, mult, mult2, categoria, tipo, aceita negativo]
+function sCtr(val, sid) {
+  if (!val || !sid) return 0;
+  const s = sStat(sid); let minus = 1; if (val < 0) { val = -val; minus = -1; }
+  if (val <= s[5]) return val / s[6] * minus;
+  let r = s[5] / s[6]; val -= s[5]; if (s[7]) r += val / s[7];
+  return r * minus;
+}
+function sMats(oldC, newC, sid) {
+  const base = sStat(sid)[4], red = Math.min(1, Math.max(0, (Math.floor(SSET.prof / 10) + Math.floor(SSET.prof / 50)) / 100)), mod = 1 - red;
+  let tot = 0;
+  if (oldC < newC) for (let i = oldC; i < newC; i++) { const m = Math.max(Math.abs(i), Math.abs(i + 1)); tot += Math.trunc(base * m * m * mod); }
+  else if (oldC > newC) for (let i = oldC; i > newC; i--) { const m = Math.max(Math.abs(i), Math.abs(i - 1)); tot += Math.trunc(base * m * m * mod); }
+  return tot;
+}
+function sLimit(sid, dir) {
+  const MAXONLY = ['MaxMP', 'Critical Rate', 'Critical Rate %', 'Aggro %', 'Guard Power %', 'Guard Recharge %', 'Evasion Recharge %'];
+  const HALF = ['Natural MP Regen', 'ATK %', 'MaxMP', 'MATK %', 'Aggro %'];
+  const THIRD = ['MaxHP %', 'DEF %', 'MDEF %', 'Physical Resistance %', 'Magic Resistance %', 'Critical Damage', '% stronger against Fire', '% stronger against Wind', '% stronger against Water', '% stronger against Earth', '% stronger against Light', '% stronger against Dark'];
+  const HALF_THIRD = ['Accuracy', 'Dodge', 'Fire resistance %', 'Earth resistance %', 'Water resistance %', 'Wind resistance %', 'Light resistance %', 'Dark resistance %'];
+  const TWENTY5 = ['Physical Pierce %', 'Magic Pierce %'];
+  const SIXTY = ['Stability %', 'Accuracy %', 'Dodge %', 'ASPD %', 'CSPD %', 'Critical Damage %', 'Ailment Resistance %', 'Guard Power %', 'Guard Recharge %', 'Evasion Recharge %'];
+  let lvMax = Math.floor(SSET.lv / 10); if (lvMax < 0) lvMax = 1;
+  let bonus = Math.max(0, lvMax - 20);
+  const s = sStat(sid), n = s[1];
+  let baseMax = s[5] / s[6];
+  if (!s[7]) bonus = 0;
+  if (HALF.includes(n)) bonus = Math.floor(bonus / 2);
+  if (THIRD.includes(n)) bonus = Math.floor(bonus / 3);
+  if (SIXTY.includes(n)) bonus = Math.floor(bonus / 6);
+  if (HALF_THIRD.includes(n)) bonus = Math.floor(bonus * 2 / 3);
+  if (TWENTY5.includes(n)) bonus = Math.floor(bonus * 2 / 5);
+  if (n.startsWith('Reduce Dmg (')) baseMax = 0;
+  if (MAXONLY.includes(n) && dir < 0) bonus = 0;
+  let total = baseMax + bonus; if (lvMax < total) total = lvMax;
+  return dir * total;
+}
+class SFormula {
+  constructor(type, pot, ori, me) {
+    Object.assign(this, { type, potential: pot, original: ori, starting: pot, me, penalty: 100, steps: [], log: [], highest: 0, rate: 100, useOri: 0, done: false, lastDelta: [], lastRepeat: 0 });
+    this.stat = Array(SMAX).fill(0); this.val = Array(SMAX).fill(0); this.ctr = Array(SMAX).fill(0); this.mat = [0, 0, 0, 0, 0, 0, 0];
+  }
+  successRate(d) {
+    if (this.potential >= this.original) return Math.trunc(160 + 230 * (this.potential + Math.trunc(d)) / this.potential);
+    this.useOri = 1; return Math.trunc(160 + 230 * (this.potential + Math.trunc(d)) / this.original);
+  }
+  penaltyOf(arr) { let p = 100, prev = '', c = 1; arr.sort().forEach(x => { if (x !== prev) { prev = x; if (c > 1) p += 5 * c * c; c = 1; } else c++; }); if (c > 1) p += 5 * c * c; return p; }
+  potCost(sid, start, end, pen) {
+    start = sCtr(start, sid); end = sCtr(end, sid);
+    const s = sStat(sid), soft = [SCTR_LIMIT, 100 / s[3], s[5] / s[6]].sort((a, b) => a - b)[0];
+    let out = 0, diff; const [mn, mx] = [start, end].sort((a, b) => a - b);
+    diff = mx - mn;
+    if (Math.abs(mn) > soft) { const c = Math.abs(mn) - soft; out += c; diff -= c; }
+    if (Math.abs(mx) > soft) { const c = Math.abs(mx) - soft; out += c; diff -= c; }
+    if (diff < 0) { out += diff; diff = 0; }
+    let mult = 1;
+    if ((s[9] === 'A' && this.type === 'W') || (s[9] === 'W' && this.type === 'A')) mult *= 2;
+    if (s[9] === 'E' && this.me === '1') mult /= 10;
+    let base, nega = 1;
+    if (start > end) base = (30500 * diff + 2 * 7625 * out) * s[3];
+    else { base = (100000 * diff + 200000 * out) * s[3]; nega = -1; }
+    return Math.floor(base * mult / 100000) * nega * pen;
+  }
+  preview(nStat, nVal) {
+    const nCtr = nVal.map((v, i) => sCtr(v, nStat[i]));
+    const pen = this.penaltyOf(nStat.filter(Boolean).map(id => sStat(id)[8]));
+    let d = 0; const info = [];
+    for (let i = 0; i < SMAX; i++) {
+      if (!nStat[i]) { info.push(null); continue; }
+      d += this.potCost(nStat[i], this.val[i], nVal[i], pen);
+      info.push({ delta: nVal[i] - this.val[i], mats: sMats(this.ctr[i], nCtr[i], nStat[i]), mat: SMATS[sStat(nStat[i])[2]] });
+    }
+    d /= 100;
+    return { pot: this.potential + Math.trunc(d), rate: Math.max(0, Math.min(100, this.successRate(d))), info };
+  }
+  add(nStat, nVal) {
+    if (this.done) return false;
+    const nCtr = nVal.map((v, i) => sCtr(v, nStat[i]));
+    const delta = nCtr.map((c, i) => c - this.ctr[i]);
+    if (!delta.some(x => x)) return false;
+    for (let i = 0; i < SMAX; i++) if (this.stat[i] !== nStat[i]) this.stat[i] = nStat[i];
+    this.penalty = this.penaltyOf(this.stat.filter(Boolean).map(id => sStat(id)[8]));
+    const dm = [0, 0, 0, 0, 0, 0, 0], parts = [];
+    let d = 0;
+    for (let i = 0; i < SMAX; i++) {
+      if (!nStat[i]) continue;
+      const m = sMats(this.ctr[i], nCtr[i], nStat[i]), ds = nVal[i] - this.val[i];
+      d += this.potCost(nStat[i], this.val[i], nVal[i], this.penalty);
+      if (ds) parts.push([sStat(nStat[i])[1], ds]);
+      this.val[i] = nVal[i]; this.ctr[i] = nCtr[i];
+      dm[sStat(nStat[i])[2]] += m;
+    }
+    d /= 100;
+    for (let i = 1; i <= 6; i++) { if (dm[i] > this.highest) this.highest = dm[i]; this.mat[i] += dm[i]; }
+    this.rate = Math.max(0, Math.min(100, this.successRate(d)));
+    this.potential += Math.trunc(d);
+    if (parts.length) {
+      this.steps.push([nStat.slice(), nVal.slice()]);
+      if (JSON.stringify(delta) === JSON.stringify(this.lastDelta)) { this.lastRepeat++; this.log[this.log.length - 1].n = this.lastRepeat; }
+      else { this.lastDelta = delta; this.lastRepeat = 1; this.log.push({ parts, n: 1 }); }
+    }
+    if (this.potential <= 0 || this.stat.filter(Boolean).length === SMAX) this.done = true;
+    return true;
+  }
+}
+function sReplay(steps) { const f = new SFormula(SF.type, SF.starting, SF.original, SF.me); steps.forEach(([s, v]) => f.add(s, v)); return f; }
+let SCUR = null; // valores em edição (ainda não confirmados)
+function sStart() { SF = new SFormula(SSET.type === '8' ? 'A' : 'W', +SSET.pot, +SSET.ori, SSET.type === '8' ? '0' : SSET.me); SCUR = { stat: Array(SMAX).fill(0), val: Array(SMAX).fill(0) }; sSave(); }
+function sSave() { store.set('statset', SSET); store.set('statsteps', SF ? { t: SF.type, p: SF.starting, o: SF.original, m: SF.me, s: SF.steps } : null); }
+function sStep(i, dir) {
+  const sid = SCUR.stat[i]; if (!sid) return false;
+  const s = sStat(sid), cur = SCUR.val[i], c = sCtr(cur, sid), lim = s[5] / s[6];
+  if (dir > 0) {
+    if (c + 1 > sLimit(sid, 1)) return false;
+    SCUR.val[i] = cur + (c < lim && c >= -lim ? s[6] : s[7]); return true;
+  }
+  if (c - 1 < sLimit(sid, -1)) return false;
+  if (cur === 0 && !s[10]) return false;
+  SCUR.val[i] = cur - (c <= lim && c > -lim ? s[6] : s[7]); return true;
+}
+function viewStatting(code) {
+  setTitle('Simulador de statting');
+  if (!SDATA) { view.innerHTML = '<p class="loading">Carregando o simulador…</p>'; load('statting').then(d => { SDATA = d; SSTAT = new Map(d.stats.map(s => [s[0], s])); viewStatting(code); }).catch(() => { view.innerHTML = '<p class="nojs">Não deu para carregar o simulador. Recarregue a página.</p>'; }); return; }
+  if (code) { try { const o = JSON.parse(b64d(code)); Object.assign(SSET, o.set); SF = new SFormula(o.f.t, o.f.p, o.f.o, o.f.m); o.f.s.forEach(([s, v]) => SF.add(s, v)); SCUR = { stat: SF.stat.slice(), val: SF.val.slice() }; sSave(); } catch (e) {} history.replaceState(null, '', '#/statting'); }
+  if (!SF) { const sv = store.get('statsteps', null); if (sv) { try { SF = new SFormula(sv.t, sv.p, sv.o, sv.m); sv.s.forEach(([s, v]) => SF.add(s, v)); SCUR = { stat: SF.stat.slice(), val: SF.val.slice() }; } catch (e) { SF = null; } } }
+  const tlist = SDATA.types;
+  if (!tlist.some(t => t[0] === SSET.type)) SSET.type = tlist[0][0];
+  const eqs = () => (tlist.find(t => t[0] === SSET.type) || tlist[0])[2];
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Simulador de statting</h1><p>Monte a fórmula passo a passo e veja o potencial, a taxa de sucesso e os materiais antes de gastar no jogo.</p></div></div>'
+    + '<div class="grid2"><div>'
+    + '<section class="card"><h2>Equipamento</h2><div class="calc">'
+    + '<div class="field"><label class="lbl" for="sttype">Tipo</label><select id="sttype">' + tlist.map(t => '<option value="' + t[0] + '"' + (t[0] === SSET.type ? ' selected' : '') + '>' + esc(t[1]) + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label class="lbl" for="steq">Equipamento</label><select id="steq"></select></div>'
+    + '<div class="field"><label class="lbl" for="stpot">Potencial atual</label><input id="stpot" type="number" inputmode="numeric" value="' + SSET.pot + '"></div>'
+    + '<div class="field"><label class="lbl" for="stori">Potencial original</label><input id="stori" type="number" inputmode="numeric" value="' + SSET.ori + '"></div>'
+    + '<div class="field"><label class="lbl" for="stme">Elemento igual ao da arma</label><select id="stme"><option value="0"' + (SSET.me === '0' ? ' selected' : '') + '>Não</option><option value="1"' + (SSET.me === '1' ? ' selected' : '') + '>Sim</option></select></div>'
+    + '<div class="field"><label class="lbl" for="stprof">Proficiência de smith</label><input id="stprof" type="number" inputmode="numeric" min="0" value="' + SSET.prof + '"></div>'
+    + '<div class="field"><label class="lbl" for="stlv">Nível do personagem</label><input id="stlv" type="number" inputmode="numeric" min="10" value="' + SSET.lv + '"></div>'
+    + '<div class="field"><span class="lbl">&nbsp;</span><button class="btn" id="ststart" type="button">' + (SF ? 'Recomeçar' : 'Começar') + '</button></div>'
+    + '</div><p class="note">O potencial original é o da receita; o atual é o que o item tem agora (com Careful e Expert\'s Creation). A proficiência reduz os materiais e o nível define até onde cada status pode ir.</p></section>'
+    + '<section class="card" id="stsim"></section></div>'
+    + '<div><section class="card" id="ststeps"></section></div></div>'
+    + '<p class="note" style="color:var(--ink-2)">Fórmulas e tabelas do simulador de statting do coryn.club. Os nomes dos status ficam em inglês, como no jogo.</p>';
+  const fillEq = () => { $('#steq').innerHTML = '<option value="">Escolher (ou digite o potencial)</option>' + eqs().map(e => '<option value="' + e[0] + '"' + (String(e[0]) === String(SSET.eq) ? ' selected' : '') + '>' + esc(e[1]) + ' · pot. ' + e[2] + '</option>').join(''); $('#stme').disabled = SSET.type === '8'; };
+  fillEq();
+  $('#sttype').addEventListener('change', e => { SSET.type = e.target.value; SSET.eq = ''; fillEq(); sSave(); });
+  $('#steq').addEventListener('change', e => { SSET.eq = e.target.value; const it = eqs().find(x => String(x[0]) === e.target.value); if (it) { SSET.pot = SSET.ori = it[2]; $('#stpot').value = $('#stori').value = it[2]; } sSave(); });
+  [['stpot', 'pot'], ['stori', 'ori'], ['stprof', 'prof'], ['stlv', 'lv']].forEach(([id, k]) => $('#' + id).addEventListener('input', e => { SSET[k] = +e.target.value || 0; sSave(); if (SF && (k === 'prof' || k === 'lv')) sRender(); }));
+  $('#stme').addEventListener('change', e => { SSET.me = e.target.value; sSave(); });
+  $('#ststart').addEventListener('click', () => {
+    if (SSET.lv < 10) { alert('Com nível abaixo de 10 não dá para colocar status.'); return; }
+    if (!(SSET.pot > 0)) { alert('Escolha um equipamento ou digite o potencial.'); return; }
+    if (SF && SF.steps.length && !confirm('Apagar a fórmula atual e começar de novo?')) return;
+    sStart(); $('#ststart').textContent = 'Recomeçar'; sRender();
+  });
+  sRender();
+}
+function sRender() {
+  if (!SF) { $('#stsim').innerHTML = '<h2>Status</h2><p class="muted" style="margin:0">Escolha o equipamento e toque em “Começar”.</p>'; $('#ststeps').innerHTML = '<h2>Passos</h2><p class="muted" style="margin:0">Nenhum passo ainda.</p>'; return; }
+  const pv = SF.preview(SCUR.stat, SCUR.val);
+  const typeA = SF.type === 'A';
+  const opts = cur => { let h = '<option value="0">— escolher status —</option>', prev = ''; SDATA.stats.forEach(s => { if (s[9] === 'E' && typeA) return; if (SSET.lv < 210 && s[1].startsWith('Reduce Dmg (')) return; if (s[8] !== prev) { if (prev) h += '</optgroup>'; h += '<optgroup label="' + esc(s[8]) + '">'; prev = s[8]; } h += '<option value="' + s[0] + '"' + (s[0] === cur ? ' selected' : '') + '>' + esc(s[1]) + '</option>'; }); return h + '</optgroup>'; };
+  $('#stsim').innerHTML = '<div class="stbar"><span><small>Potencial</small><b>' + SF.potential + ' → <span class="' + (pv.pot < 0 ? 'neg' : '') + '">' + pv.pot + '</span></b></span><span><small>Sucesso</small><b>' + pv.rate + '%</b></span><span><small>Passos</small><b>' + SF.log.reduce((a, l) => a + l.n, 0) + '</b></span></div>'
+    + (SF.done ? '<p class="inote" style="margin:10px 0">Fórmula concluída. Taxa de sucesso final: <b>' + SF.rate + '%</b>.</p>' : '')
+    + '<div class="stslots">' + Array.from({ length: SMAX }, (_, i) => {
+      const fixed = SF.stat[i], sid = SCUR.stat[i], inf = pv.info[i];
+      const head = fixed ? '<b class="stname">' + esc(sStat(fixed)[1]) + '</b>' : '<select data-slot="' + i + '" aria-label="Status do espaço ' + (i + 1) + '"' + (SF.done ? ' disabled' : '') + '>' + opts(sid) + '</select>';
+      const val = SCUR.val[i];
+      return '<div class="stslot"><span class="stn">' + (i + 1) + '</span><div class="sthead">' + head + (inf && (inf.delta || inf.mats) ? '<small>' + (inf.delta ? (inf.delta > 0 ? '+' : '') + inf.delta : '') + (inf.mats ? ' · ' + fmt(inf.mats) + ' ' + inf.mat : '') + '</small>' : '') + '</div>'
+        + (sid ? '<div class="stctl"><button type="button" data-mm="' + i + ':-1" aria-label="Mínimo">«</button><button type="button" data-pm="' + i + ':-1" aria-label="Menos">−</button><b class="' + (val < 0 ? 'neg' : '') + '">' + (val > 0 ? '+' : '') + val + '</b><button type="button" data-pm="' + i + ':1" aria-label="Mais">+</button><button type="button" data-mm="' + i + ':1" aria-label="Máximo">»</button></div>' : '<div class="stctl"></div>') + '</div>';
+    }).join('') + '</div>'
+    + '<div class="chips" style="margin-top:12px"><button class="btn" id="stok" type="button"' + (SF.done ? ' disabled' : '') + '>Confirmar passo</button><button class="btn ghost" id="strep" type="button"' + (SF.done || !SF.steps.length ? ' disabled' : '') + '>Repetir último</button><button class="btn ghost" id="stundo" type="button"' + (!SF.steps.length ? ' disabled' : '') + '>Desfazer</button></div>';
+  const mats = SF.mat.slice(1).map((v, i) => [SMATS[i + 1], v]).filter(x => x[1]);
+  $('#ststeps').innerHTML = '<h2>Passos <small>potencial inicial ' + SF.starting + '</small></h2>'
+    + (SF.log.length ? '<ol class="stlog">' + SF.log.map(l => '<li>' + l.parts.map(([n, d]) => '<span class="' + (d < 0 ? 'neg' : '') + '">' + esc(n) + ' ' + (d > 0 ? '+' : '') + d + '</span>').join(', ') + (l.n > 1 ? ' <b>×' + l.n + '</b>' : '') + '</li>').join('') + '</ol>' : '<p class="muted" style="margin:0">Nenhum passo ainda. Escolha os status, ajuste os valores e toque em “Confirmar passo”.</p>')
+    + '<h4 class="sub4">Materiais</h4>' + (mats.length ? '<div class="slist">' + mats.map(([m, v]) => '<div><span>' + m + '</span><b>' + fmt(v) + ' pts</b></div>').join('') + '<div><span>Maior passo</span><b>' + fmt(SF.highest) + ' pts</b></div></div>' : '<p class="muted" style="margin:0">—</p>')
+    + '<div class="chips" style="margin-top:12px"><button class="btn" id="stshare" type="button"' + (!SF.steps.length ? ' disabled' : '') + '>Copiar link da fórmula</button></div><p class="note" id="stmsg">A fórmula fica salva neste aparelho.</p>';
+  $('#stsim').onchange = e => { const s = e.target.closest('[data-slot]'); if (!s) return; const i = +s.dataset.slot; SCUR.stat[i] = +s.value; SCUR.val[i] = 0; sRender(); };
+  $('#stsim').onclick = e => {
+    const p = e.target.closest('[data-pm]'), m = e.target.closest('[data-mm]');
+    if (p || m) { const [i, d] = (p || m).dataset[p ? 'pm' : 'mm'].split(':').map(Number); if (p) sStep(i, d); else while (sStep(i, d)); sRender(); return; }
+    if (e.target.closest('#stok')) { if (SCUR.stat.some((s, i) => s && !SCUR.val[i] && !SF.stat[i])) { alert('Tem status escolhido com valor zero.'); return; } SF.add(SCUR.stat.slice(), SCUR.val.slice()); SCUR = { stat: SF.stat.slice(), val: SF.val.slice() }; sSave(); sRender(); return; }
+    if (e.target.closest('#strep')) { const ld = SF.lastDelta; if (!ld.length) return; const nv = SF.val.slice(); for (let i = 0; i < SMAX; i++) { if (!ld[i]) continue; SCUR.val[i] = SF.val[i]; for (let k = 0; k < Math.abs(ld[i]); k++) if (!sStep(i, Math.sign(ld[i]))) { SCUR.val = nv; return; } } SF.add(SCUR.stat.slice(), SCUR.val.slice()); SCUR = { stat: SF.stat.slice(), val: SF.val.slice() }; sSave(); sRender(); return; }
+    if (e.target.closest('#stundo')) { const st = SF.steps.slice(0, -1); SF = sReplay(st); SCUR = { stat: SF.stat.slice(), val: SF.val.slice() }; sSave(); sRender(); }
+  };
+  $('#ststeps').onclick = e => {
+    if (!e.target.closest('#stshare')) return;
+    const url = location.href.split('#')[0] + '#/statting/' + b64e(JSON.stringify({ set: SSET, f: { t: SF.type, p: SF.starting, o: SF.original, m: SF.me, s: SF.steps } }));
+    const done = () => { $('#stmsg').textContent = 'Link copiado! Cole no grupo para mostrar a fórmula.'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { fallbackCopy(url); done(); }); else { fallbackCopy(url); done(); }
+  };
 }
 
 // ---------- calculadora de dano ----------
