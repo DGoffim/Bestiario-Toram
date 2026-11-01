@@ -36,7 +36,8 @@ const elHtml = els => els.map(e => '<span class="el"><span class="dot" style="ba
 
 // ---------- dados ----------
 let DB = null;
-function load(name) { return fetch('data/' + name + '.json').then(r => { if (!r.ok) throw new Error('data/' + name + '.json: ' + r.status); return r.json(); }); }
+// Os dados são sempre conferidos com o servidor (no-cache) para não mostrar versão velha depois de uma atualização.
+function load(name) { return fetch('data/' + name + '.json', { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error('data/' + name + '.json: ' + r.status); return r.json(); }); }
 
 function build(mo, it, fi, loc) {
   // mapas
