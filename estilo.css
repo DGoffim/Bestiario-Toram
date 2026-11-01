@@ -477,3 +477,28 @@ details.gl code, .prose code { font-family: var(--font-mono); font-size: 12.5px;
   .big { font-size: 18px; }
   .pgtabs a { padding: 9px 8px; font-size: 13.5px; }
 }
+
+/* Informações das skills (folha que abre no modo ⓘ Info do simulador) */
+.skihead { align-items: center; flex-wrap: wrap; }
+.skiic { width: 44px; height: 44px; flex: none; border-radius: 50%; background: var(--bg) center / cover no-repeat; border: 2px solid var(--line); }
+.skititle { flex: 1; min-width: 120px; display: flex; flex-direction: column; line-height: 1.25; }
+.skititle b { font-size: 17px; }
+.skititle small { color: var(--muted); font-size: 12.5px; }
+.skilv { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.skilv select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+.skibody { display: block; padding: 2px 2px 8px; font-size: 14px; line-height: 1.5; }
+.skibody p { margin: 8px 0; }
+.skidl { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 6px 0; }
+.skidl > div { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); min-width: 0; }
+.skidl dt { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.skidl dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.skidl code, .skibody code { font: 12.5px var(--font-mono); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 0 4px; overflow-wrap: anywhere; }
+.skidl dd code { font-weight: 400; }
+.skiblk { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; }
+.skiblk h4 { margin: 0 0 4px; font-size: 14.5px; }
+.skinotes { margin: 4px 0 0; padding-left: 18px; }
+.skinotes li { margin: 4px 0; }
+.skref { color: var(--teal-d); }
+.skistk { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 10px; margin-bottom: 6px; }
+.skistk label { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--muted); }
+.skistk input { font: inherit; font-size: 14px; color: var(--fg); padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
