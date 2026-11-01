@@ -1,0 +1,29 @@
+name: Notícias do Toram
+
+# Busca as notícias do site oficial a cada 3 horas e salva em data/noticias.json.
+on:
+  schedule:
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  noticias:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ler as notícias do site oficial
+        run: python3 scripts/noticias.py
+      - name: Salvar se mudou
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/noticias.json
+          if git diff --cached --quiet; then
+            echo "Sem notícias novas"
+          else
+            git commit -m "Notícias do Toram atualizadas"
+            git push
+          fi
