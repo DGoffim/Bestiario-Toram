@@ -123,7 +123,9 @@ const ROUTES = [
   [/^#\/build(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewBuild(code)],
   [/^#\/dano$/, 'ferramentas', () => viewDamage()],
   [/^#\/skills(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewSkills(code)],
-  [/^#\/statting(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewStatting(code)]
+  [/^#\/statting(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewStatting(code)],
+  [/^#\/noticias$/, 'inicio', () => viewNews()],
+  [/^#\/noticia\/(\d+)$/, 'inicio', id => viewNewsItem(+id)]
 ];
 const scrollMem = new Map();
 let curHash = location.hash || '#/';
@@ -159,7 +161,7 @@ function viewHome() {
     + CANDIES.map(([n, el]) => '<a class="cd" style="--c:var(' + EL[el][1] + ')" href="#/monstros" data-el="' + el + '"><b>' + n + '</b><span><span class="dot" style="background:var(' + EL[el][1] + ')"></span>monstros de ' + EL[el][0] + '</span></a>').join('')
     + '</div><p class="note">Cada doce cai como drop extra dos monstros do elemento e dá ASPD e CSPD +100 e +5% de dano contra esse elemento por 10 minutos. Toque num doce para ver os monstros desse elemento.</p></section>' : '';
   view.innerHTML = '<div class="hero"><img src="img/logo.webp" alt="Bestiário de Toram" width="840" height="768"><div class="tagline">Monstros · Drops · Itens · Mapas</div>'
-    + '<p>Tudo de Toram Online num lugar só, em português: ' + fmt(DB.MONS.length) + ' monstros, ' + fmt(DB.ITEMS.length) + ' itens e ' + fmt(DB.MAPLIST.length) + ' mapas, com drops, status, mapas e ferramentas.</p></div>'
+    + '</div>'
     + '<div class="tiles">'
     + '<a class="tile" href="#/monstros/B"><b>Bosses</b><span>' + fmt(cnt('B')) + ' bosses</span></a>'
     + '<a class="tile" href="#/monstros/M"><b>Mini Bosses</b><span>' + fmt(cnt('M')) + ' mini bosses</span></a>'
@@ -169,10 +171,11 @@ function viewHome() {
     + '<a class="tile" href="#/upar"><b>Onde upar</b><span>Melhores monstros pro seu nível</span></a>'
     + '<a class="tile" href="#/exp"><b>Calculadora de EXP</b><span>Quanto falta pro nível</span></a>'
     + '<a class="tile" href="#/eventos"><b>Eventos</b><span>Monstros e itens de cada evento</span></a>'
-    + '</div>' + candies
-    + '<div class="grid2"><section class="card"><h2>Bosses mais novos no banco</h2><div class="newl">' + newest.map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + ' <small>' + TLAB[g.t] + ' · Lv ' + lvTxt(g) + '</small></a>').join('') + '</div></section>'
-    + '<section class="card"><h2>Itens mais novos</h2><div class="newl">' + newItems.map(i => '<a class="lk" href="' + itemUrl(i) + '">' + esc(i.name) + ' <small>' + esc(i.tl) + '</small></a>').join('') + '</div></section></div>';
+    + '</div><section class="card" id="homenews"><h2>Notícias do jogo</h2><p class="muted" style="margin:0">Carregando…</p></section>' + candies
+    + '<div class="grid2"><section class="card"><h2>Bosses mais novos</h2><div class="newl">' + newest.map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + '</a>').join('') + '</div></section>'
+    + '<section class="card"><h2>Itens mais novos</h2><div class="newl">' + newItems.map(i => '<a class="lk" href="' + itemUrl(i) + '">' + esc(i.name) + '</a>').join('') + '</div></section></div>';
   view.querySelectorAll('.cd[data-el]').forEach(a => a.addEventListener('click', () => { MS.els = new Set([+a.dataset.el]); MS.t = 'B'; }));
+  homeNews();
 }
 const lvTxt = g => g.lo === g.hi ? String(g.lo) : g.lo + '–' + g.hi;
 
@@ -1117,6 +1120,56 @@ function renderBuild() {
     + '<h4 class="sub4">Soma dos equipamentos e bônus <small>exata</small></h4>' + (rows.length ? '<div class="slist">' + rows.map(([si, v]) => { const [nm, vv] = sparts([si, v, 0]); return '<div class="' + (v < 0 ? 'neg' : '') + '"><span>' + esc(nm) + '</span><b>' + vv + '</b></div>'; }).join('') + '</div>' : '<p class="muted" style="margin:0">Escolha equipamentos para ver a soma.</p>')
     + (off.length ? '<p class="note">Não contam com a arma e armadura atuais: ' + off.map(([it, s]) => { const [nm, vv, c] = sparts(s); return esc(nm + ' ' + vv + ' (' + c + ', ' + it.name + ')'); }).join('; ') + '.</p>' : '')
     + '<p class="note">As estimativas usam fórmulas da comunidade (ATK por tipo de arma, refino ≈ ATK base × refino² ÷ 100 + refino) e não incluem skills passivas. Use para comparar builds, não como valor exato do jogo.</p>';
+}
+
+// ---------- notícias do site oficial ----------
+// O GitHub Actions (scripts/noticias.py) lê en.toram.jp a cada 3 horas e salva data/noticias.json no repositório.
+// Lemos direto do repositório para pegar a versão mais nova; se falhar, usamos a cópia publicada junto com o site.
+const NEWS_RAW = 'https://raw.githubusercontent.com/DGoffim/Bestiario-Toram/main/data/noticias.json';
+const NEWS_CAT = { event: 'Evento', update: 'Atualização', important: 'Importante', maintenance: 'Manutenção', defect: 'Problemas', other: 'Outros' };
+let NEWS = null, NEWSP = null, NEWSF = '';
+function loadNews() {
+  if (NEWSP) return NEWSP;
+  NEWSP = fetch(NEWS_RAW + '?t=' + Math.floor(Date.now() / 300000)).then(r => { if (!r.ok) throw 0; return r.json(); })
+    .catch(() => load('noticias')).then(d => (NEWS = d)).catch(() => (NEWS = { itens: [] }));
+  return NEWSP;
+}
+const newsCat = c => NEWS_CAT[c] || (c ? c.charAt(0).toUpperCase() + c.slice(1) : 'Outros');
+const newsDate = d => d ? d.split('-').reverse().join('/') : '';
+const newsRow = n => '<a class="row nrow" href="#/noticia/' + n.id + '"><span class="rn">' + esc(n.titulo) + '</span><span class="rsub"><span class="ncat c-' + esc(n.cat) + '">' + esc(newsCat(n.cat)) + '</span> ' + newsDate(n.data) + '</span></a>';
+function homeNews() {
+  loadNews().then(() => {
+    const box = $('#homenews'); if (!box) return;
+    const it = NEWS.itens.slice(0, 5);
+    box.innerHTML = '<h2>Notícias do jogo <small>site oficial</small></h2>' + (it.length ? '<div class="list">' + it.map(newsRow).join('') + '</div><p style="margin:10px 0 0"><a class="tl" href="#/noticias">Ver todas as notícias</a></p>' : '<p class="muted" style="margin:0">As notícias aparecem aqui assim que a busca automática rodar.</p>');
+  });
+}
+function viewNews() {
+  setTitle('Notícias');
+  view.innerHTML = backBtn('#/') + '<div class="ph"><div><h1>Notícias do jogo</h1><p>Manutenções, eventos e atualizações do site oficial do Toram Online, atualizadas sozinhas a cada 3 horas.</p></div></div><div id="nwbox"><p class="loading">Carregando notícias…</p></div>';
+  loadNews().then(() => {
+    const cats = [...new Set(NEWS.itens.map(n => n.cat))];
+    const draw = () => {
+      const rows = NEWS.itens.filter(n => !NEWSF || n.cat === NEWSF);
+      $('#nwbox').innerHTML = '<div class="chips" id="nwcat" style="margin:0 0 10px">' + [''].concat(cats).map(c => '<button type="button" class="chip" data-c="' + c + '" aria-pressed="' + (NEWSF === c) + '">' + (c ? esc(newsCat(c)) : 'Todas') + '</button>').join('') + '</div>'
+        + (rows.length ? '<div class="list">' + rows.map(newsRow).join('') + '</div>' : '<p class="empty" style="color:var(--ink-2)">Nenhuma notícia ainda. A busca automática roda a cada 3 horas.</p>')
+        + (NEWS.lido ? '<p class="note" style="color:var(--ink-2)">Última busca: ' + new Date(NEWS.lido).toLocaleString('pt-BR') + '. Fonte: site oficial do Toram Online (en.toram.jp); os textos ficam em inglês, como lá.</p>' : '');
+      $('#nwcat').onclick = e => { const b = e.target.closest('[data-c]'); if (b) { NEWSF = b.dataset.c; draw(); } };
+    };
+    draw();
+  });
+}
+function viewNewsItem(id) {
+  view.innerHTML = backBtn('#/noticias') + '<p class="loading">Carregando…</p>';
+  loadNews().then(() => {
+    const n = NEWS.itens.find(x => x.id === id);
+    if (!n) { view.innerHTML = backBtn('#/noticias') + '<p class="empty">Notícia não encontrada.</p>'; return; }
+    setTitle(n.titulo);
+    const paras = (n.texto || '').split('\n').filter(Boolean);
+    view.innerHTML = backBtn('#/noticias') + '<div class="dhead"><h1>' + esc(n.titulo) + '</h1><div class="dmeta"><span class="ncat c-' + esc(n.cat) + '">' + esc(newsCat(n.cat)) + '</span><span class="muted">' + newsDate(n.data) + '</span></div></div>'
+      + '<section class="card prose newsbody">' + (paras.length ? paras.map(p => '<p>' + esc(p) + '</p>').join('') : '<p class="muted">O texto completo só é guardado para as notícias mais recentes.</p>') + '</section>'
+      + '<p class="note" style="color:var(--ink-2)">Texto do site oficial do Toram Online (en.toram.jp), em inglês.</p>';
+  });
 }
 
 // ---------- simulador de skills ----------
