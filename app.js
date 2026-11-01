@@ -120,7 +120,8 @@ const ROUTES = [
   [/^#\/comida$/, 'ferramentas', () => viewFood()],
   [/^#\/eventos$/, 'inicio', () => viewEvents()],
   [/^#\/evento\/([a-z-]+)$/, 'inicio', k => viewEvent(k)],
-  [/^#\/build(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewBuild(code)]
+  [/^#\/build(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewBuild(code)],
+  [/^#\/dano$/, 'ferramentas', () => viewDamage()]
 ];
 const scrollMem = new Map();
 let curHash = location.hash || '#/';
@@ -288,7 +289,8 @@ function viewMonster(id) {
   const candy = candyOn() ? g.els.map(candyFor).filter(Boolean) : [];
   const head = '<div class="dhead"><h1>' + esc(g.name) + '</h1><div class="dmeta"><span class="pill">' + TLAB[g.t] + '</span><span class="els">' + elHtml(g.els) + '</span>' + monTags(g)
     + candy.map(c => '<span class="candy">🎃 Dropa ' + esc(c) + ' (Halloween)</span>').join('')
-    + eventData().filter(ev => ev.key !== 'outros' && ev.mons.includes(g)).map(ev => '<a class="tl" href="#/evento/' + ev.key + '">Evento: ' + esc(ev.name) + '</a>').join('') + '</div></div>';
+    + eventData().filter(ev => ev.key !== 'outros' && ev.mons.includes(g)).map(ev => '<a class="tl" href="#/evento/' + ev.key + '">Evento: ' + esc(ev.name) + '</a>').join('') + '</div>'
+    + (g.entries.some(e => e.hp > 0) ? '<p style="margin:10px 0 0"><button type="button" class="btn" id="todmg">Calcular meu dano neste monstro</button></p>' : '') + '</div>';
   const hasMode = g.t !== 'N' && g.entries.some(e => e.mode);
   // Mapa numa coluna só quando muda entre as dificuldades; se é sempre o mesmo, aparece uma vez acima da tabela.
   const oneMap = g.mapList.length <= 1;
@@ -300,6 +302,8 @@ function viewMonster(id) {
   const loc = locHtml(g.mapList.map(m => m.name));
   const raid = f ? '<details class="card" open><summary><h2>Guia RAID <small>Toram Yo</small></h2></summary>' + fichaHtml(f) + '</details>' : '';
   view.innerHTML = backBtn('#/monstros/' + g.t) + head + '<div class="grid2"><div>' + diff + drops + '</div><div>' + raid + loc + '</div></div>';
+  const td = $('#todmg');
+  if (td) td.addEventListener('click', () => { setTarget(g, (g.entries.find(x => x.mode === 'Ultimate') || g.entries[g.entries.length - 1]).mode); store.set('dano', DM); location.hash = '#/dano'; });
 }
 function dropsHtml(g) {
   if (!g.items.length) return '<section class="card"><h2>Drops</h2><p class="muted">O coryn.club não tem drops cadastrados para este monstro.</p></section>';
@@ -533,6 +537,7 @@ function viewTools() {
     + t('#/comida', 'Códigos de comida', 'Casas com comida de buff: STR, DEX, crítico, ATK, aggro e mais')
     + '</div><h2 class="sect">Smith e equipamentos</h2><div class="tiles">'
     + t('#/build', 'Status do personagem', 'Monte arma, armadura, adicional, anel e crystas e veja os status somados')
+    + t('#/dano', 'Calculadora de dano', 'Quanto a sua build bate num boss e quantos golpes para derrubar')
     + t('#/smithing', 'Guia de smithing', 'Criação, status (statting), refino e materiais, em português')
     + t('#/blacksmith', 'Calculadora de blacksmith', 'Dificuldade, taxa de sucesso e potencial da criação')
     + t('#/ninjutsu', 'Ninjutsu Scroll', 'Que armas usar para cada pergaminho, e o que cada combinação dá')
@@ -1108,6 +1113,103 @@ function renderBuild() {
     + '<h4 class="sub4">Soma dos equipamentos e bônus <small>exata</small></h4>' + (rows.length ? '<div class="slist">' + rows.map(([si, v]) => { const [nm, vv] = sparts([si, v, 0]); return '<div class="' + (v < 0 ? 'neg' : '') + '"><span>' + esc(nm) + '</span><b>' + vv + '</b></div>'; }).join('') + '</div>' : '<p class="muted" style="margin:0">Escolha equipamentos para ver a soma.</p>')
     + (off.length ? '<p class="note">Não contam com a arma e armadura atuais: ' + off.map(([it, s]) => { const [nm, vv, c] = sparts(s); return esc(nm + ' ' + vv + ' (' + c + ', ' + it.name + ')'); }).join('; ') + '.</p>' : '')
     + '<p class="note">As estimativas usam fórmulas da comunidade (ATK por tipo de arma, refino ≈ ATK base × refino² ÷ 100 + refino) e não incluem skills passivas. Use para comparar builds, não como valor exato do jogo.</p>';
+}
+
+// ---------- calculadora de dano ----------
+// Fórmula aproximada da comunidade: (ATK + diferença de nível − DEF × (1 − pierce)) × (1 − resistência) + constante,
+// × multiplicador da skill × bônus (distância, elemento, buffs, desembainhar) × proration; crítico multiplica pelo dano crítico.
+const EL_EN = ['Fire', 'Earth', 'Water', 'Dark', 'Wind', '', 'Neutral', 'Light'];
+const DM = store.get('dano', { gid: 0, mode: '', type: 'f', range: 'curta', cst: 0, mult: 100, pror: 100, buff: 0, uns: false, lv: 1, def: 0, mdef: 0, pres: 0, mres: 0, cres: 0, hp: 0, critd: '' });
+function fichaVals(f, mode) {
+  if (!f || !f.df.length) return null;
+  const col = f.m ? 1 : Math.max(1, f.d.findIndex(r => r[0] === mode) + 1);
+  const num = v => { const x = parseFloat(String(v).replace(',', '.')); return isNaN(x) ? 0 : x; };
+  const row = p => { const r = f.df.find(x => String(x[0]).startsWith(p)); return r ? num(r[col]) : 0; };
+  return { def: row('Physical Defense'), mdef: row('Magical Defense'), pres: row('Physical Resistance'), mres: row('Magical Resistance'), cres: row('Critical Resistance') };
+}
+function setTarget(g, mode) {
+  const e = g.entries.find(x => x.mode === mode) || g.entries[g.entries.length - 1];
+  DM.gid = g.id; DM.mode = e.mode; DM.lv = e.lv; DM.hp = e.hp > 0 ? e.hp : 0;
+  const v = fichaVals(fichaFor(g), e.mode);
+  Object.assign(DM, v || { def: 0, mdef: 0, pres: 0, mres: 0, cres: 0 });
+  DM.auto = !!v;
+}
+function viewDamage() {
+  setTitle('Calculadora de dano');
+  const n = (id, lab, v, extra) => '<div class="field"><label class="lbl" for="' + id + '">' + lab + '</label><input id="' + id + '" type="number" inputmode="decimal" step="any" value="' + v + '"' + (extra || '') + '></div>';
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Calculadora de dano</h1><p>Quanto a sua build bate num monstro do bestiário. Os status vêm da <a class="tl" href="#/build" style="color:#9fe3e6">calculadora de status</a>.</p></div></div>'
+    + '<button type="button" class="bdsum" id="dmsum" aria-label="Ver resultado completo"></button>'
+    + '<div class="grid2"><div>'
+    + '<section class="card"><h2>Alvo</h2><div class="slotrow"><button type="button" class="slotbtn" id="dmpick"></button></div>'
+    + '<div class="calc" style="margin-top:10px"><div class="field"><label class="lbl" for="dmmode">Dificuldade</label><select id="dmmode"></select></div>'
+    + n('dmlv', 'Nível do monstro', DM.lv) + n('dmhp', 'HP', DM.hp) + n('dmdef', 'DEF', DM.def) + n('dmmdef', 'MDEF', DM.mdef) + n('dmpres', 'Resistência física %', DM.pres) + n('dmmres', 'Resistência mágica %', DM.mres) + n('dmcres', 'Resistência crítica', DM.cres)
+    + '</div><p class="note" id="dmsrc"></p></section>'
+    + '<section class="card"><h2>Ataque</h2><div class="calc">'
+    + '<div class="field"><label class="lbl" for="dmtype">Tipo</label><select id="dmtype"><option value="f"' + (DM.type === 'f' ? ' selected' : '') + '>Físico</option><option value="m"' + (DM.type === 'm' ? ' selected' : '') + '>Mágico</option></select></div>'
+    + '<div class="field"><label class="lbl" for="dmrange">Distância</label><select id="dmrange"><option value="curta"' + (DM.range === 'curta' ? ' selected' : '') + '>Curta</option><option value="longa"' + (DM.range === 'longa' ? ' selected' : '') + '>Longa</option><option value="nenhuma"' + (DM.range === 'nenhuma' ? ' selected' : '') + '>Nenhuma (mágico)</option></select></div>'
+    + n('dmcst', 'Constante da skill', DM.cst) + n('dmmult', 'Multiplicador da skill %', DM.mult) + n('dmpror', 'Proration %', DM.pror) + n('dmbuff', 'Buffs extras %', DM.buff)
+    + n('dmcritd', 'Dano crítico % (vazio = estimar)', DM.critd, ' placeholder="estimar"')
+    + '<div class="field"><span class="lbl">Desembainhar</span><label class="check"><input id="dmuns" type="checkbox"' + (DM.uns ? ' checked' : '') + '> Golpe de desembainhar</label></div>'
+    + '</div><p class="note">Ataque normal: constante 0 e multiplicador 100%. Os valores de cada skill aparecem na descrição dela no jogo.</p></section>'
+    + '</div><div><section class="card" id="dmres"></section></div></div>'
+    + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar monstro" aria-label="Buscar monstro"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>';
+  const fillTarget = () => {
+    const g = DB.GBYID.get(DM.gid);
+    $('#dmpick').innerHTML = g ? '<b>' + esc(g.name) + '</b><small>' + TLAB[g.t] + ' · ' + g.els.map(e => EL[e][0]).join(', ') + (fichaFor(g) ? ' · com guia RAID' : '') + '</small>' : '<span class="muted">Escolher monstro (ou digite os valores abaixo)</span>';
+    $('#dmmode').innerHTML = g ? g.entries.map(e => '<option value="' + esc(e.mode) + '"' + (e.mode === DM.mode ? ' selected' : '') + '>' + esc(MODE[e.mode] ? MODE[e.mode][2] : e.mode || '—') + ' · Lv ' + e.lv + '</option>').join('') : '<option value="">—</option>';
+    [['dmlv', 'lv'], ['dmhp', 'hp'], ['dmdef', 'def'], ['dmmdef', 'mdef'], ['dmpres', 'pres'], ['dmmres', 'mres'], ['dmcres', 'cres']].forEach(([id, k]) => { $('#' + id).value = DM[k]; });
+    $('#dmsrc').textContent = !g ? 'Digite os dados do alvo.' : DM.auto ? 'DEF, MDEF e resistências do guia RAID do Toram Yo (podem estar desatualizados). Ajuste se precisar.' : 'Este monstro não tem dados de defesa no bestiário. Preencha DEF e resistências se souber; com zero, o dano sai mais alto que o real.';
+  };
+  fillTarget(); damageCalc();
+  const read = () => {
+    const v = id => +$('#' + id).value || 0;
+    Object.assign(DM, { lv: v('dmlv'), hp: v('dmhp'), def: v('dmdef'), mdef: v('dmmdef'), pres: v('dmpres'), mres: v('dmmres'), cres: v('dmcres'), type: $('#dmtype').value, range: $('#dmrange').value, cst: v('dmcst'), mult: v('dmmult'), pror: v('dmpror'), buff: v('dmbuff'), critd: $('#dmcritd').value, uns: $('#dmuns').checked });
+    store.set('dano', DM); damageCalc();
+  };
+  view.querySelectorAll('.calc input, #dmtype, #dmrange').forEach(i => i.addEventListener('input', read));
+  $('#dmmode').addEventListener('change', e => { const g = DB.GBYID.get(DM.gid); if (g) { setTarget(g, e.target.value); store.set('dano', DM); fillTarget(); damageCalc(); } });
+  $('#dmpick').addEventListener('click', () => {
+    $('#pq').value = ''; $('#pick').hidden = false; $('#pq').focus();
+    const list = () => { const q = $('#pq').value.trim().toLowerCase(); const rows = DB.MONS.filter(g => g.entries.some(e => e.hp > 0) && (!q || g.name.toLowerCase().includes(q))).sort((a, b) => (fichaFor(b) ? 1 : 0) - (fichaFor(a) ? 1 : 0) || 'BMN'.indexOf(a.t) - 'BMN'.indexOf(b.t) || b.hi - a.hi).slice(0, 80);
+      $('#plist2').innerHTML = rows.map(g => '<button type="button" class="prow2" data-g="' + g.id + '"><b>' + esc(g.name) + '</b> <small>' + TLAB[g.t] + ' · Lv ' + lvTxt(g) + (fichaFor(g) ? ' · guia RAID' : '') + '</small></button>').join('') || '<p class="empty">Nenhum monstro.</p>'; };
+    $('#pq').oninput = list; list();
+    $('#plist2').onclick = e => { const b = e.target.closest('[data-g]'); if (!b) return; const g = DB.GBYID.get(+b.dataset.g); setTarget(g, (g.entries.find(x => x.mode === 'Ultimate') || g.entries[g.entries.length - 1]).mode); store.set('dano', DM); $('#pick').hidden = true; fillTarget(); damageCalc(); };
+  });
+  $('#dmsum').addEventListener('click', () => $('#dmres').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  $('#pclose').addEventListener('click', () => { $('#pick').hidden = true; });
+  $('#pick').addEventListener('click', e => { if (e.target.id === 'pick') $('#pick').hidden = true; });
+}
+function damageCalc() {
+  const { tot } = buildTotals(), d = buildDerived(tot);
+  const g = n => { const i = SI(n); return i < 0 ? 0 : tot.get(i) || 0; };
+  const mon = DB.GBYID.get(DM.gid), magic = DM.type === 'm';
+  const main = DB.ITBYID.get(BD.sl.arma.id);
+  const stabBase = main ? ((main.stats.find(s => DB.STATN[s[0]] === 'Base Stability %') || [0, 0])[1]) : 50;
+  const stab = Math.min(100, Math.max(0, magic ? (stabBase + g('Stability %') + 100) / 2 : stabBase + g('Stability %')));
+  const atk = magic ? d.MATK : d.ATK, pierce = Math.min(100, g(magic ? 'Magic Pierce %' : 'Physical Pierce %'));
+  const def = magic ? DM.mdef : DM.def, res = magic ? DM.mres : DM.pres;
+  const base = Math.max(0, (atk + (BD.lv - DM.lv) - def * (1 - pierce / 100)) * (1 - res / 100) + DM.cst);
+  const elName = mon ? mon.els.map(e => EL_EN[e]).filter(Boolean)[0] : '';
+  const dte = elName ? g('% stronger against ' + elName) : 0;
+  const rng = DM.range === 'curta' ? g('Short Range Damage %') : DM.range === 'longa' ? g('Long Range Damage %') : 0;
+  const uns = DM.uns ? g('Unsheathe Attack %') : 0;
+  const mods = (DM.mult / 100) * (1 + rng / 100) * (1 + dte / 100) * (1 + uns / 100) * (1 + DM.buff / 100) * (DM.pror / 100);
+  const max = Math.floor(base * mods), min = Math.floor(max * stab / 100), avg = (max + min) / 2;
+  const critD = DM.critd !== '' ? +DM.critd : 150 + Math.floor(d.STR / 5) + g('Critical Damage %') + g('Critical Damage');
+  const critR = Math.max(0, Math.min(100, d.CRIT - DM.cres));
+  const critAvg = avg * (magic ? 1 + (critD / 100 - 1) / 2 : critD / 100);
+  const exp = avg * (1 - critR / 100) + critAvg * critR / 100;
+  const hits = DM.hp > 0 && exp > 0 ? Math.ceil(DM.hp / exp) : 0;
+  const box = (l, v, s) => '<div><span class="lbl">' + l + '</span><div class="big">' + v + '</div>' + (s ? '<small class="muted">' + s + '</small>' : '') + '</div>';
+  $('#dmsum').innerHTML = '<span><small>Por golpe</small>' + fmt(Math.floor(exp)) + '</span><span><small>Crítico</small>' + Math.floor(critR) + '%</span>' + (hits ? '<span><small>Golpes</small>' + fmt(hits) + '</span>' : '') + '<em>ver tudo ↓</em>';
+  $('#dmres').innerHTML = '<h2>Resultado <small>' + (mon ? esc(mon.name) : 'alvo manual') + '</small></h2>'
+    + (!main ? '<p class="inote" style="margin:0 0 10px">Você ainda não escolheu uma arma na <a class="tl" href="#/build">calculadora de status</a>. O cálculo usa só o nível e os status do personagem.</p>' : '')
+    + (max <= 0 ? '<p class="inote" style="margin:0 0 10px">A ' + (magic ? 'MDEF' : 'DEF') + ' do alvo é maior que o seu ' + (magic ? 'MATK' : 'ATK') + ', então o golpe quase não passa. Aumente o pierce, use uma skill com constante alta ou escolha uma dificuldade menor.</p>' : '')
+    + '<div class="res">' + box('Sem crítico', fmt(min) + ' – ' + fmt(max), 'média ' + fmt(Math.floor(avg))) + box('Crítico (média)', fmt(Math.floor(critAvg)), 'dano crítico ' + Math.floor(critD) + '%')
+    + box('Dano esperado por golpe', fmt(Math.floor(exp)), 'chance de crítico ' + Math.floor(critR) + '%') + (hits ? box('Golpes para derrubar', fmt(hits), 'HP ' + fmt(DM.hp)) : '') + '</div>'
+    + '<h4 class="sub4">O que entrou na conta</h4><div class="slist">'
+    + [[magic ? 'MATK' : 'ATK', fmt(atk)], ['Diferença de nível', fmt(BD.lv - DM.lv)], [magic ? 'MDEF do alvo' : 'DEF do alvo', fmt(def)], ['Pierce', pierce + '%'], ['Resistência do alvo', res + '%'], ['Estabilidade', Math.floor(stab) + '%'], ['Dano por distância', '+' + rng + '%'], ['Dano contra ' + (elName ? EL[mon.els.find(e => EL_EN[e] === elName)][0] : 'o elemento'), '+' + dte + '%'], ['Desembainhar', '+' + uns + '%'], ['Multiplicador × proration', DM.mult + '% × ' + DM.pror + '%']].map(([k, v]) => '<div><span>' + k + '</span><b>' + v + '</b></div>').join('') + '</div>'
+    + '<p class="note">Estimativa pela fórmula da comunidade, sem skills passivas, combos, graze, guarda nem esquiva do monstro. Bom para comparar builds e skills; o número exato no jogo pode variar.</p>';
 }
 
 // ---------- busca única ----------
