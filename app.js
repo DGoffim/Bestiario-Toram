@@ -241,7 +241,8 @@ function viewCompare(list) {
   $('#cmpshare').addEventListener('click', () => { const url = location.href.split('#')[0] + '#/comparar/' + CMP.join(','); const done = () => { $('#cmpmsg').textContent = 'Link copiado!'; }; if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { fallbackCopy(url); done(); }); else { fallbackCopy(url); done(); } });
 }
 
-// ---------- favoritos e vistos recentemente (ficam salvos no aparelho) ----------let FAV = store.get('fav', []);       // chaves 'm:id' (monstro), 'i:id' (item), 'p:id' (mapa)
+// ---------- favoritos e vistos recentemente (ficam salvos no aparelho) ----------
+let FAV = store.get('fav', []);       // chaves 'm:id' (monstro), 'i:id' (item), 'p:id' (mapa)
 let RECENT = store.get('recent', []);
 function refOf(k) {
   const [t, s] = k.split(':'), n = +s;
