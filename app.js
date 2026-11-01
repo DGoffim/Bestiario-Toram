@@ -125,6 +125,9 @@ const ROUTES = [
   [/^#\/skills(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewSkills(code)],
   [/^#\/statting(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewStatting(code)],
   [/^#\/noticias$/, 'inicio', () => viewNews()],
+  [/^#\/farmar(?:\/(\d+))?$/, 'ferramentas', id => viewFarm(id ? +id : 0)],
+  [/^#\/favoritos$/, 'inicio', () => viewFavs()],
+  [/^#\/comparar(?:\/([\d,]+))?$/, 'itens', l => viewCompare(l)],
   [/^#\/noticia\/(\d+)$/, 'inicio', id => viewNewsItem(+id)]
 ];
 const scrollMem = new Map();
@@ -162,20 +165,108 @@ function viewHome() {
     + '</div><p class="note">Cada doce cai como drop extra dos monstros do elemento e dá ASPD e CSPD +100 e +5% de dano contra esse elemento por 10 minutos. Toque num doce para ver os monstros desse elemento.</p></section>' : '';
   view.innerHTML = '<div class="hero"><img src="img/logo.webp" alt="Bestiário de Toram" width="840" height="768"><div class="tagline">Monstros · Drops · Itens · Mapas</div>'
     + '</div>'
-    + '<div class="tiles">'
+    + '<div class="tiles hometiles">'
     + '<a class="tile" href="#/monstros/B"><b>Bosses</b><span>' + fmt(cnt('B')) + ' bosses</span></a>'
     + '<a class="tile" href="#/monstros/M"><b>Mini Bosses</b><span>' + fmt(cnt('M')) + ' mini bosses</span></a>'
     + '<a class="tile" href="#/monstros/N"><b>Monstros</b><span>' + fmt(cnt('N')) + ' normais</span></a>'
-    + '<a class="tile" href="#/itens"><b>Itens</b><span>' + fmt(DB.ITEMS.length) + ' itens com status</span></a>'
-    + '<a class="tile" href="#/mapas"><b>Mapas</b><span>' + fmt(DB.MAPLIST.length) + ' mapas</span></a>'
-    + '<a class="tile" href="#/upar"><b>Onde upar</b><span>Melhores monstros pro seu nível</span></a>'
-    + '<a class="tile" href="#/exp"><b>Calculadora de EXP</b><span>Quanto falta pro nível</span></a>'
-    + '<a class="tile" href="#/eventos"><b>Eventos</b><span>Monstros e itens de cada evento</span></a>'
-    + '</div><section class="card" id="homenews"><h2>Notícias do jogo</h2><p class="muted" style="margin:0">Carregando…</p></section>' + candies
+    + '<a class="tile" href="#/itens"><b>Itens</b><span>' + fmt(DB.ITEMS.length) + ' itens</span></a>'
+    + '<a class="tile" href="#/upar"><b>Onde upar</b><span>Pelo seu nível</span></a>'
+    + '<a class="tile" href="#/farmar"><b>Onde farmar</b><span>Material perto do seu nível</span></a>'
+    + '<a class="tile" href="#/eventos"><b>Eventos</b><span>Do ano inteiro</span></a>'
+    + '<a class="tile" href="#/exp"><b>Calculadora de EXP</b><span>Quanto falta</span></a>'
+    + '</div><div id="homeme"></div><section class="card" id="homenews"><h2>Notícias do jogo</h2><p class="muted" style="margin:0">Carregando…</p></section>' + candies
     + '<div class="grid2"><section class="card"><h2>Bosses mais novos</h2><div class="newl">' + newest.map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + '</a>').join('') + '</div></section>'
     + '<section class="card"><h2>Itens mais novos</h2><div class="newl">' + newItems.map(i => '<a class="lk" href="' + itemUrl(i) + '">' + esc(i.name) + '</a>').join('') + '</div></section></div>';
   view.querySelectorAll('.cd[data-el]').forEach(a => a.addEventListener('click', () => { MS.els = new Set([+a.dataset.el]); MS.t = 'B'; }));
+  const fav = FAV.map(refOf).filter(Boolean), rec = RECENT.map(refOf).filter(Boolean).slice(0, 8);
+  const row = (h, arr, more) => '<section class="card"><h2>' + h + (more ? ' <a class="tl" href="' + more + '" style="margin-left:auto;font-size:13px;font-family:var(--font-body)">ver todos</a>' : '') + '</h2><div class="hscroll">' + arr.map(([u, n, s]) => '<a class="lk" href="' + u + '">' + esc(n) + ' <small>' + esc(s) + '</small></a>').join('') + '</div></section>';
+  $('#homeme').innerHTML = (fav.length ? row('★ Seus favoritos', fav.slice(0, 12), '#/favoritos') : '') + (rec.length ? row('Vistos recentemente', rec) : '');
   homeNews();
+}
+
+// ---------- onde farmar: monstros que dropam um item, do mais perto ao mais longe do seu nível ----------
+const FS = { id: 0, q: '', lv: store.get('lv', 100), ev: false };
+function viewFarm(id) {
+  setTitle('Onde farmar');
+  if (id) FS.id = id;
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Onde farmar</h1><p>Escolha o material ou item e veja quem dropa, começando pelos monstros mais perto do seu nível.</p></div></div>'
+    + '<section class="card"><div class="calc"><div class="field full"><label class="lbl" for="fq">Item ou material</label><input id="fq" type="search" placeholder="ex: Mithril Ore, Beast Blood, Kuzto" value="' + esc(FS.q) + '"></div>'
+    + '<div class="field"><label class="lbl" for="flv">Seu nível</label><input id="flv" type="number" inputmode="numeric" min="1" value="' + FS.lv + '"></div>'
+    + '<div class="field"><span class="lbl">Incluir</span><label class="check"><input id="fev" type="checkbox"' + (FS.ev ? ' checked' : '') + '> Eventos e limitados</label></div>'
+    + '</div><div class="links" id="fsug" style="margin-top:10px"></div></section><div id="fres"></div>';
+  const sug = () => {
+    const q = FS.q.trim().toLowerCase();
+    const it = q ? DB.ITEMS.filter(i => i.by.length && i.name.toLowerCase().includes(q)).sort((a, b) => (a.name.toLowerCase().startsWith(q) ? 0 : 1) - (b.name.toLowerCase().startsWith(q) ? 0 : 1) || b.by.length - a.by.length).slice(0, 16) : [];
+    $('#fsug').innerHTML = it.map(i => '<button type="button" class="lk' + (i.id === FS.id ? ' hit' : '') + '" data-fi="' + i.id + '">' + esc(i.name) + ' <small>' + i.by.length + ' monstros</small></button>').join('') || (q ? '<p class="muted" style="margin:0">Nenhum item com drop com esse nome.</p>' : '');
+  };
+  const res = () => {
+    const it = DB.ITBYID.get(FS.id);
+    if (!it) { $('#fres').innerHTML = ''; return; }
+    const rows = it.by.filter(g => FS.ev || !g.event).map(g => { const e = g.entries.slice().sort((a, b) => Math.abs(a.lv - FS.lv) - Math.abs(b.lv - FS.lv))[0]; return { g, e, d: Math.abs(e.lv - FS.lv) }; }).sort((a, b) => a.d - b.d || a.e.lv - b.e.lv);
+    $('#fres').innerHTML = '<div class="status"><span>' + esc(it.name) + ' · ' + rows.length + (rows.length === 1 ? ' monstro' : ' monstros') + (it.by.length > rows.length ? ' (+' + (it.by.length - rows.length) + ' de evento)' : '') + '</span><a class="tl" href="' + itemUrl(it) + '" style="color:#9fe3e6">ver o item</a></div>'
+      + (rows.length ? '<div class="list"><div class="lh lm"><span>Monstro</span><span>Nível</span><span>Dificuldade</span><span>Mapa</span><span>Distância</span></div>' + rows.map(({ g, e, d }) => '<a class="row mrow" href="' + monUrl(g) + '"><span class="rn">' + esc(g.name) + ' <small>' + TLAB[g.t] + '</small></span><span class="rlv">Lv ' + e.lv + '</span><span class="els">' + (g.t !== 'N' && MODE[e.mode] ? '<span class="m ' + MODE[e.mode][1] + '">' + MODE[e.mode][1] + '</span> ' + MODE[e.mode][2] : elHtml(g.els)) + '</span><span class="rmap">' + (e.map ? esc(e.map.name) : '') + '</span><span class="rstat">' + (d <= 5 ? '<span class="tag ok">no seu nível</span>' : (e.lv > FS.lv ? '+' : '−') + d + ' níveis') + '</span></a>').join('') + '</div>'
+        : '<p class="empty" style="color:var(--ink-2)">Só monstros de evento dropam este item. Marque “Eventos e limitados”.</p>')
+      + '<p class="note" style="color:var(--ink-2)">Sem taxa de drop: o jogo não mostra. Em bosses, aparece a dificuldade mais perto do seu nível.</p>';
+  };
+  $('#fq').addEventListener('input', e => { FS.q = e.target.value; sug(); });
+  $('#flv').addEventListener('input', e => { FS.lv = Math.max(1, +e.target.value || 1); store.set('lv', FS.lv); res(); });
+  $('#fev').addEventListener('change', e => { FS.ev = e.target.checked; res(); });
+  $('#fsug').addEventListener('click', e => { const b = e.target.closest('[data-fi]'); if (!b) return; FS.id = +b.dataset.fi; sug(); res(); });
+  const cur = DB.ITBYID.get(FS.id); if (cur && !FS.q) { FS.q = cur.name; $('#fq').value = cur.name; }
+  sug(); res();
+}
+
+// ---------- comparar itens lado a lado ----------
+let CMP = store.get('cmp', []);
+const inCmp = id => CMP.includes(id);
+function toggleCmp(id) { CMP = inCmp(id) ? CMP.filter(x => x !== id) : CMP.concat(id).slice(-4); store.set('cmp', CMP); }
+function viewCompare(list) {
+  setTitle('Comparar itens');
+  if (list) { CMP = list.split(',').map(Number).filter(id => DB.ITBYID.get(id)).slice(0, 4); store.set('cmp', CMP); history.replaceState(null, '', '#/comparar'); }
+  const its = CMP.map(id => DB.ITBYID.get(id)).filter(Boolean);
+  if (!its.length) { view.innerHTML = backBtn('#/itens') + '<div class="ph"><div><h1>Comparar itens</h1><p>Abra um item e toque em “Comparar” para colocar aqui. Dá para comparar até 4.</p></div></div><p class="empty" style="color:var(--ink-2)">Nenhum item na comparação.</p>'; return; }
+  const base = it => { const g = n => (it.stats.find(s => DB.STATN[s[0]] === n) || [0, null])[1]; return { atk: g('Base ATK'), def: g('Base DEF'), stab: g('Base Stability %') }; };
+  const sum = new Map();
+  its.forEach((it, k) => it.stats.forEach(s => { if (isBase(s)) return; const key = s[0] + ':' + s[2]; if (!sum.has(key)) sum.set(key, { s, v: Array(its.length).fill(null) }); const e = sum.get(key); e.v[k] = (e.v[k] || 0) + s[1]; }));
+  const rows = [...sum.values()].sort((a, b) => b.v.filter(x => x !== null).length - a.v.filter(x => x !== null).length || DB.STATN[a.s[0]].localeCompare(DB.STATN[b.s[0]]));
+  const best = v => { const n = v.filter(x => x !== null); return n.length > 1 ? Math.max(...n) : null; };
+  const cell = (val, b, lab) => '<td class="n' + (val !== null && b !== null && val === b ? ' best' : '') + (val !== null && val < 0 ? ' neg' : '') + '">' + (val === null ? '—' : lab(val)) + '</td>';
+  const baseRows = [['ATK base', 'atk', v => fmt(v)], ['DEF base', 'def', v => fmt(v)], ['Estabilidade', 'stab', v => v + '%']].map(([lab, k, f]) => { const v = its.map(it => base(it)[k]); return v.some(x => x !== null) ? '<tr><th scope="row">' + lab + '</th>' + v.map(x => cell(x, best(v), f)).join('') + '</tr>' : ''; }).join('');
+  const statRows = rows.map(({ s, v }) => { const [n, , c] = sparts([s[0], 1, s[2]]); const pct = DB.STATN[s[0]].includes('%'); return '<tr><th scope="row">' + esc(n) + (c ? '<small>' + esc(c) + '</small>' : '') + '</th>' + v.map(x => cell(x, best(v), y => (y > 0 ? '+' : y < 0 ? '−' : '') + fmt(Math.abs(y)) + (pct ? '%' : ''))).join('') + '</tr>'; }).join('');
+  view.innerHTML = backBtn('#/itens') + '<div class="ph"><div><h1>Comparar itens</h1><p>Em dourado, o melhor valor de cada linha. Toque no × para tirar um item.</p></div></div>'
+    + '<section class="card"><div class="tblw"><table class="tbl cmp"><thead><tr><th></th>' + its.map(it => '<th scope="col"><a class="tl" href="' + itemUrl(it) + '">' + esc(it.name) + '</a><small>' + esc(it.tl) + '</small><button type="button" class="slotx" data-rm="' + it.id + '" aria-label="Tirar da comparação">×</button></th>').join('') + '</tr></thead><tbody>' + baseRows + statRows + '</tbody></table></div>'
+    + '<div class="chips" style="margin-top:12px"><button class="btn" id="cmpshare" type="button">Copiar link da comparação</button><button class="btn ghost" id="cmpclear" type="button">Limpar</button></div><p class="note" id="cmpmsg">A comparação fica salva neste aparelho.</p></section>';
+  view.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => { toggleCmp(+b.dataset.rm); viewCompare(); }));
+  $('#cmpclear').addEventListener('click', () => { CMP = []; store.set('cmp', CMP); viewCompare(); });
+  $('#cmpshare').addEventListener('click', () => { const url = location.href.split('#')[0] + '#/comparar/' + CMP.join(','); const done = () => { $('#cmpmsg').textContent = 'Link copiado!'; }; if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { fallbackCopy(url); done(); }); else { fallbackCopy(url); done(); } });
+}
+
+// ---------- favoritos e vistos recentemente (ficam salvos no aparelho) ----------let FAV = store.get('fav', []);       // chaves 'm:id' (monstro), 'i:id' (item), 'p:id' (mapa)
+let RECENT = store.get('recent', []);
+function refOf(k) {
+  const [t, s] = k.split(':'), n = +s;
+  if (t === 'm') { const g = DB.GBYID.get(n); return g ? [monUrl(g), g.name, TLAB[g.t]] : null; }
+  if (t === 'i') { const i = DB.ITBYID.get(n); return i ? [itemUrl(i), i.name, i.tl] : null; }
+  if (t === 'p') { const m = DB.MAPS.get(n); return m ? [mapUrl(m), m.name, 'Mapa'] : null; }
+  return null;
+}
+function addRecent(k) { RECENT = [k].concat(RECENT.filter(x => x !== k)).slice(0, 12); store.set('recent', RECENT); }
+const isFav = k => FAV.includes(k);
+const favBtn = k => ' <button type="button" class="fav" data-fav="' + k + '" aria-pressed="' + isFav(k) + '" aria-label="Favoritar" title="Favoritar">' + (isFav(k) ? '★' : '☆') + '</button>';
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-fav]'); if (!b) return;
+  const k = b.dataset.fav;
+  FAV = isFav(k) ? FAV.filter(x => x !== k) : [k].concat(FAV);
+  store.set('fav', FAV);
+  b.setAttribute('aria-pressed', isFav(k)); b.textContent = isFav(k) ? '★' : '☆';
+});
+function viewFavs() {
+  setTitle('Favoritos');
+  const groups = [['m', 'Monstros'], ['i', 'Itens'], ['p', 'Mapas']].map(([t, lab]) => [lab, FAV.filter(k => k.startsWith(t + ':')).map(k => [k, refOf(k)]).filter(x => x[1])]).filter(g => g[1].length);
+  view.innerHTML = backBtn('#/') + '<div class="ph"><div><h1>Favoritos</h1><p>Toque na estrela ☆ na página de um monstro, item ou mapa para guardar aqui. Fica salvo neste aparelho.</p></div></div>'
+    + (groups.length ? groups.map(([lab, arr]) => '<section class="card"><h2>' + lab + ' <small>' + arr.length + '</small></h2><div class="links">' + arr.map(([k, [u, n, s]]) => '<span class="favrow"><a class="lk" href="' + u + '">' + esc(n) + ' <small>' + esc(s) + '</small></a><button type="button" class="slotx" data-unfav="' + k + '" aria-label="Tirar dos favoritos">×</button></span>').join('') + '</div></section>').join('')
+      : '<p class="empty" style="color:var(--ink-2)">Nenhum favorito ainda.</p>');
+  view.querySelectorAll('[data-unfav]').forEach(b => b.addEventListener('click', () => { FAV = FAV.filter(x => x !== b.dataset.unfav); store.set('fav', FAV); viewFavs(); }));
 }
 const lvTxt = g => g.lo === g.hi ? String(g.lo) : g.lo + '–' + g.hi;
 
@@ -289,10 +380,10 @@ function locHtml(mapNames) {
 function viewMonster(id) {
   const g = DB.GBYID.get(id);
   if (!g) { view.innerHTML = backBtn('#/monstros') + '<p class="empty">Monstro não encontrado.</p>'; return; }
-  setTitle(g.name);
+  setTitle(g.name); addRecent('m:' + g.id);
   const f = fichaFor(g);
   const candy = candyOn() ? g.els.map(candyFor).filter(Boolean) : [];
-  const head = '<div class="dhead"><h1>' + esc(g.name) + '</h1><div class="dmeta"><span class="pill">' + TLAB[g.t] + '</span><span class="els">' + elHtml(g.els) + '</span>' + monTags(g)
+  const head = '<div class="dhead"><h1>' + esc(g.name) + favBtn('m:' + g.id) + '</h1><div class="dmeta"><span class="pill">' + TLAB[g.t] + '</span><span class="els">' + elHtml(g.els) + '</span>' + monTags(g)
     + candy.map(c => '<span class="candy">🎃 Dropa ' + esc(c) + ' (Halloween)</span>').join('')
     + eventData().filter(ev => ev.key !== 'outros' && ev.mons.includes(g)).map(ev => '<a class="tl" href="#/evento/' + ev.key + '">Evento: ' + esc(ev.name) + '</a>').join('') + '</div>'
     + (g.entries.some(e => e.hp > 0) ? '<p style="margin:10px 0 0"><button type="button" class="btn" id="todmg">Calcular meu dano neste monstro</button></p>' : '') + '</div>';
@@ -321,9 +412,11 @@ function dropsHtml(g) {
     + '<p class="note">Sem taxa de drop: o jogo não mostra e nenhum banco publica. Em monstros com várias dificuldades, os drops de todas estão somados.</p></section>';
 }
 const fnum = s => String(s).replace(/-?\d+(?:\.\d+)?/g, m => Number(m).toLocaleString('pt-BR', { maximumFractionDigits: 2 }));
-function fichaHtml(f) {
-  const row = (a, num) => '<tr>' + a.map((c, i) => '<' + (i ? 'td' : 'th scope="row"') + '>' + esc(i && num ? fnum(c) : (c === '' ? '—' : String(c))) + '</' + (i ? 'td' : 'th') + '>').join('') + '</tr>';
-  const head = c => '<thead><tr>' + c.map(x => '<th scope="col">' + x + '</th>').join('') + '</tr></thead>';
+// Nomes das linhas das fichas RAID em português (os guias vêm em inglês).
+const FICHA_PT = [['Physical Defense', 'DEF'], ['Magical Defense', 'MDEF'], ['Physical Resistance', 'Resistência física'], ['Magical Resistance', 'Resistência mágica'], ['Neutral Prorate', 'Proration neutra'], ['Physical Prorate', 'Proration física'], ['Magical Prorate', 'Proration mágica'], ['Critical Resistance', 'Resistência crítica'], ['Flee', 'Esquiva (Flee)'], ['Guard', 'Guarda'], ['Evasion', 'Evasão'], ['Flinch', 'Flinch (recuo)'], ['Tumble', 'Tumble (derrubar)'], ['Stun', 'Stun (atordoar)'], ['Nightmare', 'Pesadelo'], ['Ultimate', 'Ultimate'], ['Easy', 'Fácil'], ['Hard', 'Difícil'], ['Normal', 'Normal']];
+const trFicha = s => { for (const [en, pt] of FICHA_PT) if (s.startsWith(en)) return pt + s.slice(en.length); return s; };
+function fichaHtml(f) {  const row = (a, num) => '<tr>' + a.map((c, i) => '<' + (i ? 'td' : 'th scope="row"') + '>' + esc(i ? (num ? fnum(c) : (c === '' ? '—' : String(c))) : trFicha(String(c))) + '</' + (i ? 'td' : 'th') + '>').join('') + '</tr>';
+  const head = c => '<thead><tr>' + c.map(x => '<th scope="col">' + esc(trFicha(x)) + '</th>').join('') + '</tr></thead>';
   const sec = (t, h) => '<div><h4>' + t + '</h4>' + h + '</div>';
   const tbl = (h, rows, num) => '<div class="ftab"><table>' + head(h) + '<tbody>' + rows.map(r => row(r.map(x => x === '' ? '—' : x), num)).join('') + '</tbody></table></div>';
   let h = f.lo ? '<div class="fmeta"><span><b>Local:</b> ' + esc(f.lo) + '</span></div>' : '';
@@ -466,7 +559,7 @@ const itemTags = i => '<span class="tags">' + (i.badge ? '<span class="tag">' + 
 function viewItem(id) {
   const i = DB.ITBYID.get(id);
   if (!i) { view.innerHTML = backBtn('#/itens') + '<p class="empty">Item não encontrado.</p>'; return; }
-  setTitle(i.name);
+  setTitle(i.name); addRecent('i:' + i.id);
   const st = i.stats.filter(s => s[0] !== DB.S_UPG);
   const list = st.length ? '<section class="card"><h2>Status</h2><div class="slist">' + st.map(s => { const [n, v, c] = sparts(s); return '<div class="' + (s[1] < 0 ? 'neg' : '') + '"><span>' + esc(n) + (c ? '<small>' + esc(c) + '</small>' : '') + '</span><b>' + v + '</b></div>'; }).join('') + '</div></section>' : '';
   const meta = [['Tipo', esc(i.tl || 'Outros')], i.proc ? ['Processar', i.pa + ' ' + PROC[i.proc]] : null, i.sell ? ['Venda', fmt(i.sell) + ' Spina'] : null, i.badge ? ['Origem', esc(i.badge)] : null].filter(Boolean);
@@ -478,9 +571,10 @@ function viewItem(id) {
       : '<p class="muted" style="margin:0">Nenhum monstro do bestiário dropa este item. Ele pode vir de craft, NPC, missão, evento ou baú.</p>') + '</section>';
   // Em que espaço da calculadora de status o item entra (arma, sub, armadura... ou crysta).
   const slotFor = SLOTS.find(s => s[2].includes(i.tl)) || SLOTS.find(s => s[3].includes(i.tl));
-  const equip = slotFor ? '<p style="margin:10px 0 0"><button type="button" class="btn" id="equip">Equipar na calculadora de status</button></p>' : '';
-  view.innerHTML = backBtn('#/itens') + '<div class="dhead"><h1>' + esc(i.name) + '</h1><div class="dmeta">' + meta.map(([k, v]) => '<span><span class="muted">' + k + '</span> ' + v + '</span>').join('') + itemTags(i) + '</div>'
+  const equip = (slotFor || i.by.length || i.stats.length) ? '<p class="chips" style="margin:10px 0 0">' + (slotFor ? '<button type="button" class="btn" id="equip">Equipar na calculadora de status</button>' : '') + (i.by.length ? '<a class="btn ghost" href="#/farmar/' + i.id + '">Onde farmar perto do meu nível</a>' : '') + (i.stats.length ? '<button type="button" class="btn ghost" id="cmpbtn">' + (inCmp(i.id) ? '✓ Na comparação' : 'Comparar') + '</button>' + (CMP.length ? '<a class="tl" href="#/comparar" style="align-self:center">ver comparação (' + CMP.length + ')</a>' : '') : '') + '</p>' : '';
+  view.innerHTML = backBtn('#/itens') + '<div class="dhead"><h1>' + esc(i.name) + favBtn('i:' + i.id) + '</h1><div class="dmeta">' + meta.map(([k, v]) => '<span><span class="muted">' + k + '</span> ' + v + '</span>').join('') + itemTags(i) + '</div>'
     + (i.note ? '<p class="inote">' + esc(i.note) + '</p>' : '') + equip + '</div><div class="grid2"><div>' + list + tree + '</div><div>' + drops + '</div></div>';
+  const cb = $('#cmpbtn'); if (cb) cb.addEventListener('click', () => { toggleCmp(i.id); viewItem(i.id); });
   if (slotFor) $('#equip').addEventListener('click', () => {
     const s = BD.sl[slotFor[0]];
     if (slotFor[2].includes(i.tl)) s.id = i.id;
@@ -518,13 +612,13 @@ function mapList() {
 function viewMap(id) {
   const m = DB.MAPS.get(id);
   if (!m) { view.innerHTML = backBtn('#/mapas') + '<p class="empty">Mapa não encontrado.</p>'; return; }
-  setTitle(m.name);
+  setTitle(m.name); addRecent('p:' + m.id);
   const l = DB.LOC[m.name];
   const sec = TYPES.map(([t, lab]) => {
     const gs = m.mons.filter(g => g.t === t).sort((a, b) => a.lo - b.lo);
     return gs.length ? '<div class="dgroup"><span class="lbl">' + lab + ' (' + gs.length + ')</span><div class="links">' + gs.map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + ' <small>Lv ' + lvTxt(g) + '</small></a>').join('') + '</div></div>' : '';
   }).join('');
-  view.innerHTML = backBtn('#/mapas') + '<div class="dhead"><h1>' + esc(m.name) + '</h1><div class="dmeta">' + (l ? '<span class="pill">Mundo ' + WORLDS[l[0]].nome + '</span>' : '') + '<span class="muted">' + m.mons.length + (m.mons.length === 1 ? ' monstro' : ' monstros') + '</span></div></div>'
+  view.innerHTML = backBtn('#/mapas') + '<div class="dhead"><h1>' + esc(m.name) + favBtn('p:' + m.id) + '</h1><div class="dmeta">' + (l ? '<span class="pill">Mundo ' + WORLDS[l[0]].nome + '</span>' : '') + '<span class="muted">' + m.mons.length + (m.mons.length === 1 ? ' monstro' : ' monstros') + '</span></div></div>'
     + '<div class="grid2"><div><section class="card"><h2>Monstros deste mapa</h2>' + (sec || '<p class="muted" style="margin:0">O coryn.club não lista monstros neste mapa.</p>') + '</section></div><div>' + locHtml([m.name]) + '</div></div>';
 }
 
@@ -537,6 +631,8 @@ function viewTools() {
   view.innerHTML = '<div class="ph"><div><h1>Ferramentas</h1><p>Calculadoras e guias para o dia a dia.</p></div></div>'
     + '<h2 class="sect">Upar</h2><div class="tiles">'
     + t('#/upar', 'Onde upar', 'Melhores monstros por EXP para o seu nível, com bônus de emblema e ticket')
+    + t('#/farmar', 'Onde farmar', 'Escolha um material e veja quem dropa perto do seu nível')
+    + t('#/favoritos', 'Favoritos', 'Monstros, itens e mapas que você marcou com estrela')
     + t('#/exp', 'Calculadora de EXP', 'EXP até o nível desejado, missões principais e Diário do Aventureiro')
     + t('#/pontos', 'Pontos de status e skill', 'Quantos pontos você tem pelo nível e pelos emblemas')
     + t('#/comida', 'Códigos de comida', 'Casas com comida de buff: STR, DEX, crítico, ATK, aggro e mais')

@@ -1,0 +1,30 @@
+name: Dados do jogo
+
+# Toda segunda-feira busca monstros, itens e mapas novos na API do coryn.club.
+on:
+  schedule:
+    - cron: '40 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dados:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Atualizar monstros, itens e mapas
+        run: python3 scripts/atualizar_dados.py
+      - name: Salvar se mudou
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/monstros.json data/itens.json
+          if git diff --cached --quiet; then
+            echo "Sem dados novos"
+          else
+            git commit -m "Dados do jogo atualizados"
+            git pull --rebase
+            git push
+          fi
