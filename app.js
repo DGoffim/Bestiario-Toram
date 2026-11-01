@@ -1219,7 +1219,10 @@ const REFS = ['0', '+1', '+2', '+3', '+4', '+5', '+6', '+7', '+8', '+9', 'E', 'D
 const ARMOR_KIND = [['normal', 'Normal', 0], ['leve', 'Leve (Light)', 32768], ['pesada', 'Pesada (Heavy)', 16384]];
 // ATK e MATK por arma: [STR, INT, DEX, AGI] para ATK; MATK usa INT×3 + DEX (Staff, MD e Knuckle somam o ATK da arma).
 const ATKF = { '1 Handed Sword': [2, 0, 2, 0], '2 Handed Sword': [3, 0, 1, 0], 'Bow': [1, 0, 3, 0], 'Bowgun': [0, 0, 4, 0], 'Knuckles': [0, 0, 0.5, 2], 'Magic Device': [0, 2, 0, 2], 'Staff': [3, 1, 0, 0], 'Halberd': [2.5, 0, 0, 1.5], 'Katana': [1.5, 0, 2.5, 0], '': [1, 0, 0, 0] };
-const newBuild = () => ({ lv: 300, st: { STR: 1, INT: 1, VIT: 1, AGI: 1, DEX: 1 }, ps: 'CRT', pv: 0, sl: { arma: { id: 0, r: 0, x: [0, 0] }, sub: { id: 0, r: 0, x: [] }, armadura: { id: 0, r: 0, x: [0, 0], k: 'normal' }, adicional: { id: 0, r: 0, x: [0, 0] }, especial: { id: 0, r: 0, x: [0, 0] } }, ex: [] });
+// Registlets que dão status direto (efeito do coryn.club): status e quanto por nível.
+const REG_STAT = { 'Physical Attack Boost': ['ATK', 1], 'Magic Attack Boost': ['MATK', 1], 'Physical Defense Boost': ['DEF', 1], 'Magic Defense Boost': ['MDEF', 1], 'Accuracy Boost': ['Accuracy', 1], 'Dodge Boost': ['Dodge', 1], 'Attack Speed Boost': ['ASPD', 1], 'Magic Speed Boost': ['CSPD', 1], 'Max HP Boost': ['MaxHP', 10], 'Max MP Boost': ['MaxMP', 1] };
+const REG_MAX_SLOTS = 10;
+const newBuild = () => ({ rg: [], lv: 300, st: { STR: 1, INT: 1, VIT: 1, AGI: 1, DEX: 1 }, ps: 'CRT', pv: 0, sl: { arma: { id: 0, r: 0, x: [0, 0] }, sub: { id: 0, r: 0, x: [] }, armadura: { id: 0, r: 0, x: [0, 0], k: 'normal' }, adicional: { id: 0, r: 0, x: [0, 0] }, especial: { id: 0, r: 0, x: [0, 0] } }, ex: [] });
 let BD = store.get('build', null) || newBuild();
 const b64e = s => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const b64d = s => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
@@ -1245,6 +1248,7 @@ function buildTotals() {
     add(s[0], s[1]);
   }
   BD.ex.forEach(([si, v]) => add(si, +v || 0));
+  (BD.rg || []).forEach(([n, lv]) => { const m = REG_STAT[n]; if (m) { const i = SI(m[0]); if (i >= 0) add(i, m[1] * lv); } });
   return { tot, off, bits };
 }
 function buildDerived(tot) {
@@ -1411,19 +1415,19 @@ function viewNewsItem(id) {
 
 // ---------- personagem (no esquema do Cy's Grimoire): abas Visão geral, Equipamento, Skills, Comida e Salvar ----------
 // Cada personagem guarda a build (equipamento e status) e as skills. Fica tudo salvo neste aparelho.
-const PG_TABS = [['geral', 'Geral'], ['equipamento', 'Equipamento'], ['skills', 'Skills'], ['comida', 'Comida'], ['comparar', 'Comparar'], ['salvar', 'Salvar']];
+const PG_TABS = [['geral', 'Geral'], ['equipamento', 'Equipamento'], ['skills', 'Skills'], ['registlets', 'Registlets'], ['comida', 'Comida'], ['comparar', 'Comparar'], ['salvar', 'Salvar']];
 let CHARS = store.get('chars', null) || { cur: 0, list: [{ name: 'Build 1', bd: store.get('build', null), sk: store.get('skills', {}) }] };
 const clone = o => JSON.parse(JSON.stringify(o));
-function syncChar() { const c = CHARS.list[CHARS.cur]; if (!c) return; c.bd = clone(BD); c.sk = clone(SKS.lv); store.set('chars', CHARS); }
+function syncChar() { const c = CHARS.list[CHARS.cur]; if (!c) return; c.bd = clone(BD); c.sk = clone(SKS.lv); c.sg = clone(SKS.gem); store.set('chars', CHARS); }
 function useChar(i) {
   CHARS.cur = i; const c = CHARS.list[i];
-  BD = Object.assign(newBuild(), clone(c.bd || newBuild())); SKS.lv = clone(c.sk || {});
-  store.set('build', BD); store.set('skills', SKS.lv); store.set('chars', CHARS);
+  BD = Object.assign(newBuild(), clone(c.bd || newBuild())); SKS.lv = clone(c.sk || {}); SKS.gem = clone(c.sg || {});
+  store.set('build', BD); store.set('skills', SKS.lv); store.set('stargems', SKS.gem); store.set('chars', CHARS);
 }
-function addChar(name, bd, sk) { CHARS.list.push({ name, bd: bd || newBuild(), sk: sk || {} }); useChar(CHARS.list.length - 1); }
-const charCode = c => b64e(JSON.stringify({ n: c.name, b: c.bd, s: c.sk }));
+function addChar(name, bd, sk, sg) { CHARS.list.push({ name, bd: bd || newBuild(), sk: sk || {}, sg: sg || {} }); useChar(CHARS.list.length - 1); }
+const charCode = c => b64e(JSON.stringify({ n: c.name, b: c.bd, s: c.sk, g: c.sg || {} }));
 function importChar(code) {
-  try { const o = JSON.parse(b64d(code)); addChar((o.n || 'Personagem') + ' (importado)', o.b, o.s); } catch (e) { alert('Esse link ou código de personagem não é válido.'); }
+  try { const o = JSON.parse(b64d(code)); addChar((o.n || 'Build') + ' (importada)', o.b, o.s, o.g); } catch (e) { alert('Esse link ou código de personagem não é válido.'); }
   location.replace('#/personagem/geral');
 }
 function viewChar(tab, code) {
@@ -1450,6 +1454,7 @@ function viewChar(tab, code) {
     else if (tab === 'comida') viewFood();
     else if (tab === 'salvar') viewCharSave();
     else if (tab === 'comparar') viewCharCompare();
+    else if (tab === 'registlets') viewCharRegs();
     else viewCharOverview();
   } finally { view = mainView; }
   setTitle(c.name + ' · ' + PG_TABS.find(x => x[0] === tab)[1]);
@@ -1460,13 +1465,14 @@ function viewCharOverview() {
   const box = (l, v) => '<div><span class="lbl">' + l + '</span><div class="big">' + fmt(Math.floor(v)) + '</div></div>';
   const eq = SLOTS.map(([k, lab]) => { const s = BD.sl[k], it = DB.ITBYID.get(s.id); return it ? '<div><span>' + lab + '</span><b><a class="tl" href="' + itemUrl(it) + '">' + esc(it.name) + '</a>' + (s.r ? ' ' + REFS[s.r] : '') + '</b></div>' : ''; }).join('');
   const trees = SKT ? SKT.map(t => [skTreeName(t), skTreeSP(t)]).filter(x => x[1]) : Object.entries(SKS.lv).map(([k, o]) => [k, Object.values(o).reduce((a, b) => a + b, 0)]);
-  const sp = trees.reduce((a, x) => a + x[1], 0);
+  const sp = trees.reduce((a, x) => a + x[1], 0), gemPts = SKT ? SKT.reduce((a, t) => a + skTreeGem(t), 0) : 0;
   view.innerHTML = '<div class="grid2"><div>'
     + '<section class="card"><h2>Status <small>Lv ' + BD.lv + '</small></h2><div class="res">' + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => box(s, d[s])).join('') + '</div>'
     + '<h4 class="sub4">Estimativas</h4><div class="res">' + [['ATK', d.ATK], ['MATK', d.MATK], ['MaxHP', d.MaxHP], ['MaxMP', d.MaxMP], ['Taxa crítica', d.CRIT], ['CSPD', d.CSPD], ['Precisão', d.HIT], ['Esquiva', d.FLEE]].map(([l, v]) => box(l, v)).join('') + '</div>'
     + '<p class="note">Fórmulas da comunidade, sem skills passivas. Para mudar, use a aba Equipamento.</p></section></div><div>'
     + '<section class="card"><h2>Equipamento</h2>' + (eq ? '<div class="slist">' + eq + '</div>' : '<p class="muted" style="margin:0">Nada equipado ainda. <a class="tl" href="#/personagem/equipamento">Escolher equipamento</a></p>') + '</section>'
-    + '<section class="card"><h2>Skills <small>' + sp + ' pontos · sobram ' + Math.max(0, skillPts(BD.lv) - sp) + ' no Lv ' + BD.lv + '</small></h2>' + (trees.length ? '<div class="slist">' + trees.map(([n, v]) => '<div><span>' + esc(n) + '</span><b>' + v + ' SP</b></div>').join('') + '</div>' : '<p class="muted" style="margin:0">Nenhuma skill ainda. <a class="tl" href="#/personagem/skills">Distribuir pontos</a></p>') + '</section>'
+    + '<section class="card"><h2>Skills <small>' + sp + ' pontos · sobram ' + Math.max(0, skillPts(BD.lv) - sp) + ' no Lv ' + BD.lv + (gemPts ? ' · ★ ' + gemPts + ' Star Gem' : '') + '</small></h2>' + (trees.length ? '<div class="slist">' + trees.map(([n, v]) => '<div><span>' + esc(n) + '</span><b>' + v + ' SP</b></div>').join('') + '</div>' : '<p class="muted" style="margin:0">Nenhuma skill ainda. <a class="tl" href="#/personagem/skills">Distribuir pontos</a></p>') + '</section>'
+    + '<section class="card"><h2>Registlets <small>' + (BD.rg || []).length + ' de ' + REG_MAX_SLOTS + '</small></h2>' + ((BD.rg || []).length ? '<div class="links">' + BD.rg.map(([n, lv]) => '<span class="lk">' + esc(n) + ' <small>Lv ' + lv + '</small></span>').join('') + '</div>' : '<p class="muted" style="margin:0">Nenhum registlet. <a class="tl" href="#/personagem/registlets">Equipar registlets</a></p>') + '</section>'
     + '<section class="card"><h2>Usar este personagem</h2><div class="chips"><a class="btn" href="#/dano">Calcular dano num boss</a><a class="btn ghost" href="#/statting">Simular statting</a><a class="btn ghost" href="#/personagem/salvar">Compartilhar</a></div></section>'
     + '</div></div>';
 }
@@ -1482,7 +1488,7 @@ function viewCharSave() {
     const i = +(b.dataset.use || b.dataset.ren || b.dataset.dup || b.dataset.link || b.dataset.del);
     if (b.dataset.use) { useChar(i); viewChar('salvar'); }
     else if (b.dataset.ren) { const n = prompt('Nome da build:', CHARS.list[i].name); if (n && n.trim()) { CHARS.list[i].name = n.trim().slice(0, 40); store.set('chars', CHARS); viewChar('salvar'); } }
-    else if (b.dataset.dup) { syncChar(); addChar(CHARS.list[i].name + ' (cópia)', clone(CHARS.list[i].bd), clone(CHARS.list[i].sk)); viewChar('salvar'); }
+    else if (b.dataset.dup) { syncChar(); addChar(CHARS.list[i].name + ' (cópia)', clone(CHARS.list[i].bd), clone(CHARS.list[i].sk), clone(CHARS.list[i].sg || {})); viewChar('salvar'); }
     else if (b.dataset.link) { syncChar(); const url = location.href.split('#')[0] + '#/p/' + charCode(CHARS.list[i]); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => msg('Link copiado! Quem abrir recebe uma cópia desse personagem.'), () => { fallbackCopy(url); msg('Link copiado!'); }); else { fallbackCopy(url); msg('Link copiado!'); } }
     else if (b.dataset.del) { if (!confirm('Excluir “' + CHARS.list[i].name + '”?')) return; CHARS.list.splice(i, 1); useChar(Math.min(CHARS.cur > i ? CHARS.cur - 1 : CHARS.cur, CHARS.list.length - 1)); viewChar('salvar'); }
   });
@@ -1501,11 +1507,37 @@ function viewCharSave() {
       const arr = (JSON.parse(txt) || {}).builds;
       if (!Array.isArray(arr) || !arr.length) throw new Error('vazio');
       syncChar();
-      arr.forEach(c => CHARS.list.push({ name: String(c.name || 'Build').slice(0, 40), bd: c.bd || newBuild(), sk: c.sk || {} }));
+      arr.forEach(c => CHARS.list.push({ name: String(c.name || 'Build').slice(0, 40), bd: c.bd || newBuild(), sk: c.sk || {}, sg: c.sg || {} }));
       store.set('chars', CHARS); viewChar('salvar');
       $('#pgmsg').textContent = arr.length + (arr.length === 1 ? ' build restaurada' : ' builds restauradas') + ' do backup.';
     }).catch(() => alert('Esse arquivo não é um backup do Bestiário de Toram.'));
   });
+}
+// Aba Registlets: até 10 equipados, cada um com nível; os de status entram na soma da build.
+function viewCharRegs() {
+  if (!REGS) { view.innerHTML = '<p class="loading">Carregando registlets…</p>'; load('registlets').then(d => { REGS = d.regs; if (location.hash.startsWith('#/personagem/registlets')) viewChar('registlets'); }); return; }
+  BD.rg = BD.rg || [];
+  const reg = n => REGS.find(r => r[0] === n) || [n, 1, '', ''];
+  const bonus = BD.rg.map(([n, lv]) => REG_STAT[n] ? [REG_STAT[n][0], REG_STAT[n][1] * lv] : null).filter(Boolean);
+  const cards = BD.rg.map(([n, lv], i) => { const r = reg(n), m = REG_STAT[n]; return '<section class="card reg"><h2>' + esc(n) + ' <button type="button" class="slotx" data-rmreg="' + i + '" aria-label="Tirar registlet" style="margin-left:auto;height:30px;width:30px;font-size:16px">×</button></h2>'
+    + '<div class="range" style="margin:-2px 0 8px"><label class="lbl" for="rgl' + i + '" style="flex:none">Nível</label><select id="rgl' + i + '" data-rglv="' + i + '" style="width:auto">' + Array.from({ length: Math.max(1, r[1]) }, (_, k) => '<option' + (k + 1 === lv ? ' selected' : '') + '>' + (k + 1) + '</option>').join('') + '</select><span class="muted" style="font-size:12.5px">de ' + (r[1] || 1) + '</span>' + (m ? '<span class="tag ok">' + esc(m[0]) + ' +' + fmt(m[1] * lv) + '</span>' : '') + (r[2] ? '<span class="tag info">Muda: ' + esc(r[2]) + '</span>' : '') + '</div><p class="reff">' + esc(r[3]) + '</p></section>'; }).join('');
+  view.innerHTML = '<section class="card"><h2>Registlets equipados <small>' + BD.rg.length + ' de ' + REG_MAX_SLOTS + '</small></h2>'
+    + (bonus.length ? '<p style="margin:0 0 8px;font-size:14px"><span class="muted">Somam na build:</span> ' + bonus.map(([s, v]) => '<b>' + esc(s) + ' +' + fmt(v) + '</b>').join(' · ') + '</p>' : '')
+    + '<div class="chips"><button type="button" class="btn" id="rgadd"' + (BD.rg.length >= REG_MAX_SLOTS ? ' disabled' : '') + '>+ Adicionar registlet</button></div>'
+    + '<p class="note">Os registlets de status (ATK, MATK, DEF, MDEF, Precisão, Esquiva, ASPD, CSPD, HP e MP) entram na soma da build e nas calculadoras. Os que mudam skills ficam anotados aqui. Efeitos do coryn.club, em inglês como no jogo.</p></section>'
+    + (cards ? '<div class="regs">' + cards + '</div>' : '')
+    + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar registlet (nome, skill ou efeito)" aria-label="Buscar registlet"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>';
+  const rerender = () => { saveBuild(); viewChar('registlets'); };
+  view.querySelectorAll('[data-rglv]').forEach(s => s.addEventListener('change', () => { BD.rg[+s.dataset.rglv][1] = +s.value; rerender(); }));
+  view.querySelectorAll('[data-rmreg]').forEach(b => b.addEventListener('click', () => { BD.rg.splice(+b.dataset.rmreg, 1); rerender(); }));
+  const list = () => { const q = $('#pq').value.trim().toLowerCase(); const have = new Set(BD.rg.map(x => x[0]));
+    $('#plist2').innerHTML = REGS.filter(r => !have.has(r[0]) && (!q || (r[0] + ' ' + r[2] + ' ' + r[3]).toLowerCase().includes(q))).sort((a, b) => (REG_STAT[b[0]] ? 1 : 0) - (REG_STAT[a[0]] ? 1 : 0) || a[0].localeCompare(b[0])).slice(0, 80)
+      .map(r => '<button type="button" class="prow2" data-reg="' + esc(r[0]) + '"><b>' + esc(r[0]) + '</b> <small>nível máx. ' + r[1] + (r[2] ? ' · muda ' + esc(r[2]) : '') + (REG_STAT[r[0]] ? ' · soma ' + esc(REG_STAT[r[0]][0]) : '') + '</small><span>' + esc(r[3]) + '</span></button>').join('') || '<p class="empty">Nenhum registlet.</p>'; };
+  $('#rgadd').addEventListener('click', () => { $('#pq').value = ''; $('#pick').hidden = false; list(); $('#pq').focus(); });
+  $('#pq').addEventListener('input', list);
+  $('#plist2').addEventListener('click', e => { const b = e.target.closest('[data-reg]'); if (!b) return; const r = reg(b.dataset.reg); BD.rg.push([r[0], Math.max(1, r[1])]); rerender(); });
+  $('#pclose').addEventListener('click', () => { $('#pick').hidden = true; });
+  $('#pick').addEventListener('click', e => { if (e.target.id === 'pick') $('#pick').hidden = true; });
 }
 // Calcula os status de uma build salva sem mexer na build em uso.
 function charCalc(c) {
@@ -1529,6 +1561,10 @@ function viewCharCompare() {
   const est = [['ATK', 'ATK'], ['MATK', 'MATK'], ['ATK da arma', 'watk'], ['MaxHP', 'MaxHP'], ['MaxMP', 'MaxMP'], ['Taxa crítica', 'CRIT'], ['CSPD', 'CSPD'], ['Precisão', 'HIT'], ['Esquiva', 'FLEE']].map(([l, k]) => numRow(l, ca.d[k], cb.d[k])).join('');
   const itemTxt = (s, withX) => { const it = DB.ITBYID.get(s.id); if (!it) return '<span class="muted">—</span>'; const xs = withX ? (s.x || []).map(id => DB.ITBYID.get(id)).filter(Boolean) : []; return '<a class="tl" href="' + itemUrl(it) + '">' + esc(it.name) + '</a>' + (s.r ? ' <b>' + REFS[s.r] + '</b>' : '') + (xs.length ? '<small>' + xs.map(x => esc(x.name)).join(' · ') + '</small>' : ''); };
   const equip = SLOTS.map(([k, lab]) => { const sa = ca.bd.sl[k], sb = cb.bd.sl[k], same = sa.id === sb.id && sa.r === sb.r && JSON.stringify(sa.x || []) === JSON.stringify(sb.x || []); return '<tr' + (same ? '' : ' class="chg"') + '><th scope="row">' + lab + '</th><td>' + itemTxt(sa, true) + '</td><td>' + itemTxt(sb, true) + '</td><td class="n ' + (same ? 'dz">igual' : 'up">diferente') + '</td></tr>'; }).join('');
+  const regTxt = bd => (bd.rg || []).length ? (bd.rg || []).map(([n, lv]) => esc(n) + ' ' + lv).join('<br>') : '<span class="muted">—</span>';
+  const regSame = JSON.stringify(ca.bd.rg || []) === JSON.stringify(cb.bd.rg || []);
+  const regRow = '<tr' + (regSame ? '' : ' class="chg"') + '><th scope="row">Registlets</th><td>' + regTxt(ca.bd) + '</td><td>' + regTxt(cb.bd) + '</td><td class="n ' + (regSame ? 'dz">igual' : 'up">diferente') + '</td></tr>';
+  const gemDiff = SKT ? SKT.flatMap(t => t.s.map(s => [t, s, ((A.sg || {})[t.k] || {})[s[0]] || 0, ((B.sg || {})[t.k] || {})[s[0]] || 0])).filter(x => x[2] !== x[3]) : [];
   const sp = c => SKT ? SKT.map(t => [t, t.s.reduce((a, s) => a + ((c.sk[t.k] || {})[s[0]] || 0), 0)]) : [];
   const spA = sp(A), spB = sp(B);
   const skillRows = SKT ? SKT.map((t, i) => [t, spA[i][1], spB[i][1]]).filter(x => x[1] || x[2]).map(([t, a, b]) => numRow(esc(skTreeName(t)), a, b, v => v + ' SP')).join('') : '<tr><td colspan="4" class="muted">Carregando as árvores…</td></tr>';
@@ -1538,9 +1574,10 @@ function viewCharCompare() {
   view.innerHTML = '<section class="card"><h2>Comparar builds</h2><div class="calc"><div class="field"><label class="lbl" for="cmpa">Build A</label>' + sel('cmpa', CMPB.a) + '</div><div class="field"><label class="lbl" for="cmpb">Build B</label>' + sel('cmpb', CMPB.b) + '</div></div><p class="note">A coluna “Diferença” mostra quanto a Build B tem a mais (verde) ou a menos (vermelho) que a Build A.</p></section>'
     + '<div class="grid2"><div>'
     + '<section class="card"><h2>Status</h2><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + status + '</tbody></table></div><h4 class="sub4">Estimativas</h4><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + est + '</tbody></table></div></section>'
-    + '<section class="card"><h2>Equipamento</h2><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + equip + '</tbody></table></div></section>'
+    + '<section class="card"><h2>Equipamento</h2><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + equip + regRow + '</tbody></table></div></section>'
     + '</div><div>'
     + '<section class="card"><h2>Skills</h2><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + (skillRows || '<tr><td colspan="4" class="muted">Nenhuma skill nas duas builds.</td></tr>') + '</tbody></table></div>'
+    + (gemDiff.length ? '<h4 class="sub4">Star Gems diferentes</h4><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + gemDiff.map(([t, s, a, b]) => numRow('★ ' + esc(s[1]) + '<small>' + esc(skTreeName(t)) + '</small>', a, b)).join('') + '</tbody></table></div>' : '')
     + (lvDiff.length ? '<h4 class="sub4">Skills com nível diferente</h4><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + lvDiff.map(([t, s, a, b]) => numRow(esc(s[1]) + '<small>' + esc(skTreeName(t)) + '</small>', a, b)).join('') + '</tbody></table></div>' : '') + '</section>'
     + '<section class="card"><h2>Soma dos status dos equipamentos</h2>' + (statRows ? '<div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + statRows + '</tbody></table></div>' : '<p class="muted" style="margin:0">As duas builds estão sem equipamento.</p>') + '</section>'
     + '</div></div>';
@@ -1553,7 +1590,7 @@ function viewCharCompare() {
 // para pôr ponto numa skill, a anterior precisa estar no 5; baixar uma skill para menos de 5 zera as que dependem dela.
 let SKT = null;
 const SKCAT = { Weapon: 'Arma', Buff: 'Buff', Assist: 'Assistência', Other: 'Outros' };
-const SKS = { lv: store.get('skills', {}), open: new Set(), mode: 1, step: 1, plv: store.get('lv', 100) };
+const SKS = { lv: store.get('skills', {}), gem: store.get('stargems', {}), edit: 'pt', open: new Set(), mode: 1, step: 1, plv: store.get('lv', 100) };
 const skTreeName = t => t.n.replace(/^\w+:\s*/, '').replace(/\s*Skill$/, '');
 const skCat = t => SKCAT[(t.n.match(/^(\w+):/) || [])[1]] || 'Outros';
 const skLv = (k, id) => (SKS.lv[k] && SKS.lv[k][id]) || 0;
@@ -1569,6 +1606,10 @@ function skRemove(t, id, num) {
   if (v < 5) t.s.filter(c => c[2] === id && skLv(t.k, c[0]) > 0).forEach(c => skRemove(t, c[0], 10));
 }
 const skTreeSP = t => t.s.reduce((a, s) => a + skLv(t.k, s[0]), 0);
+// Star Gem (como no Cy's Grimoire): nível 0 a 10 por skill, sem pré-requisito; o nível que vale é o maior entre o normal e o da Star Gem.
+const skGem = (k, id) => (SKS.gem[k] && SKS.gem[k][id]) || 0;
+function skSetGem(k, id, v) { v = Math.max(0, Math.min(10, v)); if (!SKS.gem[k]) SKS.gem[k] = {}; if (v > 0) SKS.gem[k][id] = v; else delete SKS.gem[k][id]; if (!Object.keys(SKS.gem[k]).length) delete SKS.gem[k]; }
+const skTreeGem = t => t.s.reduce((a, s) => a + Math.max(0, skGem(t.k, s[0]) - skLv(t.k, s[0])), 0);
 const skCode = () => b64e(Object.entries(SKS.lv).map(([k, o]) => k + ':' + Object.entries(o).map(([i, v]) => i + '.' + v).join(',')).join(';'));
 function skDecode(code) { const o = {}; b64d(code).split(';').filter(Boolean).forEach(p => { const [k, rest] = p.split(':'); o[k] = {}; (rest || '').split(',').filter(Boolean).forEach(x => { const [i, v] = x.split('.'); if (+v > 0) o[k][+i] = Math.min(10, +v); }); }); return o; }
 function viewSkills(code) {
@@ -1586,9 +1627,9 @@ function viewSkills(code) {
   view.addEventListener('click', skClick);
 }
 function skToolbar() {
-  const used = SKT.reduce((a, t) => a + skTreeSP(t), 0), have = skillPts(SKS.plv);
-  $('#sktool').innerHTML = '<div class="skstat"><span><small>Pontos usados</small><b>' + fmt(used) + '</b></span><span><small>Do nível</small><input id="skplv" type="number" inputmode="numeric" min="1" value="' + SKS.plv + '" aria-label="Seu nível"></span><span><small>' + (used > have ? 'Passou' : 'Sobram') + '</small><b class="' + (used > have ? 'neg' : '') + '">' + fmt(Math.abs(have - used)) + '</b></span></div>'
-    + '<div class="skmode"><div class="seg2" role="group" aria-label="Tocar para"><button type="button" data-mode="1" aria-pressed="' + (SKS.mode > 0) + '">+ Somar</button><button type="button" data-mode="-1" aria-pressed="' + (SKS.mode < 0) + '">− Tirar</button></div>'
+  const used = SKT.reduce((a, t) => a + skTreeSP(t), 0), have = skillPts(SKS.plv), gems = SKT.reduce((a, t) => a + skTreeGem(t), 0);
+  $('#sktool').innerHTML = '<div class="skstat"><span><small>Pontos usados</small><b>' + fmt(used) + '</b></span><span><small>Do nível</small><input id="skplv" type="number" inputmode="numeric" min="1" value="' + SKS.plv + '" aria-label="Seu nível"></span><span><small>' + (used > have ? 'Passou' : 'Sobram') + '</small><b class="' + (used > have ? 'neg' : '') + '">' + fmt(Math.abs(have - used)) + '</b></span><span><small>Star Gem</small><b>' + fmt(gems) + '</b></span></div>'
+    + '<div class="skmode"><div class="seg2" role="group" aria-label="O que o toque muda"><button type="button" data-edit="pt" aria-pressed="' + (SKS.edit === 'pt') + '">Pontos</button><button type="button" data-edit="sg" aria-pressed="' + (SKS.edit === 'sg') + '">★ Star Gem</button></div><div class="seg2" role="group" aria-label="Tocar para"><button type="button" data-mode="1" aria-pressed="' + (SKS.mode > 0) + '">+ Somar</button><button type="button" data-mode="-1" aria-pressed="' + (SKS.mode < 0) + '">− Tirar</button></div>'
     + '<div class="seg2" role="group" aria-label="Quanto por toque"><button type="button" data-step="1" aria-pressed="' + (SKS.step === 1) + '">1</button><button type="button" data-step="5" aria-pressed="' + (SKS.step === 5) + '">5</button><button type="button" data-step="10" aria-pressed="' + (SKS.step === 10) + '">Máx</button></div></div>';
   $('#skplv').addEventListener('change', e => { SKS.plv = Math.max(1, +e.target.value || 1); store.set('lv', SKS.plv); skToolbar(); });
 }
@@ -1601,11 +1642,11 @@ function treeHtml(t) {
   const P = (x, y) => (x * SK_CW + SK_PAD) + ',' + (y * SK_CH + SK_PAD);
   const lines = t.s.filter(s => s[2] >= 0).map(s => {
     const p = t.s.find(x => x[0] === s[2]); if (!p) return '';
-    const on = skLv(t.k, s[0]) > 0;
+    const on = Math.max(skLv(t.k, s[0]), skGem(t.k, s[0])) > 0;
     const pts = s[5] === -1 ? [P(s[3], s[4]), P((s[3] + p[3]) / 2, s[4]), P((s[3] + p[3]) / 2, p[4]), P(p[3], p[4])] : [P(s[3], s[4]), P(s[5], s[6]), P(p[3], p[4])];
     return '<polyline points="' + pts.join(' ') + '" class="' + (on ? 'on' : '') + '"/>';
   }).join('');
-  const nodes = t.s.map(s => { const v = skLv(t.k, s[0]); return '<button type="button" class="sknode' + (v ? ' on' : '') + (v === 10 ? ' max' : '') + '" data-t="' + t.k + '" data-id="' + s[0] + '" style="left:' + (s[3] * SK_CW + SK_PAD) + 'px;top:' + (s[4] * SK_CH + SK_PAD) + 'px" aria-label="' + esc(s[1]) + ', nível ' + v + '"><i' + (s[7] ? ' class="ic" style="background-image:url(' + SKIMG + s[7] + ')"' : '') + '>' + (s[7] ? '<b>' + v + '</b>' : v) + '</i><span>' + esc(s[1]) + '</span></button>'; }).join('');
+  const nodes = t.s.map(s => { const v = skLv(t.k, s[0]), gm = skGem(t.k, s[0]), ef = Math.max(v, gm); return '<button type="button" class="sknode' + (ef ? ' on' : '') + (ef === 10 ? ' max' : '') + (gm ? ' gem' : '') + '" data-t="' + t.k + '" data-id="' + s[0] + '" style="left:' + (s[3] * SK_CW + SK_PAD) + 'px;top:' + (s[4] * SK_CH + SK_PAD) + 'px" aria-label="' + esc(s[1]) + ', nível ' + v + '"><i' + (s[7] ? ' class="ic" style="background-image:url(' + SKIMG + s[7] + ')"' : '') + '>' + (s[7] ? '<b>' + v + '</b>' : v) + (gm ? '<u title="Star Gem">★' + gm + '</u>' : '') + '</i><span>' + esc(s[1]) + '</span></button>'; }).join('');
   return '<div class="skbar"><span class="muted">' + skTreeSP(t) + ' pontos nesta árvore<span class="skhint"> · arraste para o lado</span></span><button type="button" class="link" data-reset="' + t.k + '">Zerar árvore</button></div><div class="skscroll"><div class="skcanvas" style="width:' + w + 'px;height:' + h + 'px"><svg width="' + w + '" height="' + h + '" aria-hidden="true">' + lines + '</svg>' + nodes + '</div></div>';
 }
 function openTree(k, on) {
@@ -1615,20 +1656,21 @@ function openTree(k, on) {
   if (on) { SKS.open.add(k); b.innerHTML = treeHtml(t); } else SKS.open.delete(k);
 }
 function skRefresh(onlyTree) {
-  store.set('skills', SKS.lv); syncChar();
+  store.set('skills', SKS.lv); store.set('stargems', SKS.gem); syncChar();
   skToolbar();
   SKT.forEach(t => { const sp = skTreeSP(t); const el = $('#sp-' + t.k); if (el) el.textContent = sp ? sp + ' SP' : ''; });
   if (onlyTree) { const b = $('#skb-' + onlyTree); if (b && !b.hidden) b.innerHTML = treeHtml(SKT.find(x => x.k === onlyTree)); }
-  const sel = SKT.filter(t => skTreeSP(t) > 0);
-  $('#sksel').innerHTML = sel.length ? sel.map(t => '<div class="dgroup"><span class="lbl">' + esc(skTreeName(t)) + ' · ' + skTreeSP(t) + ' SP</span><div class="links">' + t.s.filter(s => skLv(t.k, s[0]) > 0).map(s => '<span class="lk">' + esc(s[1]) + ' <small>' + skLv(t.k, s[0]) + '</small></span>').join('') + '</div></div>').join('')
+  const sel = SKT.filter(t => skTreeSP(t) > 0 || t.s.some(s => skGem(t.k, s[0])));
+  $('#sksel').innerHTML = sel.length ? sel.map(t => '<div class="dgroup"><span class="lbl">' + esc(skTreeName(t)) + ' · ' + skTreeSP(t) + ' SP' + (skTreeGem(t) ? ' · ★ ' + skTreeGem(t) : '') + '</span><div class="links">' + t.s.filter(s => skLv(t.k, s[0]) > 0 || skGem(t.k, s[0]) > 0).map(s => '<span class="lk">' + esc(s[1]) + ' <small>' + skLv(t.k, s[0]) + (skGem(t.k, s[0]) ? ' · ★' + skGem(t.k, s[0]) : '') + '</small></span>').join('') + '</div></div>').join('')
     : '<p class="muted" style="margin:0">Nenhuma skill ainda. Abra uma árvore e toque nas skills.</p>';
 }
 function skClick(e) {
   if (!document.getElementById('sktool')) return;
   const o = e.target.closest('[data-open]'); if (o) { const k = o.dataset.open; openTree(k, !SKS.open.has(k)); return; }
   const n = e.target.closest('.sknode');
-  if (n) { const t = SKT.find(x => x.k === n.dataset.t), id = +n.dataset.id; SKS.mode > 0 ? skAdd(t, id, SKS.step) : skRemove(t, id, SKS.step); skRefresh(t.k); return; }
-  const r = e.target.closest('[data-reset]'); if (r) { delete SKS.lv[r.dataset.reset]; skRefresh(r.dataset.reset); return; }
+  if (n) { const t = SKT.find(x => x.k === n.dataset.t), id = +n.dataset.id; if (SKS.edit === 'sg') skSetGem(t.k, id, skGem(t.k, id) + SKS.mode * SKS.step); else SKS.mode > 0 ? skAdd(t, id, SKS.step) : skRemove(t, id, SKS.step); skRefresh(t.k); return; }
+  const ed = e.target.closest('[data-edit]'); if (ed) { SKS.edit = ed.dataset.edit; skToolbar(); return; }
+  const r = e.target.closest('[data-reset]'); if (r) { delete SKS.lv[r.dataset.reset]; delete SKS.gem[r.dataset.reset]; skRefresh(r.dataset.reset); return; }
   const m = e.target.closest('[data-mode]'); if (m) { SKS.mode = +m.dataset.mode; skToolbar(); return; }
   const s = e.target.closest('[data-step]'); if (s) { SKS.step = +s.dataset.step; skToolbar(); return; }
   if (e.target.closest('#skshare')) {
@@ -1840,55 +1882,59 @@ function sRender() {
   };
 }
 
-// ---------- calculadora de dano ----------
-// Fórmula aproximada da comunidade: (ATK + diferença de nível − DEF × (1 − pierce)) × (1 − resistência) + constante,
-// × multiplicador da skill × bônus (distância, elemento, buffs, desembainhar) × proration; crítico multiplica pelo dano crítico.
+// ---------- calculadora de dano (completa, no esquema do Cy's Grimoire) ----------
+// Fórmula do glossário: [(ATK efetivo + constante da skill + constante extra) × multiplicadores] + dano fixo.
+// Multiplicadores: crítico × elemento × skill × desembainhar × estabilidade × proration × (combo × distância × dano total × dano final).
+// Acerto: chance = (Precisão − Esquiva do alvo) ÷ 3 + MP da skill ÷ 10; MISS pode virar Graze pelo crítico ou pelo acerto mínimo da arma.
 const EL_EN = ['Fire', 'Earth', 'Water', 'Dark', 'Wind', '', 'Neutral', 'Light'];
-const DM = store.get('dano', { gid: 0, mode: '', type: 'f', range: 'curta', cst: 0, mult: 100, pror: 100, buff: 0, uns: false, lv: 1, def: 0, mdef: 0, pres: 0, mres: 0, cres: 0, hp: 0, critd: '' });
+const EL_BEATS = { Water: 'Fire', Fire: 'Earth', Earth: 'Wind', Wind: 'Water', Light: 'Dark', Dark: 'Light' };
+const MIN_HIT = { '': 50, 'Staff': 30, 'Katana': 30, '1 Handed Sword': 25, 'Halberd': 20, '2 Handed Sword': 15, 'Magic Device': 10, 'Knuckles': 10, 'Bow': 10, 'Bowgun': 5 };
+const DM = Object.assign({ gid: 0, mode: '', type: 'f', range: 'curta', cst: 0, mult: 100, pror: 100, buff: 0, uns: false, lv: 1, def: 0, mdef: 0, pres: 0, mres: 0, cres: 0, flee: 0, hp: 0, critd: '', combo: 100, other: 100, cst2: 0, mp: 0, mcr: 0, mcd: 50, autoEl: true }, store.get('dano', {}));
 function fichaVals(f, mode) {
   if (!f || !f.df.length) return null;
   const col = f.m ? 1 : Math.max(1, f.d.findIndex(r => r[0] === mode) + 1);
   const num = v => { const x = parseFloat(String(v).replace(',', '.')); return isNaN(x) ? 0 : x; };
   const row = p => { const r = f.df.find(x => String(x[0]).startsWith(p)); return r ? num(r[col]) : 0; };
-  return { def: row('Physical Defense'), mdef: row('Magical Defense'), pres: row('Physical Resistance'), mres: row('Magical Resistance'), cres: row('Critical Resistance') };
+  return { def: row('Physical Defense'), mdef: row('Magical Defense'), pres: row('Physical Resistance'), mres: row('Magical Resistance'), cres: row('Critical Resistance'), flee: row('Flee') };
 }
 function setTarget(g, mode) {
   const e = g.entries.find(x => x.mode === mode) || g.entries[g.entries.length - 1];
   DM.gid = g.id; DM.mode = e.mode; DM.lv = e.lv; DM.hp = e.hp > 0 ? e.hp : 0;
   const v = fichaVals(fichaFor(g), e.mode);
-  Object.assign(DM, v || { def: 0, mdef: 0, pres: 0, mres: 0, cres: 0 });
+  Object.assign(DM, v || { def: 0, mdef: 0, pres: 0, mres: 0, cres: 0, flee: 0 });
   DM.auto = !!v;
 }
 function viewDamage() {
   setTitle('Calculadora de dano');
   const n = (id, lab, v, extra) => '<div class="field"><label class="lbl" for="' + id + '">' + lab + '</label><input id="' + id + '" type="number" inputmode="decimal" step="any" value="' + v + '"' + (extra || '') + '></div>';
-  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Calculadora de dano</h1><p>Quanto a sua build bate num monstro do bestiário. Os status vêm da <a class="tl" href="#/build" style="color:#9fe3e6">calculadora de status</a>.</p></div></div>'
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Calculadora de dano</h1><p>Quanto a build que está em uso bate num monstro do bestiário, com acerto, crítico, Graze e elemento. Para mudar a build, use o <a class="tl" href="#/personagem/equipamento" style="color:#9fe3e6">Personagem</a>.</p></div></div>'
     + '<button type="button" class="bdsum" id="dmsum" aria-label="Ver resultado completo"></button>'
     + '<div class="grid2"><div>'
     + '<section class="card"><h2>Alvo</h2><div class="slotrow"><button type="button" class="slotbtn" id="dmpick"></button></div>'
     + '<div class="calc" style="margin-top:10px"><div class="field"><label class="lbl" for="dmmode">Dificuldade</label><select id="dmmode"></select></div>'
-    + n('dmlv', 'Nível do monstro', DM.lv) + n('dmhp', 'HP', DM.hp) + n('dmdef', 'DEF', DM.def) + n('dmmdef', 'MDEF', DM.mdef) + n('dmpres', 'Resistência física %', DM.pres) + n('dmmres', 'Resistência mágica %', DM.mres) + n('dmcres', 'Resistência crítica', DM.cres)
+    + n('dmlv', 'Nível do monstro', DM.lv) + n('dmhp', 'HP', DM.hp) + n('dmdef', 'DEF', DM.def) + n('dmmdef', 'MDEF', DM.mdef) + n('dmpres', 'Resistência física %', DM.pres) + n('dmmres', 'Resistência mágica %', DM.mres) + n('dmcres', 'Resistência crítica', DM.cres) + n('dmflee', 'Esquiva (Flee)', DM.flee)
     + '</div><p class="note" id="dmsrc"></p></section>'
     + '<section class="card"><h2>Ataque</h2><div class="calc">'
     + '<div class="field"><label class="lbl" for="dmtype">Tipo</label><select id="dmtype"><option value="f"' + (DM.type === 'f' ? ' selected' : '') + '>Físico</option><option value="m"' + (DM.type === 'm' ? ' selected' : '') + '>Mágico</option></select></div>'
-    + '<div class="field"><label class="lbl" for="dmrange">Distância</label><select id="dmrange"><option value="curta"' + (DM.range === 'curta' ? ' selected' : '') + '>Curta</option><option value="longa"' + (DM.range === 'longa' ? ' selected' : '') + '>Longa</option><option value="nenhuma"' + (DM.range === 'nenhuma' ? ' selected' : '') + '>Nenhuma (mágico)</option></select></div>'
-    + n('dmcst', 'Constante da skill', DM.cst) + n('dmmult', 'Multiplicador da skill %', DM.mult) + n('dmpror', 'Proration %', DM.pror) + n('dmbuff', 'Buffs extras %', DM.buff)
-    + n('dmcritd', 'Dano crítico % (vazio = estimar)', DM.critd, ' placeholder="estimar"')
-    + '<div class="field"><span class="lbl">Desembainhar</span><label class="check"><input id="dmuns" type="checkbox"' + (DM.uns ? ' checked' : '') + '> Golpe de desembainhar</label></div>'
-    + '</div><p class="note">Ataque normal: constante 0 e multiplicador 100%. Os valores de cada skill aparecem na descrição dela no jogo.</p></section>'
+    + '<div class="field"><label class="lbl" for="dmrange">Distância</label><select id="dmrange"><option value="curta"' + (DM.range === 'curta' ? ' selected' : '') + '>Curta (até 7 m)</option><option value="longa"' + (DM.range === 'longa' ? ' selected' : '') + '>Longa (8 m ou mais)</option><option value="nenhuma"' + (DM.range === 'nenhuma' ? ' selected' : '') + '>Nenhuma</option></select></div>'
+    + n('dmcst', 'Constante da skill', DM.cst) + n('dmmult', 'Multiplicador da skill %', DM.mult) + n('dmmp', 'MP da skill (para o acerto)', DM.mp) + n('dmpror', 'Proration %', DM.pror)
+    + n('dmcombo', 'Multiplicador de combo %', DM.combo) + n('dmbuff', 'Buffs extras %', DM.buff) + n('dmother', 'Outros multiplicadores %', DM.other) + n('dmcst2', 'Outra constante', DM.cst2)
+    + n('dmcritd', 'Dano crítico % (vazio = estimar)', DM.critd, ' placeholder="estimar"') + n('dmmcr', 'Conversão de crítico mágico %', DM.mcr) + n('dmmcd', 'Conversão de dano crítico mágico %', DM.mcd)
+    + '<div class="field"><span class="lbl">Opções</span><label class="check"><input id="dmuns" type="checkbox"' + (DM.uns ? ' checked' : '') + '> Golpe de desembainhar</label><label class="check"><input id="dmauto" type="checkbox"' + (DM.autoEl ? ' checked' : '') + '> Vantagem de elemento automática</label></div>'
+    + '</div><p class="note">Ataque normal: constante 0, multiplicador 100% e MP 0. Os valores de cada skill aparecem na descrição dela no jogo. No combo, a 2ª skill costuma ter 90%, a 3ª 80% (veja o glossário).</p></section>'
     + '</div><div><section class="card" id="dmres"></section></div></div>'
     + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar monstro" aria-label="Buscar monstro"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>';
   const fillTarget = () => {
     const g = DB.GBYID.get(DM.gid);
     $('#dmpick').innerHTML = g ? '<b>' + esc(g.name) + '</b><small>' + TLAB[g.t] + ' · ' + g.els.map(e => EL[e][0]).join(', ') + (fichaFor(g) ? ' · com guia RAID' : '') + '</small>' : '<span class="muted">Escolher monstro (ou digite os valores abaixo)</span>';
     $('#dmmode').innerHTML = g ? g.entries.map(e => '<option value="' + esc(e.mode) + '"' + (e.mode === DM.mode ? ' selected' : '') + '>' + esc(MODE[e.mode] ? MODE[e.mode][2] : e.mode || '—') + ' · Lv ' + e.lv + '</option>').join('') : '<option value="">—</option>';
-    [['dmlv', 'lv'], ['dmhp', 'hp'], ['dmdef', 'def'], ['dmmdef', 'mdef'], ['dmpres', 'pres'], ['dmmres', 'mres'], ['dmcres', 'cres']].forEach(([id, k]) => { $('#' + id).value = DM[k]; });
-    $('#dmsrc').textContent = !g ? 'Digite os dados do alvo.' : DM.auto ? 'DEF, MDEF e resistências do guia RAID do Toram Yo (podem estar desatualizados). Ajuste se precisar.' : 'Este monstro não tem dados de defesa no bestiário. Preencha DEF e resistências se souber; com zero, o dano sai mais alto que o real.';
+    [['dmlv', 'lv'], ['dmhp', 'hp'], ['dmdef', 'def'], ['dmmdef', 'mdef'], ['dmpres', 'pres'], ['dmmres', 'mres'], ['dmcres', 'cres'], ['dmflee', 'flee']].forEach(([id, k]) => { $('#' + id).value = DM[k]; });
+    $('#dmsrc').textContent = !g ? 'Digite os dados do alvo.' : DM.auto ? 'DEF, MDEF, resistências e esquiva do guia RAID do Toram Yo (podem estar desatualizados). Ajuste se precisar.' : 'Este monstro não tem dados de defesa no bestiário. Preencha DEF, resistências e esquiva se souber; com zero, o dano sai mais alto que o real.';
   };
   fillTarget(); damageCalc();
   const read = () => {
     const v = id => +$('#' + id).value || 0;
-    Object.assign(DM, { lv: v('dmlv'), hp: v('dmhp'), def: v('dmdef'), mdef: v('dmmdef'), pres: v('dmpres'), mres: v('dmmres'), cres: v('dmcres'), type: $('#dmtype').value, range: $('#dmrange').value, cst: v('dmcst'), mult: v('dmmult'), pror: v('dmpror'), buff: v('dmbuff'), critd: $('#dmcritd').value, uns: $('#dmuns').checked });
+    Object.assign(DM, { lv: v('dmlv'), hp: v('dmhp'), def: v('dmdef'), mdef: v('dmmdef'), pres: v('dmpres'), mres: v('dmmres'), cres: v('dmcres'), flee: v('dmflee'), type: $('#dmtype').value, range: $('#dmrange').value, cst: v('dmcst'), mult: v('dmmult'), mp: v('dmmp'), pror: v('dmpror'), combo: v('dmcombo'), buff: v('dmbuff'), other: v('dmother'), cst2: v('dmcst2'), critd: $('#dmcritd').value, mcr: v('dmmcr'), mcd: v('dmmcd'), uns: $('#dmuns').checked, autoEl: $('#dmauto').checked });
     store.set('dano', DM); damageCalc();
   };
   view.querySelectorAll('.calc input, #dmtype, #dmrange').forEach(i => i.addEventListener('input', read));
@@ -1908,33 +1954,54 @@ function damageCalc() {
   const { tot } = buildTotals(), d = buildDerived(tot);
   const g = n => { const i = SI(n); return i < 0 ? 0 : tot.get(i) || 0; };
   const mon = DB.GBYID.get(DM.gid), magic = DM.type === 'm';
-  const main = DB.ITBYID.get(BD.sl.arma.id);
+  const main = DB.ITBYID.get(BD.sl.arma.id), wt = main ? main.tl : '';
   const stabBase = main ? ((main.stats.find(s => DB.STATN[s[0]] === 'Base Stability %') || [0, 0])[1]) : 50;
-  const stab = Math.min(100, Math.max(0, magic ? (stabBase + g('Stability %') + 100) / 2 : stabBase + g('Stability %')));
+  const physStab = Math.min(100, Math.max(0, stabBase + g('Stability %')));
+  // estabilidade mágica: 50 + base ÷ 2; acima de 90% o piso trava em 90 e o teto sobe (até 110)
+  const magStab = 50 + physStab / 2;
+  const [stLo, stHi] = magic ? (magStab <= 90 ? [magStab, 100] : [90, Math.min(110, 100 + (magStab - 90))]) : [physStab, 100];
   const atk = magic ? d.MATK : d.ATK, pierce = Math.min(100, g(magic ? 'Magic Pierce %' : 'Physical Pierce %'));
   const def = magic ? DM.mdef : DM.def, res = magic ? DM.mres : DM.pres;
-  const base = Math.max(0, (atk + (BD.lv - DM.lv) - def * (1 - pierce / 100)) * (1 - res / 100) + DM.cst);
-  const elName = mon ? mon.els.map(e => EL_EN[e]).filter(Boolean)[0] : '';
-  const dte = elName ? g('% stronger against ' + elName) : 0;
+  const effAtk = (atk + (BD.lv - DM.lv)) * (1 - res / 100) - def * (1 - pierce / 100);
+  const base = Math.max(0, effAtk + DM.cst + DM.cst2);
+  // elemento: o da arma principal; vantagem dá +25%; dano mágico com elemento ganha INT base ÷ 10 % (com staff/MD vale contra qualquer elemento)
+  const wEl = main ? (main.stats.map(s => DB.STATN[s[0]]).find(n => /^(Fire|Water|Wind|Earth|Light|Dark) Element$/.test(n)) || '').replace(' Element', '') : '';
+  const mEl = mon ? mon.els.map(e => EL_EN[e]).filter(Boolean)[0] : '';
+  const adv = DM.autoEl && wEl && mEl && EL_BEATS[wEl] === mEl;
+  const intBonus = magic && wEl && (adv || wt === 'Staff' || wt === 'Magic Device') ? Math.floor(BD.st.INT / 10) : 0;
+  const dte = mEl ? g('% stronger against ' + mEl) : 0;
+  const elemMult = (1 + (adv ? 25 : 0) / 100 + (dte + intBonus) / 100);
   const rng = DM.range === 'curta' ? g('Short Range Damage %') : DM.range === 'longa' ? g('Long Range Damage %') : 0;
   const uns = DM.uns ? g('Unsheathe Attack %') : 0;
-  const mods = (DM.mult / 100) * (1 + rng / 100) * (1 + dte / 100) * (1 + uns / 100) * (1 + DM.buff / 100) * (DM.pror / 100);
-  const max = Math.floor(base * mods), min = Math.floor(max * stab / 100), avg = (max + min) / 2;
-  const critD = DM.critd !== '' ? +DM.critd : 150 + Math.floor(d.STR / 5) + g('Critical Damage %') + g('Critical Damage');
-  const critR = Math.max(0, Math.min(100, d.CRIT - DM.cres));
-  const critAvg = avg * (magic ? 1 + (critD / 100 - 1) / 2 : critD / 100);
-  const exp = avg * (1 - critR / 100) + critAvg * critR / 100;
+  const mods = elemMult * (DM.mult / 100) * (1 + uns / 100) * (DM.pror / 100) * (DM.combo / 100) * (1 + rng / 100) * (1 + DM.buff / 100) * (DM.other / 100);
+  const hi = Math.floor(base * mods * stHi / 100), lo = Math.floor(base * mods * stLo / 100), avg = (hi + lo) / 2;
+  // crítico (mágico usa a conversão)
+  const physCD = DM.critd !== '' ? +DM.critd : 150 + Math.floor(d.STR / 5) + g('Critical Damage %') + g('Critical Damage');
+  const critD = magic ? 100 + (physCD - 100) * Math.min(100, DM.mcd) / 100 : physCD;
+  const critRaw = magic ? d.CRIT * Math.min(100, DM.mcr + (wt === 'Staff' && !wEl ? 25 : 0)) / 100 : d.CRIT;
+  const cr = Math.max(0, Math.min(100, critRaw - DM.cres)) / 100;
+  const critAvg = avg * critD / 100;
+  // acerto (dano mágico sempre acerta)
+  const H = magic ? 1 : Math.max(0, Math.min(100, (d.HIT - DM.flee) / 3 + DM.mp / 10)) / 100;
+  const minHit = (MIN_HIT[wt] != null ? MIN_HIT[wt] : 10) / 100;
+  const missWhite = magic ? 0 : (1 - H) * (1 - cr) * (H < 1 ? Math.max(0, minHit - H) / (1 - H) : 0);
+  const grazeAvg = base * mods * ((stLo / 2 + stHi) / 2) / 100; // Graze: estabilidade final ÷ 2
+  const exp = H * ((1 - cr) * avg + cr * critAvg) + (1 - H) * cr * grazeAvg * critD / 100 + missWhite * grazeAvg;
+  const pMiss = magic ? 0 : (1 - H) * (1 - cr) - missWhite;
   const hits = DM.hp > 0 && exp > 0 ? Math.ceil(DM.hp / exp) : 0;
+  const pct = x => Math.round(x * 1000) / 10 + '%';
   const box = (l, v, s) => '<div><span class="lbl">' + l + '</span><div class="big">' + v + '</div>' + (s ? '<small class="muted">' + s + '</small>' : '') + '</div>';
-  $('#dmsum').innerHTML = '<span><small>Por golpe</small>' + fmt(Math.floor(exp)) + '</span><span><small>Crítico</small>' + Math.floor(critR) + '%</span>' + (hits ? '<span><small>Golpes</small>' + fmt(hits) + '</span>' : '') + '<em>ver tudo ↓</em>';
+  $('#dmsum').innerHTML = '<span><small>Por golpe</small>' + fmt(Math.floor(exp)) + '</span><span><small>Acerto</small>' + pct(H) + '</span><span><small>Crítico</small>' + pct(cr) + '</span>' + (hits ? '<span><small>Golpes</small>' + fmt(hits) + '</span>' : '') + '<em>ver tudo ↓</em>';
   $('#dmres').innerHTML = '<h2>Resultado <small>' + (mon ? esc(mon.name) : 'alvo manual') + '</small></h2>'
-    + (!main ? '<p class="inote" style="margin:0 0 10px">Você ainda não escolheu uma arma na <a class="tl" href="#/build">calculadora de status</a>. O cálculo usa só o nível e os status do personagem.</p>' : '')
-    + (max <= 0 ? '<p class="inote" style="margin:0 0 10px">A ' + (magic ? 'MDEF' : 'DEF') + ' do alvo é maior que o seu ' + (magic ? 'MATK' : 'ATK') + ', então o golpe quase não passa. Aumente o pierce, use uma skill com constante alta ou escolha uma dificuldade menor.</p>' : '')
-    + '<div class="res">' + box('Sem crítico', fmt(min) + ' – ' + fmt(max), 'média ' + fmt(Math.floor(avg))) + box('Crítico (média)', fmt(Math.floor(critAvg)), 'dano crítico ' + Math.floor(critD) + '%')
-    + box('Dano esperado por golpe', fmt(Math.floor(exp)), 'chance de crítico ' + Math.floor(critR) + '%') + (hits ? box('Golpes para derrubar', fmt(hits), 'HP ' + fmt(DM.hp)) : '') + '</div>'
+    + (!main ? '<p class="inote" style="margin:0 0 10px">A build em uso não tem arma. Escolha uma no <a class="tl" href="#/personagem/equipamento">Personagem</a>; por enquanto o cálculo usa só o nível e os status.</p>' : '')
+    + (hi <= 0 ? '<p class="inote" style="margin:0 0 10px">A ' + (magic ? 'MDEF' : 'DEF') + ' do alvo é maior que o seu ' + (magic ? 'MATK' : 'ATK') + ' efetivo, então o golpe quase não passa. Aumente o pierce, use uma skill com constante alta ou escolha uma dificuldade menor.</p>' : '')
+    + '<div class="res">' + box('Sem crítico', fmt(lo) + ' – ' + fmt(hi), 'média ' + fmt(Math.floor(avg))) + box('Crítico (média)', fmt(Math.floor(critAvg)), 'dano crítico ' + Math.floor(critD) + '%')
+    + box('Dano esperado por golpe', fmt(Math.floor(exp)), 'já contando acerto, crítico e Graze') + (hits ? box('Golpes para derrubar', fmt(hits), 'HP ' + fmt(DM.hp)) : '') + '</div>'
+    + '<h4 class="sub4">Chances por golpe</h4><div class="res">' + box('Acerto (HIT)', pct(H), magic ? 'dano mágico sempre acerta' : 'precisão ' + fmt(d.HIT) + ' × esquiva ' + fmt(DM.flee)) + box('Crítico', pct(cr), 'taxa ' + Math.floor(critRaw) + ' − resistência ' + DM.cres) + (magic ? '' : box('Graze', pct(missWhite + (1 - H) * cr), 'acerto mínimo da arma ' + Math.round(minHit * 100) + '%') + box('MISS', pct(Math.max(0, pMiss)), 'não causa dano')) + '</div>'
     + '<h4 class="sub4">O que entrou na conta</h4><div class="slist">'
-    + [[magic ? 'MATK' : 'ATK', fmt(atk)], ['Diferença de nível', fmt(BD.lv - DM.lv)], [magic ? 'MDEF do alvo' : 'DEF do alvo', fmt(def)], ['Pierce', pierce + '%'], ['Resistência do alvo', res + '%'], ['Estabilidade', Math.floor(stab) + '%'], ['Dano por distância', '+' + rng + '%'], ['Dano contra ' + (elName ? EL[mon.els.find(e => EL_EN[e] === elName)][0] : 'o elemento'), '+' + dte + '%'], ['Desembainhar', '+' + uns + '%'], ['Multiplicador × proration', DM.mult + '% × ' + DM.pror + '%']].map(([k, v]) => '<div><span>' + k + '</span><b>' + v + '</b></div>').join('') + '</div>'
-    + '<p class="note">Estimativa pela fórmula da comunidade, sem skills passivas, combos, graze, guarda nem esquiva do monstro. Bom para comparar builds e skills; o número exato no jogo pode variar.</p>';
+    + [[magic ? 'MATK' : 'ATK', fmt(atk)], ['ATK efetivo', fmt(Math.floor(effAtk))], ['Diferença de nível', fmt(BD.lv - DM.lv)], [magic ? 'MDEF do alvo' : 'DEF do alvo', fmt(def)], ['Pierce', pierce + '%'], ['Resistência do alvo', res + '%'], ['Estabilidade', magic ? 'mágica ' + Math.floor(magStab) + '% (' + Math.floor(stLo) + '–' + Math.floor(stHi) + '%)' : physStab + '%'],
+      ['Elemento', (wEl ? EL[EL_EN.indexOf(wEl)][0] : 'neutro') + ' contra ' + (mEl ? EL[EL_EN.indexOf(mEl)][0] : '?') + (adv ? ' (+25%)' : '')], ['Dano contra o elemento', '+' + (dte + intBonus) + '%' + (intBonus ? ' (com INT)' : '')], ['Distância', '+' + rng + '%'], ['Desembainhar', '+' + uns + '%'], ['Skill × proration × combo', DM.mult + '% × ' + DM.pror + '% × ' + DM.combo + '%'], ['Buffs × outros', '+' + DM.buff + '% × ' + DM.other + '%']].map(([k, v]) => '<div><span>' + k + '</span><b>' + v + '</b></div>').join('') + '</div>'
+    + '<p class="note">Fórmulas do glossário (Cy\'s Grimoire e testes da comunidade). Não inclui skills passivas nem guarda/esquiva especial do boss; a parte de Graze é uma estimativa. Bom para comparar builds e skills.</p>';
 }
 
 // ---------- busca única ----------

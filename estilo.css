@@ -341,6 +341,12 @@ button.lk { cursor: pointer; font: inherit; font-size: 13.5px; text-align: left;
 .sknode.max i.ic b { background: var(--gold-d); }
 .sknode:has(i.ic) { transform: translate(-50%, -22px); }
 
+/* selo de Star Gem no ícone da skill */
+.sknode i u { position: absolute; left: -9px; top: -7px; min-width: 22px; height: 18px; padding: 0 4px; border-radius: 999px; display: grid; place-items: center; font: 700 10.5px var(--font-mono); text-decoration: none; background: #6f3fa8; color: #fff; border: 2px solid var(--surface); }
+.sknode i:not(.ic) { position: relative; }
+.sknode.gem i.ic { filter: none; opacity: 1; }
+.reg h2 { display: flex; align-items: center; gap: 8px; }
+
 /* glossário */
 details.gl { padding: 12px 14px; }
 details.gl > summary h2 { margin: 0; font-size: 15px; flex-wrap: wrap; }
@@ -391,9 +397,9 @@ details.gl code, .prose code { font-family: var(--font-mono); font-size: 12.5px;
 .skstat b { font: 500 16px var(--font-mono); }
 .skstat b.neg { color: #ff9aa2; }
 .skstat input { width: 70px; padding: 2px 6px; font: 500 15px var(--font-mono); background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 6px; }
-.skmode { display: flex; gap: 8px; }
+.skmode { display: flex; flex-wrap: wrap; gap: 8px; }
 .seg2 { display: inline-flex; border: 1px solid rgba(255,255,255,.35); border-radius: 8px; overflow: hidden; }
-.seg2 button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 11px; background: none; color: #dbe4f3; border: 0; cursor: pointer; }
+.seg2 button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 11px; white-space: nowrap; background: none; color: #dbe4f3; border: 0; cursor: pointer; }
 .seg2 button[aria-pressed="true"] { background: var(--gold); color: #2a1d05; }
 .sktree { padding: 0; overflow: hidden; }
 .skhead { display: flex; width: 100%; align-items: center; gap: 10px; padding: 13px 14px; background: none; border: 0; color: var(--fg); font: inherit; cursor: pointer; text-align: left; }
