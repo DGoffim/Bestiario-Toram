@@ -1276,8 +1276,8 @@ function viewNewsItem(id) {
 
 // ---------- personagem (no esquema do Cy's Grimoire): abas Visão geral, Equipamento, Skills, Comida e Salvar ----------
 // Cada personagem guarda a build (equipamento e status) e as skills. Fica tudo salvo neste aparelho.
-const PG_TABS = [['geral', 'Geral'], ['equipamento', 'Equipamento'], ['skills', 'Skills'], ['comida', 'Comida'], ['salvar', 'Salvar']];
-let CHARS = store.get('chars', null) || { cur: 0, list: [{ name: 'Meu personagem', bd: store.get('build', null), sk: store.get('skills', {}) }] };
+const PG_TABS = [['geral', 'Geral'], ['equipamento', 'Equipamento'], ['skills', 'Skills'], ['comida', 'Comida'], ['comparar', 'Comparar'], ['salvar', 'Salvar']];
+let CHARS = store.get('chars', null) || { cur: 0, list: [{ name: 'Build 1', bd: store.get('build', null), sk: store.get('skills', {}) }] };
 const clone = o => JSON.parse(JSON.stringify(o));
 function syncChar() { const c = CHARS.list[CHARS.cur]; if (!c) return; c.bd = clone(BD); c.sk = clone(SKS.lv); store.set('chars', CHARS); }
 function useChar(i) {
@@ -1303,16 +1303,18 @@ function viewChar(tab, code) {
   }
   setTitle('Personagem');
   const c = CHARS.list[CHARS.cur];
-  mainView.innerHTML = '<div class="ph"><div><h1>' + esc(c.name) + '</h1><p>Monte o personagem como no jogo: equipamento, skills e comida. Fica salvo neste aparelho.</p></div>'
-    + (CHARS.list.length > 1 ? '<select id="pgchar" aria-label="Trocar de personagem" style="width:auto;max-width:100%">' + CHARS.list.map((x, i) => '<option value="' + i + '"' + (i === CHARS.cur ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select>' : '') + '</div>'
+  mainView.innerHTML = '<div class="ph"><div><h1>' + esc(c.name) + '</h1><p>Monte sua build como no jogo: equipamento, skills e comida. Tudo fica salvo sozinho neste aparelho; é só voltar depois.</p></div>'
+    + (CHARS.list.length > 1 ? '<select id="pgchar" aria-label="Trocar de build" style="width:auto;max-width:100%">' + CHARS.list.map((x, i) => '<option value="' + i + '"' + (i === CHARS.cur ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select>' : '') + '</div>'
     + '<nav class="seg pgtabs" aria-label="Abas do personagem">' + PG_TABS.map(([k, l]) => '<a href="#/personagem/' + k + '" class="' + (k === tab ? 'on' : '') + '">' + l + '</a>').join('') + '</nav><div id="pgbody" class="pgbody"></div>';
   const sel = $('#pgchar'); if (sel) sel.addEventListener('change', e => { useChar(+e.target.value); viewChar(tab); });
+  const on = mainView.querySelector('.pgtabs .on'); if (on) on.parentNode.scrollLeft = on.offsetLeft - 12; // aba aberta sempre visível no celular
   view = $('#pgbody');
   try {
     if (tab === 'equipamento') viewBuild();
     else if (tab === 'skills') viewSkills();
     else if (tab === 'comida') viewFood();
     else if (tab === 'salvar') viewCharSave();
+    else if (tab === 'comparar') viewCharCompare();
     else viewCharOverview();
   } finally { view = mainView; }
   setTitle(c.name + ' · ' + PG_TABS.find(x => x[0] === tab)[1]);
@@ -1336,20 +1338,79 @@ function viewCharOverview() {
 function viewCharSave() {
   const list = CHARS.list.map((c, i) => { const w = DB.ITBYID.get(((c.bd || {}).sl || {}).arma ? c.bd.sl.arma.id : 0); return '<div class="charrow' + (i === CHARS.cur ? ' on' : '') + '"><div><b>' + esc(c.name) + '</b><small>Lv ' + ((c.bd || {}).lv || '—') + (w ? ' · ' + esc(w.name) : '') + (i === CHARS.cur ? ' · em uso' : '') + '</small></div><div class="chips">'
     + (i !== CHARS.cur ? '<button type="button" class="btn" data-use="' + i + '">Usar</button>' : '') + '<button type="button" class="btn ghost" data-ren="' + i + '">Renomear</button><button type="button" class="btn ghost" data-dup="' + i + '">Duplicar</button><button type="button" class="btn ghost" data-link="' + i + '">Copiar link</button>' + (CHARS.list.length > 1 ? '<button type="button" class="btn ghost" data-del="' + i + '">Excluir</button>' : '') + '</div></div>'; }).join('');
-  view.innerHTML = '<section class="card"><h2>Seus personagens <small>' + CHARS.list.length + '</small></h2><div class="charlist">' + list + '</div><div class="chips" style="margin-top:12px"><button type="button" class="btn" id="pgnew">+ Novo personagem</button></div><p class="note" id="pgmsg">Os personagens ficam salvos neste aparelho. Para levar para outro celular, use “Copiar link” e abra o link lá.</p></section>'
-    + '<section class="card"><h2>Importar</h2><div class="range"><input id="pgimp" type="search" placeholder="Cole aqui o link ou o código de um personagem"><button type="button" class="btn" id="pgimpb">Importar</button></div></section>';
+  view.innerHTML = '<section class="card"><h2>Suas builds <small>' + CHARS.list.length + '</small></h2><div class="charlist">' + list + '</div><div class="chips" style="margin-top:12px"><button type="button" class="btn" id="pgnew">+ Nova build</button>' + (CHARS.list.length > 1 ? '<a class="btn ghost" href="#/personagem/comparar">Comparar builds</a>' : '') + '</div><p class="note" id="pgmsg">Cada mudança é salva na hora neste aparelho. Para mandar uma build a alguém, use “Copiar link”.</p></section>'
+    + '<section class="card"><h2>Backup</h2><p class="muted" style="margin:0 0 10px;font-size:14px">Guarde um arquivo com todas as suas builds. Se o navegador for limpo ou você trocar de celular, é só restaurar.</p><div class="chips"><button type="button" class="btn" id="pgbak">Baixar backup</button><label class="btn ghost" for="pgrest" style="cursor:pointer">Restaurar backup</label><input id="pgrest" type="file" accept=".json,application/json" hidden></div></section>'
+    + '<section class="card"><h2>Importar</h2><div class="range"><input id="pgimp" type="search" placeholder="Cole aqui o link ou o código de uma build"><button type="button" class="btn" id="pgimpb">Importar</button></div></section>';
   const msg = s => { $('#pgmsg').textContent = s; };
   view.querySelector('.charlist').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     const i = +(b.dataset.use || b.dataset.ren || b.dataset.dup || b.dataset.link || b.dataset.del);
     if (b.dataset.use) { useChar(i); viewChar('salvar'); }
-    else if (b.dataset.ren) { const n = prompt('Nome do personagem:', CHARS.list[i].name); if (n && n.trim()) { CHARS.list[i].name = n.trim().slice(0, 40); store.set('chars', CHARS); viewChar('salvar'); } }
+    else if (b.dataset.ren) { const n = prompt('Nome da build:', CHARS.list[i].name); if (n && n.trim()) { CHARS.list[i].name = n.trim().slice(0, 40); store.set('chars', CHARS); viewChar('salvar'); } }
     else if (b.dataset.dup) { syncChar(); addChar(CHARS.list[i].name + ' (cópia)', clone(CHARS.list[i].bd), clone(CHARS.list[i].sk)); viewChar('salvar'); }
     else if (b.dataset.link) { syncChar(); const url = location.href.split('#')[0] + '#/p/' + charCode(CHARS.list[i]); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => msg('Link copiado! Quem abrir recebe uma cópia desse personagem.'), () => { fallbackCopy(url); msg('Link copiado!'); }); else { fallbackCopy(url); msg('Link copiado!'); } }
     else if (b.dataset.del) { if (!confirm('Excluir “' + CHARS.list[i].name + '”?')) return; CHARS.list.splice(i, 1); useChar(Math.min(CHARS.cur > i ? CHARS.cur - 1 : CHARS.cur, CHARS.list.length - 1)); viewChar('salvar'); }
   });
-  $('#pgnew').addEventListener('click', () => { syncChar(); addChar('Personagem ' + (CHARS.list.length + 1)); viewChar('equipamento'); location.hash = '#/personagem/equipamento'; });
+  $('#pgnew').addEventListener('click', () => { syncChar(); addChar('Build ' + (CHARS.list.length + 1)); viewChar('equipamento'); location.hash = '#/personagem/equipamento'; });
   $('#pgimpb').addEventListener('click', () => { const v = $('#pgimp').value.trim(); const m = v.match(/#\/p\/([A-Za-z0-9_-]+)/); const code = m ? m[1] : v; if (code) importChar(code); });
+  $('#pgbak').addEventListener('click', () => {
+    syncChar();
+    const blob = new Blob([JSON.stringify({ app: 'bestiario-toram', versao: 1, data: new Date().toISOString(), builds: CHARS.list })], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'builds-bestiario-toram-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+    msg('Backup baixado. Guarde o arquivo num lugar seguro.');
+  });
+  $('#pgrest').addEventListener('change', e => {
+    const file = e.target.files[0]; if (!file) return;
+    file.text().then(txt => {
+      const arr = (JSON.parse(txt) || {}).builds;
+      if (!Array.isArray(arr) || !arr.length) throw new Error('vazio');
+      syncChar();
+      arr.forEach(c => CHARS.list.push({ name: String(c.name || 'Build').slice(0, 40), bd: c.bd || newBuild(), sk: c.sk || {} }));
+      store.set('chars', CHARS); viewChar('salvar');
+      $('#pgmsg').textContent = arr.length + (arr.length === 1 ? ' build restaurada' : ' builds restauradas') + ' do backup.';
+    }).catch(() => alert('Esse arquivo não é um backup do Bestiário de Toram.'));
+  });
+}
+// Calcula os status de uma build salva sem mexer na build em uso.
+function charCalc(c) {
+  const keep = BD; BD = Object.assign(newBuild(), clone(c.bd || newBuild()));
+  try { const r = buildTotals(); return { bd: BD, tot: r.tot, d: buildDerived(r.tot) }; } finally { BD = keep; }
+}
+const CMPB = { a: 0, b: 1 };
+function viewCharCompare() {
+  syncChar();
+  const n = CHARS.list.length;
+  if (n < 2) { view.innerHTML = '<section class="card"><h2>Comparar builds</h2><p class="muted" style="margin:0 0 12px">Você tem só uma build. Crie outra (ou duplique esta e mude o que quiser) para comparar.</p><a class="btn" href="#/personagem/salvar">Ir para Salvar</a></section>'; return; }
+  if (!SKT) { load('skills').then(d => { SKT = d.trees; if (location.hash.startsWith('#/personagem/comparar')) viewChar('comparar'); }).catch(() => {}); }
+  if (CMPB.a >= n) CMPB.a = 0;
+  if (CMPB.b >= n || CMPB.b === CMPB.a) CMPB.b = CMPB.a === 0 ? 1 : 0;
+  const A = CHARS.list[CMPB.a], B = CHARS.list[CMPB.b], ca = charCalc(A), cb = charCalc(B);
+  const sel = (id, v) => '<select id="' + id + '">' + CHARS.list.map((c, i) => '<option value="' + i + '"' + (i === v ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select>';
+  const dif = (a, b, fmtf) => { if (a == null || b == null || a === b) return '<td class="n dz">—</td>'; const d = b - a; return '<td class="n ' + (d > 0 ? 'up' : 'dn') + '">' + (d > 0 ? '+' : '−') + fmtf(Math.abs(d)) + '</td>'; };
+  const numRow = (lab, a, b, fmtf = v => fmt(Math.floor(v))) => '<tr><th scope="row">' + lab + '</th><td class="n">' + (a == null ? '—' : fmtf(a)) + '</td><td class="n">' + (b == null ? '—' : fmtf(b)) + '</td>' + dif(a, b, fmtf) + '</tr>';
+  const head = '<thead><tr><th></th><th scope="col" class="n">' + esc(A.name) + '</th><th scope="col" class="n">' + esc(B.name) + '</th><th scope="col" class="n">Diferença</th></tr></thead>';
+  const status = numRow('Nível', ca.bd.lv, cb.bd.lv) + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => numRow(s, ca.d[s], cb.d[s])).join('');
+  const est = [['ATK', 'ATK'], ['MATK', 'MATK'], ['ATK da arma', 'watk'], ['MaxHP', 'MaxHP'], ['MaxMP', 'MaxMP'], ['Taxa crítica', 'CRIT'], ['CSPD', 'CSPD'], ['Precisão', 'HIT'], ['Esquiva', 'FLEE']].map(([l, k]) => numRow(l, ca.d[k], cb.d[k])).join('');
+  const itemTxt = (s, withX) => { const it = DB.ITBYID.get(s.id); if (!it) return '<span class="muted">—</span>'; const xs = withX ? (s.x || []).map(id => DB.ITBYID.get(id)).filter(Boolean) : []; return '<a class="tl" href="' + itemUrl(it) + '">' + esc(it.name) + '</a>' + (s.r ? ' <b>' + REFS[s.r] + '</b>' : '') + (xs.length ? '<small>' + xs.map(x => esc(x.name)).join(' · ') + '</small>' : ''); };
+  const equip = SLOTS.map(([k, lab]) => { const sa = ca.bd.sl[k], sb = cb.bd.sl[k], same = sa.id === sb.id && sa.r === sb.r && JSON.stringify(sa.x || []) === JSON.stringify(sb.x || []); return '<tr' + (same ? '' : ' class="chg"') + '><th scope="row">' + lab + '</th><td>' + itemTxt(sa, true) + '</td><td>' + itemTxt(sb, true) + '</td><td class="n ' + (same ? 'dz">igual' : 'up">diferente') + '</td></tr>'; }).join('');
+  const sp = c => SKT ? SKT.map(t => [t, t.s.reduce((a, s) => a + ((c.sk[t.k] || {})[s[0]] || 0), 0)]) : [];
+  const spA = sp(A), spB = sp(B);
+  const skillRows = SKT ? SKT.map((t, i) => [t, spA[i][1], spB[i][1]]).filter(x => x[1] || x[2]).map(([t, a, b]) => numRow(esc(skTreeName(t)), a, b, v => v + ' SP')).join('') : '<tr><td colspan="4" class="muted">Carregando as árvores…</td></tr>';
+  const lvDiff = SKT ? SKT.flatMap(t => t.s.map(s => [t, s, (A.sk[t.k] || {})[s[0]] || 0, (B.sk[t.k] || {})[s[0]] || 0])).filter(x => x[2] !== x[3]) : [];
+  const keys = new Set([...ca.tot.keys(), ...cb.tot.keys()].filter(k => (ca.tot.get(k) || 0) || (cb.tot.get(k) || 0)));
+  const statRows = [...keys].sort((x, y) => DB.STATN[x].localeCompare(DB.STATN[y])).map(k => { const [nm] = sparts([k, 1, 0]); const pct = DB.STATN[k].includes('%'); const f = v => fmt(v) + (pct ? '%' : ''); return numRow(esc(nm), ca.tot.get(k) || 0, cb.tot.get(k) || 0, f); }).join('');
+  view.innerHTML = '<section class="card"><h2>Comparar builds</h2><div class="calc"><div class="field"><label class="lbl" for="cmpa">Build A</label>' + sel('cmpa', CMPB.a) + '</div><div class="field"><label class="lbl" for="cmpb">Build B</label>' + sel('cmpb', CMPB.b) + '</div></div><p class="note">A coluna “Diferença” mostra quanto a Build B tem a mais (verde) ou a menos (vermelho) que a Build A.</p></section>'
+    + '<div class="grid2"><div>'
+    + '<section class="card"><h2>Status</h2><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + status + '</tbody></table></div><h4 class="sub4">Estimativas</h4><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + est + '</tbody></table></div></section>'
+    + '<section class="card"><h2>Equipamento</h2><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + equip + '</tbody></table></div></section>'
+    + '</div><div>'
+    + '<section class="card"><h2>Skills</h2><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + (skillRows || '<tr><td colspan="4" class="muted">Nenhuma skill nas duas builds.</td></tr>') + '</tbody></table></div>'
+    + (lvDiff.length ? '<h4 class="sub4">Skills com nível diferente</h4><div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + lvDiff.map(([t, s, a, b]) => numRow(esc(s[1]) + '<small>' + esc(skTreeName(t)) + '</small>', a, b)).join('') + '</tbody></table></div>' : '') + '</section>'
+    + '<section class="card"><h2>Soma dos status dos equipamentos</h2>' + (statRows ? '<div class="tblw"><table class="tbl bcmp">' + head + '<tbody>' + statRows + '</tbody></table></div>' : '<p class="muted" style="margin:0">As duas builds estão sem equipamento.</p>') + '</section>'
+    + '</div></div>';
+  $('#cmpa').addEventListener('change', e => { CMPB.a = +e.target.value; if (CMPB.b === CMPB.a) CMPB.b = CMPB.a === 0 ? 1 : 0; viewChar('comparar'); });
+  $('#cmpb').addEventListener('change', e => { CMPB.b = +e.target.value; if (CMPB.b === CMPB.a) CMPB.a = CMPB.b === 0 ? 1 : 0; viewChar('comparar'); });
 }
 
 // ---------- simulador de skills ----------

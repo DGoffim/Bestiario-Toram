@@ -313,6 +313,15 @@ button.lk { cursor: pointer; font: inherit; font-size: 13.5px; text-align: left;
 .charrow small { color: var(--muted); font-size: 12.5px; }
 .charrow .btn { padding: 6px 10px; font-size: 13px; }
 
+/* comparar builds */
+.tbl.bcmp th[scope="row"] { text-transform: none; letter-spacing: 0; font-size: 13.5px; color: var(--fg); font-weight: 500; }
+.tbl.bcmp th[scope="row"] small, .tbl.bcmp td small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+.tbl.bcmp thead th { text-transform: none; letter-spacing: 0; font-size: 12.5px; color: var(--fg); }
+.tbl.bcmp td.up { color: #1d7a3e; font-weight: 600; }
+.tbl.bcmp td.dn { color: var(--event); font-weight: 600; }
+.tbl.bcmp td.dz { color: var(--muted); }
+.tbl.bcmp tr.chg td, .tbl.bcmp tr.chg th { background: color-mix(in srgb, var(--gold-d) 10%, var(--surface)); }
+
 /* notícias */
 .nrow { grid-template-columns: 1fr; gap: 3px; }
 .nrow .rn { font-weight: 500; }
