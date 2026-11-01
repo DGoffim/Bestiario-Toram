@@ -66,9 +66,12 @@ for n in itens[:COM_TEXTO]:
     except Exception:
         n['texto'] = ''
 
-if itens:
+mesmas = [(n['id'], n['titulo']) for n in itens] == [(n['id'], n['titulo']) for n in antigos.values()]
+if not itens:
+    print('Nenhuma notícia encontrada; arquivo mantido como estava')
+elif mesmas:
+    print('Sem notícias novas; arquivo mantido como estava')
+else:
     with open(ARQ, 'w', encoding='utf-8') as f:
         json.dump({'lido': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'itens': itens}, f, ensure_ascii=False, separators=(',', ':'))
     print(f'{len(itens)} notícias salvas')
-else:
-    print('Nenhuma notícia encontrada; arquivo mantido como estava')
