@@ -436,7 +436,7 @@ function monFiltered() {
 }
 // Colunas que ordenam a lista; o 3º valor é a direção do 1º toque (1 = crescente, -1 = decrescente).
 const MSORTS = [['name', 'Nome', 1], ['lv', 'Nível', 1], ['el', 'Elemento', 1], ['map', 'Mapa', 1], ['hp', 'HP', -1], ['exp', 'EXP', -1]];
-const msortBtn = ([k, l]) => '<button type="button" class="sortb' + (MS.sort === k ? ' on' : '') + '" data-sort="' + k + '" aria-pressed="' + (MS.sort === k) + '">' + l + (MS.sort === k ? '<i aria-label="' + (MS.dir > 0 ? 'crescente' : 'decrescente') + '">' + (MS.dir > 0 ? '↑' : '↓') + '</i>' : '') + '</button>';
+const msortBtn = ([k, l]) => sortBtn(MS.sort, MS.dir, k, l);
 function monActiveCount() { return (MS.lmin !== '') + (MS.lmax !== '') + !!MS.mode + MS.els.size + MS.noevent + MS.tame; }
 function viewMonsters(t) {
   if (t && t !== MS.t) { MS.t = t; MS.q = ''; MS.limit = 60; }
@@ -605,7 +605,7 @@ const PRINC_DEF = [['ATK', ['ATK %', 'ATK']], ['MATK', ['MATK %', 'MATK']], ['DE
   ['Pierce físico', ['Physical Pierce %']], ['Pierce mágico', ['Magic Pierce %']], ['Curta distância', ['Short Range Damage %']], ['Longa distância', ['Long Range Damage %']], ['Precisão', ['Accuracy', 'Accuracy %']], ['Esquiva', ['Dodge', 'Dodge %']],
   ['Estabilidade', ['Stability %']], ['Motion Speed', ['Motion Speed %']], ['Res. física', ['Physical Resistance %']], ['Res. mágica', ['Magic Resistance %']], ['Aggro +', ['Aggro %']], ['Aggro −', ['Aggro %'], -1]];
 let PRINC = null;
-const IS = { q: '', cat: '', obt: '', weap: store.get('weap', 0), sort: 'name', chips: new Set(), fl: [], drop: false, noevent: false, limit: 60, open: false };
+const IS = { q: '', cat: '', obt: '', weap: store.get('weap', 0), sort: 'name', dir: 1, chips: new Set(), fl: [], drop: false, noevent: false, limit: 60, open: false };
 const SI = n => DB.STATN.indexOf(n);
 function isBase(s) { const n = DB.STATN[s[0]]; return n === 'Base ATK' || n === 'Base DEF' || n === 'Base Stability %' || s[0] === DB.S_UPG; }
 function sval(i, si) { const w = IS.weap; let v = 0; for (const [s, a, ap] of i.stats) if (s === si && (!ap || !w || !(ap & MAINW) || (ap & w))) v += a; return v; }
@@ -637,17 +637,23 @@ function itemsFiltered() {
     for (const f of IS.fl) { const v = sval(i, f.s); if (f.op > 0 ? !(v !== 0 && v >= f.v) : !(v !== 0 && v <= f.v)) return false; }
     return true;
   });
-  const byName = (a, b) => a.name.localeCompare(b.name, 'pt', { ignorePunctuation: true });
+  const byName = (a, b) => a.name.localeCompare(b.name, 'pt', { ignorePunctuation: true }), d = IS.dir;
   if (IS.sort === 'base') {
-    const bv = i => { const s = i.stats.find(x => DB.STATN[x[0]] === 'Base ATK' || DB.STATN[x[0]] === 'Base DEF'); return s ? s[1] : -Infinity; };
-    rows.sort((a, b) => bv(b) - bv(a) || byName(a, b));
-  } else if (IS.sort === 'new') rows.sort((a, b) => b.id - a.id);
+    // Itens sem ATK/DEF base ficam sempre no fim.
+    const bv = i => { const s = i.stats.find(x => DB.STATN[x[0]] === 'Base ATK' || DB.STATN[x[0]] === 'Base DEF'); return s ? s[1] : null; };
+    rows.sort((a, b) => { const x = bv(a), y = bv(b); return (x === null) - (y === null) || (x - y) * d || byName(a, b); });
+  } else if (IS.sort === 'new') rows.sort((a, b) => (a.id - b.id) * d);
+  else if (IS.sort === 'type') rows.sort((a, b) => (a.tl || 'Outros').localeCompare(b.tl || 'Outros', 'pt') * d || byName(a, b));
   else if (IS.sort.startsWith('s:')) {
     const si = +IS.sort.slice(2), m = new Map(rows.map(i => [i, sval(i, si)]));
-    rows = rows.filter(i => m.get(i) !== 0).sort((a, b) => m.get(b) - m.get(a) || byName(a, b));
-  } else rows.sort(byName);
+    rows = rows.filter(i => m.get(i) !== 0).sort((a, b) => (m.get(a) - m.get(b)) * d || byName(a, b));
+  } else rows.sort((a, b) => byName(a, b) * d);
   return rows;
 }
+// Colunas que ordenam a lista de itens; o 3º valor é a direção do 1º toque (1 = crescente, -1 = decrescente).
+const ISORTS = [['name', 'Nome', 1], ['type', 'Tipo', 1], ['base', 'Base ATK/DEF', -1], ['new', 'Mais novos', -1]];
+const isortDef = k => (ISORTS.find(x => x[0] === k) || [0, 0, -1])[2];
+const sortBtn = (cur, dir, k, l) => '<button type="button" class="sortb' + (cur === k ? ' on' : '') + '" data-sort="' + esc(k) + '" aria-pressed="' + (cur === k) + '">' + l + (cur === k ? '<i aria-label="' + (dir > 0 ? 'crescente' : 'decrescente') + '">' + (dir > 0 ? '↑' : '↓') + '</i>' : '') + '</button>';
 function itemActiveCount() { return !!IS.obt + !!IS.cat + !!IS.weap + IS.chips.size + IS.fl.length + IS.drop + IS.noevent + (IS.sort !== 'name'); }
 function viewItems() {
   setTitle('Itens');
@@ -663,7 +669,7 @@ function viewItems() {
     + '<div class="field"><label class="lbl" for="icat">Categoria</label><select id="icat">' + opt('', 'Todas', !IS.cat)
     + [['Armas', 'W', 'Todas as armas', WEAP_T], ['Equipamentos', '', '', EQUIP_T], ['Crystas', 'X', 'Todas as crystas', XTAL_T], ['Outros', '', '', OTHER_T]].map(([g, all, allLab, list]) => '<optgroup label="' + g + '">' + (all ? opt(all, allLab, IS.cat === all) : '') + list.filter(t => tally[t]).map(t => opt(t, t + ' (' + tally[t] + ')', IS.cat === t)).join('') + '</optgroup>').join('') + '</select></div>'
     + '<div class="field"><label class="lbl" for="iweap">Sua arma</label><select id="iweap">' + IWEAP.map(([v, l]) => opt(v, l, IS.weap === v)).join('') + '</select></div>'
-    + '<div class="field"><label class="lbl" for="isort">Ordenar por</label><select id="isort">' + opt('name', 'Nome (A–Z)', IS.sort === 'name') + opt('new', 'Mais novos', IS.sort === 'new') + opt('base', 'Base ATK/DEF', IS.sort === 'base') + '<optgroup label="Maior valor de">' + statOpts.map(([n, i]) => opt('s:' + i, n, IS.sort === 's:' + i)).join('') + '</optgroup></select></div>'
+    + '<div class="field"><label class="lbl" for="isort">Ordenar por</label><select id="isort">' + opt('name', 'Nome (A–Z)', IS.sort === 'name') + opt('type', 'Tipo', IS.sort === 'type') + opt('new', 'Mais novos', IS.sort === 'new') + opt('base', 'Base ATK/DEF', IS.sort === 'base') + '<optgroup label="Maior valor de">' + statOpts.map(([n, i]) => opt('s:' + i, n, IS.sort === 's:' + i)).join('') + '</optgroup></select></div>'
     + '<div class="field"><label class="lbl" for="iobt">Forma de obter</label><select id="iobt">' + [['', 'Todas'], ['B', 'Drop de boss'], ['M', 'Drop de mini boss'], ['N', 'Drop de monstro normal'], ['none', 'Não dropa (craft, NPC, missão, troca)']].map(([v, l]) => opt(v, l, IS.obt === v)).join('') + '</select></div>'
     + '<div class="field"><span class="lbl">Mostrar</span><label class="check"><input id="idrop" type="checkbox"' + (IS.drop ? ' checked' : '') + '> Só os que monstros dropam</label><label class="check"><input id="inoev" type="checkbox"' + (IS.noevent ? ' checked' : '') + '> Ocultar eventos</label></div>'
     + '<div class="field full"><span class="lbl">Status principais</span><div class="chips" id="ichips">' + PRINC.map((p, n) => '<button type="button" class="chip" data-c="' + n + '" aria-pressed="' + IS.chips.has(n) + '">' + p.lab + '</button>').join('') + '</div></div>'
@@ -677,11 +683,18 @@ function viewItems() {
   $('#icat').addEventListener('change', e => { IS.cat = e.target.value; rer(); });
   $('#iobt').addEventListener('change', e => { IS.obt = e.target.value; rer(); });
   $('#iweap').addEventListener('change', e => { IS.weap = +e.target.value; store.set('weap', IS.weap); rer(); });
-  $('#isort').addEventListener('change', e => { IS.sort = e.target.value; rer(); });
+  $('#isort').addEventListener('change', e => { IS.sort = e.target.value; IS.dir = isortDef(IS.sort); rer(); });
+  // Ordenar: tocar numa coluna ordena por ela; tocar de novo inverte.
+  $('#ilist').addEventListener('click', e => {
+    const b = e.target.closest('[data-sort]'); if (!b) return;
+    const k = b.dataset.sort;
+    if (IS.sort === k) IS.dir = -IS.dir; else { IS.sort = k; IS.dir = isortDef(k); }
+    $('#isort').value = IS.sort; rer();
+  });
   $('#idrop').addEventListener('change', e => { IS.drop = e.target.checked; rer(); });
   $('#inoev').addEventListener('change', e => { IS.noevent = e.target.checked; rer(); });
   $('#ichips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; const c = +b.dataset.c; IS.chips.has(c) ? IS.chips.delete(c) : IS.chips.add(c); b.setAttribute('aria-pressed', IS.chips.has(c)); rer(); });
-  const add = () => { const s = +$('#istat').value, raw = $('#imin').value, op = +$('#iop').value; IS.fl = IS.fl.filter(f => f.s !== s).concat({ s, v: raw === '' ? 0 : +raw, op }); IS.sort = 's:' + s; $('#isort').value = IS.sort; $('#imin').value = ''; rer(); };
+  const add = () => { const s = +$('#istat').value, raw = $('#imin').value, op = +$('#iop').value; IS.fl = IS.fl.filter(f => f.s !== s).concat({ s, v: raw === '' ? 0 : +raw, op }); IS.sort = 's:' + s; IS.dir = -1; $('#isort').value = IS.sort; $('#imin').value = ''; rer(); };
   $('#iadd').addEventListener('click', add);
   $('#imin').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
   $('#iact').addEventListener('click', e => {
@@ -689,7 +702,7 @@ function viewItems() {
     if (b.dataset.fl) IS.fl.splice(+b.dataset.fl, 1); else if (b.dataset.c) { IS.chips.delete(+b.dataset.c); const cb = view.querySelector('#ichips [data-c="' + b.dataset.c + '"]'); if (cb) cb.setAttribute('aria-pressed', 'false'); }
     rer();
   });
-  $('#ireset').addEventListener('click', () => { Object.assign(IS, { q: '', cat: '', obt: '', sort: 'name', fl: [], drop: false, noevent: false, limit: 60 }); IS.chips.clear(); viewItems(); });
+  $('#ireset').addEventListener('click', () => { Object.assign(IS, { q: '', cat: '', obt: '', sort: 'name', dir: 1, fl: [], drop: false, noevent: false, limit: 60 }); IS.chips.clear(); viewItems(); });
   $('#imore').addEventListener('click', () => { IS.limit += 60; itemList(); });
   itemList();
 }
@@ -704,7 +717,10 @@ function itemList() {
   if (IS.sort.startsWith('s:')) hl.add(+IS.sort.slice(2));
   const list = $('#ilist'), more = $('#imore');
   if (!rows.length) { list.innerHTML = '<p class="empty">Nenhum item com esses filtros.</p>'; more.hidden = true; return; }
-  list.innerHTML = '<div class="lh li"><span>Item</span><span>Tipo</span><span>Base</span><span>Status</span></div>' + rows.slice(0, IS.limit).map(i => {
+  const sb = (k, l) => sortBtn(IS.sort, IS.dir, k, l);
+  const stK = IS.sort.startsWith('s:') ? IS.sort : '', stL = stK ? esc(DB.STATN[+stK.slice(2)]) : '';
+  list.innerHTML = '<div class="msortbar" role="group" aria-label="Ordenar por"><span class="lbl">Ordenar</span>' + ISORTS.map(([k, l]) => sb(k, l)).join('') + (stK ? sb(stK, stL) : '') + '</div>'
+    + '<div class="lh li"><span>' + sb('name', 'Item') + '</span><span>' + sb('type', 'Tipo') + '</span><span>' + sb('base', 'Base') + '</span><span>' + (stK ? sb(stK, 'Status: ' + stL) : 'Status') + ' · ' + sb('new', 'Mais novos') + '</span></div>' + rows.slice(0, IS.limit).map(i => {
     const shown = i.stats.filter(s => !isBase(s)).sort((a, b) => hl.has(b[0]) - hl.has(a[0]));
     const pills = shown.slice(0, 6).map(s => { const [n, v, c] = sparts(s); return '<span class="sp' + (hl.has(s[0]) ? ' hit' : '') + (s[1] < 0 ? ' neg' : '') + '">' + esc(n) + ' ' + v + (c ? ' <i>(' + esc(c) + ')</i>' : '') + '</span>'; }).join('') + (shown.length > 6 ? '<span class="sp">+' + (shown.length - 6) + '</span>' : '');
     return '<a class="row irow" href="' + itemUrl(i) + '"><span class="rn">' + esc(i.name) + itemTags(i) + '</span><span class="ity">' + esc(i.tl || 'Outros') + '</span><span class="ibase">' + baseText(i) + '</span>' + (pills ? '<span class="st">' + pills + '</span>' : '<span></span>') + '</a>';
