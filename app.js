@@ -6,7 +6,8 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmt = n => Number(n).toLocaleString('pt-BR');
 const nk = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
-const view = $('#view');
+const mainView = $('#view');
+let view = mainView; // dentro do Personagem, aponta para a aba aberta
 const store = {
   get(k, d) { try { const v = localStorage.getItem('bt:' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('bt:' + k, JSON.stringify(v)); } catch (e) {} }
@@ -108,8 +109,8 @@ const ROUTES = [
   [/^#\/monstro\/(\d+)$/, 'monstros', id => viewMonster(+id)],
   [/^#\/itens$/, 'itens', () => viewItems()],
   [/^#\/item\/(\d+)$/, 'itens', id => viewItem(+id)],
-  [/^#\/mapas$/, 'mapas', () => viewMaps()],
-  [/^#\/mapa\/(\d+)$/, 'mapas', id => viewMap(+id)],
+  [/^#\/mapas$/, 'inicio', () => viewMaps()],
+  [/^#\/mapa\/(\d+)$/, 'inicio', id => viewMap(+id)],
   [/^#\/ferramentas$/, 'ferramentas', () => viewTools()],
   [/^#\/upar$/, 'ferramentas', () => viewLeveling()],
   [/^#\/exp$/, 'ferramentas', () => viewExp()],
@@ -120,9 +121,11 @@ const ROUTES = [
   [/^#\/comida$/, 'ferramentas', () => viewFood()],
   [/^#\/eventos$/, 'inicio', () => viewEvents()],
   [/^#\/evento\/([a-z-]+)$/, 'inicio', k => viewEvent(k)],
-  [/^#\/build(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewBuild(code)],
+  [/^#\/build(?:\/([A-Za-z0-9_-]+))?$/, 'personagem', code => viewChar('equipamento', code)],
+  [/^#\/personagem(?:\/([a-z]+))?$/, 'personagem', tab => viewChar(tab)],
+  [/^#\/p\/([A-Za-z0-9_-]+)$/, 'personagem', code => importChar(code)],
   [/^#\/dano$/, 'ferramentas', () => viewDamage()],
-  [/^#\/skills(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewSkills(code)],
+  [/^#\/skills(?:\/([A-Za-z0-9_-]+))?$/, 'personagem', code => viewChar('skills', code)],
   [/^#\/statting(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewStatting(code)],
   [/^#\/noticias$/, 'inicio', () => viewNews()],
   [/^#\/farmar(?:\/(\d+))?$/, 'ferramentas', id => viewFarm(id ? +id : 0)],
@@ -135,6 +138,7 @@ let curHash = location.hash || '#/';
 window.addEventListener('hashchange', () => { scrollMem.set(curHash, window.scrollY); curHash = location.hash || '#/'; route(); });
 function route() {
   if (!DB) return;
+  view = mainView;
   const h = location.hash || '#/';
   let sec = 'inicio', done = false;
   for (const [re, s, fn] of ROUTES) { const m = h.match(re); if (m) { sec = s; fn(...m.slice(1)); done = true; break; } }
@@ -174,6 +178,7 @@ function viewHome() {
     + '<a class="tile" href="#/farmar"><b>Onde farmar</b><span>Material perto do seu nível</span></a>'
     + '<a class="tile" href="#/eventos"><b>Eventos</b><span>Do ano inteiro</span></a>'
     + '<a class="tile" href="#/exp"><b>Calculadora de EXP</b><span>Quanto falta</span></a>'
+    + '<a class="tile" href="#/mapas"><b>Mapas</b><span>' + fmt(DB.MAPLIST.length) + ' mapas</span></a>'
     + '</div><div id="homeme"></div><section class="card" id="homenews"><h2>Notícias do jogo</h2><p class="muted" style="margin:0">Carregando…</p></section>' + candies
     + '<div class="grid2"><section class="card"><h2>Bosses mais novos</h2><div class="newl">' + newest.map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + '</a>').join('') + '</div></section>'
     + '<section class="card"><h2>Itens mais novos</h2><div class="newl">' + newItems.map(i => '<a class="lk" href="' + itemUrl(i) + '">' + esc(i.name) + '</a>').join('') + '</div></section></div>';
@@ -638,9 +643,9 @@ function viewTools() {
     + t('#/pontos', 'Pontos de status e skill', 'Quantos pontos você tem pelo nível e pelos emblemas')
     + t('#/comida', 'Códigos de comida', 'Casas com comida de buff: STR, DEX, crítico, ATK, aggro e mais')
     + '</div><h2 class="sect">Smith e equipamentos</h2><div class="tiles">'
-    + t('#/build', 'Status do personagem', 'Monte arma, armadura, adicional, anel e crystas e veja os status somados')
+    + t('#/personagem/equipamento', 'Status do personagem', 'Monte arma, armadura, adicional, anel e crystas e veja os status somados')
     + t('#/dano', 'Calculadora de dano', 'Quanto a sua build bate num boss e quantos golpes para derrubar')
-    + t('#/skills', 'Simulador de skills', 'As 33 árvores de skill, com pré-requisitos e contagem de pontos')
+    + t('#/personagem/skills', 'Simulador de skills', 'As 33 árvores de skill, com pré-requisitos e contagem de pontos')
     + t('#/smithing', 'Guia de smithing', 'Criação, status (statting), refino e materiais, em português')
     + t('#/statting', 'Simulador de statting', 'Monte a fórmula passo a passo: potencial, sucesso e materiais')
     + t('#/blacksmith', 'Calculadora de blacksmith', 'Dificuldade, taxa de sucesso e potencial da criação')
@@ -1125,10 +1130,10 @@ function buildDerived(tot) {
     CRIT: pct(25 + crt / 3.4, 'Critical Rate'), CSPD: pct(L + AGI * 1.16 + DEX * 2.94, 'CSPD'),
     HIT: pct(L + DEX, 'Accuracy'), FLEE: pct(L + AGI, 'Dodge') };
 }
-function saveBuild() { store.set('build', BD); }
+function saveBuild() { store.set('build', BD); syncChar(); }
 function viewBuild(code) {
   setTitle('Status do personagem');
-  if (code) { try { const b = JSON.parse(b64d(code)); if (b && b.sl) { BD = Object.assign(newBuild(), b); saveBuild(); } } catch (e) {} history.replaceState(null, '', '#/build'); }
+  if (code) { try { const b = JSON.parse(b64d(code)); if (b && b.sl) { BD = Object.assign(newBuild(), b); saveBuild(); } } catch (e) {} history.replaceState(null, '', '#/personagem/equipamento'); }
   const n = (id, lab, v, extra) => '<div class="field"><label class="lbl" for="' + id + '">' + lab + '</label><input id="' + id + '" type="number" inputmode="numeric" min="0" value="' + v + '"' + (extra || '') + '></div>';
   view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Status do personagem</h1><p>Monte seu equipamento e veja os status somados. A build fica salva neste aparelho e dá para compartilhar por link.</p></div></div>'
     + '<button type="button" class="bdsum" id="bdsum" aria-label="Ver resultado completo"></button>'
@@ -1161,7 +1166,7 @@ function viewBuild(code) {
     const done = () => { $('#bdmsg').textContent = 'Link copiado! Cole no grupo para mostrar a build.'; };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { fallbackCopy(url); done(); }); else { fallbackCopy(url); done(); }
   });
-  $('#bdclear').addEventListener('click', () => { if (!confirm('Apagar a build atual e começar do zero?')) return; BD = newBuild(); saveBuild(); viewBuild(); });
+  $('#bdclear').addEventListener('click', () => { if (!confirm('Apagar a build atual e começar do zero?')) return; BD = newBuild(); saveBuild(); viewChar('equipamento'); });
   $('#bdslots').addEventListener('click', e => {
     const p = e.target.closest('[data-pick]'); if (p) { openPicker(p.dataset.pick, +p.dataset.x); return; }
     const c = e.target.closest('[data-clr]'); if (c) { const [k, x] = c.dataset.clr.split(':'); if (x === undefined || x === '') BD.sl[k].id = 0; else BD.sl[k].x[+x] = 0; saveBuild(); renderSlots(); renderBuild(); }
@@ -1269,6 +1274,84 @@ function viewNewsItem(id) {
   });
 }
 
+// ---------- personagem (no esquema do Cy's Grimoire): abas Visão geral, Equipamento, Skills, Comida e Salvar ----------
+// Cada personagem guarda a build (equipamento e status) e as skills. Fica tudo salvo neste aparelho.
+const PG_TABS = [['geral', 'Geral'], ['equipamento', 'Equipamento'], ['skills', 'Skills'], ['comida', 'Comida'], ['salvar', 'Salvar']];
+let CHARS = store.get('chars', null) || { cur: 0, list: [{ name: 'Meu personagem', bd: store.get('build', null), sk: store.get('skills', {}) }] };
+const clone = o => JSON.parse(JSON.stringify(o));
+function syncChar() { const c = CHARS.list[CHARS.cur]; if (!c) return; c.bd = clone(BD); c.sk = clone(SKS.lv); store.set('chars', CHARS); }
+function useChar(i) {
+  CHARS.cur = i; const c = CHARS.list[i];
+  BD = Object.assign(newBuild(), clone(c.bd || newBuild())); SKS.lv = clone(c.sk || {});
+  store.set('build', BD); store.set('skills', SKS.lv); store.set('chars', CHARS);
+}
+function addChar(name, bd, sk) { CHARS.list.push({ name, bd: bd || newBuild(), sk: sk || {} }); useChar(CHARS.list.length - 1); }
+const charCode = c => b64e(JSON.stringify({ n: c.name, b: c.bd, s: c.sk }));
+function importChar(code) {
+  try { const o = JSON.parse(b64d(code)); addChar((o.n || 'Personagem') + ' (importado)', o.b, o.s); } catch (e) { alert('Esse link ou código de personagem não é válido.'); }
+  location.replace('#/personagem/geral');
+}
+function viewChar(tab, code) {
+  tab = PG_TABS.some(x => x[0] === tab) ? tab : 'geral';
+  // links antigos: #/build/<código> e #/skills/<código> viram um personagem novo, sem apagar o atual
+  if (code) {
+    try {
+      if (tab === 'equipamento') addChar('Build compartilhada', Object.assign(newBuild(), JSON.parse(b64d(code))), {});
+      else if (tab === 'skills') addChar('Skills compartilhadas', newBuild(), skDecode(code));
+    } catch (e) {}
+    history.replaceState(null, '', '#/personagem/' + tab);
+  }
+  setTitle('Personagem');
+  const c = CHARS.list[CHARS.cur];
+  mainView.innerHTML = '<div class="ph"><div><h1>' + esc(c.name) + '</h1><p>Monte o personagem como no jogo: equipamento, skills e comida. Fica salvo neste aparelho.</p></div>'
+    + (CHARS.list.length > 1 ? '<select id="pgchar" aria-label="Trocar de personagem" style="width:auto;max-width:100%">' + CHARS.list.map((x, i) => '<option value="' + i + '"' + (i === CHARS.cur ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select>' : '') + '</div>'
+    + '<nav class="seg pgtabs" aria-label="Abas do personagem">' + PG_TABS.map(([k, l]) => '<a href="#/personagem/' + k + '" class="' + (k === tab ? 'on' : '') + '">' + l + '</a>').join('') + '</nav><div id="pgbody" class="pgbody"></div>';
+  const sel = $('#pgchar'); if (sel) sel.addEventListener('change', e => { useChar(+e.target.value); viewChar(tab); });
+  view = $('#pgbody');
+  try {
+    if (tab === 'equipamento') viewBuild();
+    else if (tab === 'skills') viewSkills();
+    else if (tab === 'comida') viewFood();
+    else if (tab === 'salvar') viewCharSave();
+    else viewCharOverview();
+  } finally { view = mainView; }
+  setTitle(c.name + ' · ' + PG_TABS.find(x => x[0] === tab)[1]);
+}
+function viewCharOverview() {
+  if (!SKT) { load('skills').then(d => { SKT = d.trees; if (location.hash === '#/personagem' || location.hash.startsWith('#/personagem/geral')) viewChar('geral'); }).catch(() => {}); }
+  const { tot } = buildTotals(), d = buildDerived(tot);
+  const box = (l, v) => '<div><span class="lbl">' + l + '</span><div class="big">' + fmt(Math.floor(v)) + '</div></div>';
+  const eq = SLOTS.map(([k, lab]) => { const s = BD.sl[k], it = DB.ITBYID.get(s.id); return it ? '<div><span>' + lab + '</span><b><a class="tl" href="' + itemUrl(it) + '">' + esc(it.name) + '</a>' + (s.r ? ' ' + REFS[s.r] : '') + '</b></div>' : ''; }).join('');
+  const trees = SKT ? SKT.map(t => [skTreeName(t), skTreeSP(t)]).filter(x => x[1]) : Object.entries(SKS.lv).map(([k, o]) => [k, Object.values(o).reduce((a, b) => a + b, 0)]);
+  const sp = trees.reduce((a, x) => a + x[1], 0);
+  view.innerHTML = '<div class="grid2"><div>'
+    + '<section class="card"><h2>Status <small>Lv ' + BD.lv + '</small></h2><div class="res">' + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => box(s, d[s])).join('') + '</div>'
+    + '<h4 class="sub4">Estimativas</h4><div class="res">' + [['ATK', d.ATK], ['MATK', d.MATK], ['MaxHP', d.MaxHP], ['MaxMP', d.MaxMP], ['Taxa crítica', d.CRIT], ['CSPD', d.CSPD], ['Precisão', d.HIT], ['Esquiva', d.FLEE]].map(([l, v]) => box(l, v)).join('') + '</div>'
+    + '<p class="note">Fórmulas da comunidade, sem skills passivas. Para mudar, use a aba Equipamento.</p></section></div><div>'
+    + '<section class="card"><h2>Equipamento</h2>' + (eq ? '<div class="slist">' + eq + '</div>' : '<p class="muted" style="margin:0">Nada equipado ainda. <a class="tl" href="#/personagem/equipamento">Escolher equipamento</a></p>') + '</section>'
+    + '<section class="card"><h2>Skills <small>' + sp + ' pontos · sobram ' + Math.max(0, skillPts(BD.lv) - sp) + ' no Lv ' + BD.lv + '</small></h2>' + (trees.length ? '<div class="slist">' + trees.map(([n, v]) => '<div><span>' + esc(n) + '</span><b>' + v + ' SP</b></div>').join('') + '</div>' : '<p class="muted" style="margin:0">Nenhuma skill ainda. <a class="tl" href="#/personagem/skills">Distribuir pontos</a></p>') + '</section>'
+    + '<section class="card"><h2>Usar este personagem</h2><div class="chips"><a class="btn" href="#/dano">Calcular dano num boss</a><a class="btn ghost" href="#/statting">Simular statting</a><a class="btn ghost" href="#/personagem/salvar">Compartilhar</a></div></section>'
+    + '</div></div>';
+}
+function viewCharSave() {
+  const list = CHARS.list.map((c, i) => { const w = DB.ITBYID.get(((c.bd || {}).sl || {}).arma ? c.bd.sl.arma.id : 0); return '<div class="charrow' + (i === CHARS.cur ? ' on' : '') + '"><div><b>' + esc(c.name) + '</b><small>Lv ' + ((c.bd || {}).lv || '—') + (w ? ' · ' + esc(w.name) : '') + (i === CHARS.cur ? ' · em uso' : '') + '</small></div><div class="chips">'
+    + (i !== CHARS.cur ? '<button type="button" class="btn" data-use="' + i + '">Usar</button>' : '') + '<button type="button" class="btn ghost" data-ren="' + i + '">Renomear</button><button type="button" class="btn ghost" data-dup="' + i + '">Duplicar</button><button type="button" class="btn ghost" data-link="' + i + '">Copiar link</button>' + (CHARS.list.length > 1 ? '<button type="button" class="btn ghost" data-del="' + i + '">Excluir</button>' : '') + '</div></div>'; }).join('');
+  view.innerHTML = '<section class="card"><h2>Seus personagens <small>' + CHARS.list.length + '</small></h2><div class="charlist">' + list + '</div><div class="chips" style="margin-top:12px"><button type="button" class="btn" id="pgnew">+ Novo personagem</button></div><p class="note" id="pgmsg">Os personagens ficam salvos neste aparelho. Para levar para outro celular, use “Copiar link” e abra o link lá.</p></section>'
+    + '<section class="card"><h2>Importar</h2><div class="range"><input id="pgimp" type="search" placeholder="Cole aqui o link ou o código de um personagem"><button type="button" class="btn" id="pgimpb">Importar</button></div></section>';
+  const msg = s => { $('#pgmsg').textContent = s; };
+  view.querySelector('.charlist').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const i = +(b.dataset.use || b.dataset.ren || b.dataset.dup || b.dataset.link || b.dataset.del);
+    if (b.dataset.use) { useChar(i); viewChar('salvar'); }
+    else if (b.dataset.ren) { const n = prompt('Nome do personagem:', CHARS.list[i].name); if (n && n.trim()) { CHARS.list[i].name = n.trim().slice(0, 40); store.set('chars', CHARS); viewChar('salvar'); } }
+    else if (b.dataset.dup) { syncChar(); addChar(CHARS.list[i].name + ' (cópia)', clone(CHARS.list[i].bd), clone(CHARS.list[i].sk)); viewChar('salvar'); }
+    else if (b.dataset.link) { syncChar(); const url = location.href.split('#')[0] + '#/p/' + charCode(CHARS.list[i]); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => msg('Link copiado! Quem abrir recebe uma cópia desse personagem.'), () => { fallbackCopy(url); msg('Link copiado!'); }); else { fallbackCopy(url); msg('Link copiado!'); } }
+    else if (b.dataset.del) { if (!confirm('Excluir “' + CHARS.list[i].name + '”?')) return; CHARS.list.splice(i, 1); useChar(Math.min(CHARS.cur > i ? CHARS.cur - 1 : CHARS.cur, CHARS.list.length - 1)); viewChar('salvar'); }
+  });
+  $('#pgnew').addEventListener('click', () => { syncChar(); addChar('Personagem ' + (CHARS.list.length + 1)); viewChar('equipamento'); location.hash = '#/personagem/equipamento'; });
+  $('#pgimpb').addEventListener('click', () => { const v = $('#pgimp').value.trim(); const m = v.match(/#\/p\/([A-Za-z0-9_-]+)/); const code = m ? m[1] : v; if (code) importChar(code); });
+}
+
 // ---------- simulador de skills ----------
 // Árvores, posições e pré-requisitos do simulador do coryn.club. Regra do jogo: cada skill vai até 10;
 // para pôr ponto numa skill, a anterior precisa estar no 5; baixar uma skill para menos de 5 zera as que dependem dela.
@@ -1294,8 +1377,8 @@ const skCode = () => b64e(Object.entries(SKS.lv).map(([k, o]) => k + ':' + Objec
 function skDecode(code) { const o = {}; b64d(code).split(';').filter(Boolean).forEach(p => { const [k, rest] = p.split(':'); o[k] = {}; (rest || '').split(',').filter(Boolean).forEach(x => { const [i, v] = x.split('.'); if (+v > 0) o[k][+i] = Math.min(10, +v); }); }); return o; }
 function viewSkills(code) {
   setTitle('Simulador de skills');
-  if (!SKT) { view.innerHTML = '<p class="loading">Carregando as árvores de skill…</p>'; load('skills').then(d => { SKT = d.trees; viewSkills(code); }).catch(() => { view.innerHTML = '<p class="nojs">Não deu para carregar as skills. Recarregue a página.</p>'; }); return; }
-  if (code) { try { SKS.lv = skDecode(code); store.set('skills', SKS.lv); } catch (e) {} history.replaceState(null, '', '#/skills'); }
+  if (!SKT) { view.innerHTML = '<p class="loading">Carregando as árvores de skill…</p>'; load('skills').then(d => { SKT = d.trees; viewChar('skills', code); }).catch(() => { view.innerHTML = '<p class="nojs">Não deu para carregar as skills. Recarregue a página.</p>'; }); return; }
+  if (code) { try { SKS.lv = skDecode(code); store.set('skills', SKS.lv); } catch (e) {} history.replaceState(null, '', '#/personagem/skills'); }
   const cats = ['Arma', 'Buff', 'Assistência', 'Outros'];
   view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Simulador de skills</h1><p>Distribua os pontos nas árvores. A skill anterior sobe sozinha para o nível 5 quando precisa. A build fica salva neste aparelho e dá para compartilhar por link.</p></div></div>'
     + '<div class="sktool" id="sktool"></div>'
@@ -1334,7 +1417,7 @@ function openTree(k, on) {
   if (on) { SKS.open.add(k); b.innerHTML = treeHtml(t); } else SKS.open.delete(k);
 }
 function skRefresh(onlyTree) {
-  store.set('skills', SKS.lv);
+  store.set('skills', SKS.lv); syncChar();
   skToolbar();
   SKT.forEach(t => { const sp = skTreeSP(t); const el = $('#sp-' + t.k); if (el) el.textContent = sp ? sp + ' SP' : ''; });
   if (onlyTree) { const b = $('#skb-' + onlyTree); if (b && !b.hidden) b.innerHTML = treeHtml(SKT.find(x => x.k === onlyTree)); }
@@ -1343,7 +1426,7 @@ function skRefresh(onlyTree) {
     : '<p class="muted" style="margin:0">Nenhuma skill ainda. Abra uma árvore e toque nas skills.</p>';
 }
 function skClick(e) {
-  if (!location.hash.startsWith('#/skills')) { view.removeEventListener('click', skClick); return; }
+  if (!document.getElementById('sktool')) return;
   const o = e.target.closest('[data-open]'); if (o) { const k = o.dataset.open; openTree(k, !SKS.open.has(k)); return; }
   const n = e.target.closest('.sknode');
   if (n) { const t = SKT.find(x => x.k === n.dataset.t), id = +n.dataset.id; SKS.mode > 0 ? skAdd(t, id, SKS.step) : skRemove(t, id, SKS.step); skRefresh(t.k); return; }

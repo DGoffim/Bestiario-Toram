@@ -299,6 +299,20 @@ button.lk { cursor: pointer; font: inherit; font-size: 13.5px; text-align: left;
 .tbl.cmp td.best { background: color-mix(in srgb, var(--gold-d) 24%, var(--surface)); font-weight: 600; }
 .tbl.cmp td.neg { color: var(--event); }
 
+/* personagem com abas (dentro delas, as telas reaproveitadas não mostram o próprio título) */
+.pgbody > .back, .pgbody > .ph { display: none; }
+.pgtabs { position: sticky; top: calc(64px + env(safe-area-inset-top, 0px)); z-index: 22; }
+@media (min-width: 900px) { .pgtabs { top: calc(76px + env(safe-area-inset-top, 0px)); } }
+.pgbody .sktool { top: calc(118px + env(safe-area-inset-top, 0px)); }
+.pgbody .bdsum { top: calc(118px + env(safe-area-inset-top, 0px)); }
+@media (min-width: 900px) { .pgbody .sktool { top: calc(132px + env(safe-area-inset-top, 0px)); } }
+.charlist { display: flex; flex-direction: column; gap: 8px; }
+.charrow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.charrow.on { border-color: var(--gold-d); box-shadow: inset 4px 0 0 var(--gold-d); }
+.charrow b { display: block; }
+.charrow small { color: var(--muted); font-size: 12.5px; }
+.charrow .btn { padding: 6px 10px; font-size: 13px; }
+
 /* notícias */
 .nrow { grid-template-columns: 1fr; gap: 3px; }
 .nrow .rn { font-weight: 500; }
@@ -413,3 +427,10 @@ button.lk { cursor: pointer; font: inherit; font-size: 13.5px; text-align: left;
 .foot { font-size: 12.5px; line-height: 1.55; color: var(--ink-2); padding-bottom: 20px; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
 .skhint { display: inline; }
 @media (min-width: 900px) { .skhint { display: none; } }
+/* celular: resultados dois por linha e abas do personagem mais compactas */
+@media (max-width: 560px) {
+  .res { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .res > div { padding: 8px 10px; }
+  .big { font-size: 18px; }
+  .pgtabs a { padding: 9px 8px; font-size: 13.5px; }
+}
