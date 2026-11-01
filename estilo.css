@@ -276,6 +276,44 @@ button.lk { cursor: pointer; font: inherit; font-size: 13.5px; text-align: left;
 .tile.now { border-left-color: var(--teal-d); background: color-mix(in srgb, var(--teal-d) 10%, var(--surface)); }
 .tile .tag { vertical-align: 2px; margin-left: 4px; }
 @media (min-width: 700px) { .evtiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* simulador de skills */
+.sktool { position: sticky; top: calc(64px + env(safe-area-inset-top, 0px)); z-index: 20; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--gold); background: rgba(10,19,40,.94); color: #fff; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+@media (min-width: 900px) { .sktool { top: calc(76px + env(safe-area-inset-top, 0px)); } }
+.skstat { display: flex; gap: 14px; }
+.skstat span { display: flex; flex-direction: column; }
+.skstat small { font: 600 10px var(--font-body); color: var(--gold); text-transform: uppercase; letter-spacing: .06em; }
+.skstat b { font: 500 16px var(--font-mono); }
+.skstat b.neg { color: #ff9aa2; }
+.skstat input { width: 70px; padding: 2px 6px; font: 500 15px var(--font-mono); background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 6px; }
+.skmode { display: flex; gap: 8px; }
+.seg2 { display: inline-flex; border: 1px solid rgba(255,255,255,.35); border-radius: 8px; overflow: hidden; }
+.seg2 button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 11px; background: none; color: #dbe4f3; border: 0; cursor: pointer; }
+.seg2 button[aria-pressed="true"] { background: var(--gold); color: #2a1d05; }
+.sktree { padding: 0; overflow: hidden; }
+.skhead { display: flex; width: 100%; align-items: center; gap: 10px; padding: 13px 14px; background: none; border: 0; color: var(--fg); font: inherit; cursor: pointer; text-align: left; }
+.skhead b { font-size: 15px; }
+.sksp { font: 500 12px var(--font-mono); color: #fff; background: var(--accent); border-radius: 999px; padding: 1px 8px; }
+.sksp:empty { display: none; }
+.skarrow { margin-left: auto; color: var(--muted); transition: transform .15s; }
+.sktree.open .skarrow { transform: rotate(90deg); }
+.skbody { border-top: 1px solid var(--line); }
+.skbar { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; font-size: 13px; }
+.skbar .link { background: none; border: 0; color: var(--teal-d); text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; }
+.skscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.skcanvas { position: relative; margin: 0 auto; }
+.skcanvas svg { position: absolute; inset: 0; }
+.skcanvas polyline { fill: none; stroke: var(--line); stroke-width: 3; stroke-linejoin: round; }
+.skcanvas polyline.on { stroke: var(--gold-d); }
+@media (min-width: 900px) { .skgrid { grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); } }
+.sknode { position: absolute; transform: translate(-50%, -18px); width: 82px; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: var(--fg); -webkit-tap-highlight-color: transparent; }
+.sknode i { font: 600 14px var(--font-mono); font-style: normal; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--line); background: var(--bg); color: var(--muted); }
+.sknode.on i { background: var(--accent); color: #fff; border-color: var(--gold-d); }
+.sknode.max i { background: var(--gold-d); border-color: var(--gold); }
+.sknode span { font-size: 10.5px; line-height: 1.12; text-align: center; max-width: 82px; }
+.sknode:active i { transform: scale(.94); }
+.skpanel { position: sticky; top: 150px; }
+@media (max-width: 899px) { .skpanel { position: static; } }
+
 /* calculadora de status (build) */
 .bdsum { position: sticky; top: calc(64px + env(safe-area-inset-top, 0px)); z-index: 20; display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--gold); background: rgba(10,19,40,.92); color: #fff; cursor: pointer; font: inherit; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
 .bdsum span { display: flex; flex-direction: column; font: 500 14px var(--font-mono); min-width: 0; }
@@ -318,3 +356,5 @@ button.lk { cursor: pointer; font: inherit; font-size: 13.5px; text-align: left;
 .res > div { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 
 .foot { font-size: 12.5px; line-height: 1.55; color: var(--ink-2); padding-bottom: 20px; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+.skhint { display: inline; }
+@media (min-width: 900px) { .skhint { display: none; } }

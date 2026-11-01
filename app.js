@@ -121,7 +121,8 @@ const ROUTES = [
   [/^#\/eventos$/, 'inicio', () => viewEvents()],
   [/^#\/evento\/([a-z-]+)$/, 'inicio', k => viewEvent(k)],
   [/^#\/build(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewBuild(code)],
-  [/^#\/dano$/, 'ferramentas', () => viewDamage()]
+  [/^#\/dano$/, 'ferramentas', () => viewDamage()],
+  [/^#\/skills(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewSkills(code)]
 ];
 const scrollMem = new Map();
 let curHash = location.hash || '#/';
@@ -538,6 +539,7 @@ function viewTools() {
     + '</div><h2 class="sect">Smith e equipamentos</h2><div class="tiles">'
     + t('#/build', 'Status do personagem', 'Monte arma, armadura, adicional, anel e crystas e veja os status somados')
     + t('#/dano', 'Calculadora de dano', 'Quanto a sua build bate num boss e quantos golpes para derrubar')
+    + t('#/skills', 'Simulador de skills', 'As 33 árvores de skill, com pré-requisitos e contagem de pontos')
     + t('#/smithing', 'Guia de smithing', 'Criação, status (statting), refino e materiais, em português')
     + t('#/blacksmith', 'Calculadora de blacksmith', 'Dificuldade, taxa de sucesso e potencial da criação')
     + t('#/ninjutsu', 'Ninjutsu Scroll', 'Que armas usar para cada pergaminho, e o que cada combinação dá')
@@ -1113,6 +1115,96 @@ function renderBuild() {
     + '<h4 class="sub4">Soma dos equipamentos e bônus <small>exata</small></h4>' + (rows.length ? '<div class="slist">' + rows.map(([si, v]) => { const [nm, vv] = sparts([si, v, 0]); return '<div class="' + (v < 0 ? 'neg' : '') + '"><span>' + esc(nm) + '</span><b>' + vv + '</b></div>'; }).join('') + '</div>' : '<p class="muted" style="margin:0">Escolha equipamentos para ver a soma.</p>')
     + (off.length ? '<p class="note">Não contam com a arma e armadura atuais: ' + off.map(([it, s]) => { const [nm, vv, c] = sparts(s); return esc(nm + ' ' + vv + ' (' + c + ', ' + it.name + ')'); }).join('; ') + '.</p>' : '')
     + '<p class="note">As estimativas usam fórmulas da comunidade (ATK por tipo de arma, refino ≈ ATK base × refino² ÷ 100 + refino) e não incluem skills passivas. Use para comparar builds, não como valor exato do jogo.</p>';
+}
+
+// ---------- simulador de skills ----------
+// Árvores, posições e pré-requisitos do simulador do coryn.club. Regra do jogo: cada skill vai até 10;
+// para pôr ponto numa skill, a anterior precisa estar no 5; baixar uma skill para menos de 5 zera as que dependem dela.
+let SKT = null;
+const SKCAT = { Weapon: 'Arma', Buff: 'Buff', Assist: 'Assistência', Other: 'Outros' };
+const SKS = { lv: store.get('skills', {}), open: new Set(), mode: 1, step: 1, plv: store.get('lv', 100) };
+const skTreeName = t => t.n.replace(/^\w+:\s*/, '').replace(/\s*Skill$/, '');
+const skCat = t => SKCAT[(t.n.match(/^(\w+):/) || [])[1]] || 'Outros';
+const skLv = (k, id) => (SKS.lv[k] && SKS.lv[k][id]) || 0;
+function skSet(k, id, v) { if (!SKS.lv[k]) SKS.lv[k] = {}; if (v > 0) SKS.lv[k][id] = v; else delete SKS.lv[k][id]; if (!Object.keys(SKS.lv[k]).length) delete SKS.lv[k]; }
+function skAdd(t, id, num) {
+  const s = t.s.find(x => x[0] === id); if (!s) return;
+  skSet(t.k, id, Math.min(10, skLv(t.k, id) + num));
+  if (s[2] >= 0 && skLv(t.k, s[2]) < 5) skAdd(t, s[2], 5 - skLv(t.k, s[2]));
+}
+function skRemove(t, id, num) {
+  const v = Math.max(0, skLv(t.k, id) - num);
+  skSet(t.k, id, v);
+  if (v < 5) t.s.filter(c => c[2] === id && skLv(t.k, c[0]) > 0).forEach(c => skRemove(t, c[0], 10));
+}
+const skTreeSP = t => t.s.reduce((a, s) => a + skLv(t.k, s[0]), 0);
+const skCode = () => b64e(Object.entries(SKS.lv).map(([k, o]) => k + ':' + Object.entries(o).map(([i, v]) => i + '.' + v).join(',')).join(';'));
+function skDecode(code) { const o = {}; b64d(code).split(';').filter(Boolean).forEach(p => { const [k, rest] = p.split(':'); o[k] = {}; (rest || '').split(',').filter(Boolean).forEach(x => { const [i, v] = x.split('.'); if (+v > 0) o[k][+i] = Math.min(10, +v); }); }); return o; }
+function viewSkills(code) {
+  setTitle('Simulador de skills');
+  if (!SKT) { view.innerHTML = '<p class="loading">Carregando as árvores de skill…</p>'; load('skills').then(d => { SKT = d.trees; viewSkills(code); }).catch(() => { view.innerHTML = '<p class="nojs">Não deu para carregar as skills. Recarregue a página.</p>'; }); return; }
+  if (code) { try { SKS.lv = skDecode(code); store.set('skills', SKS.lv); } catch (e) {} history.replaceState(null, '', '#/skills'); }
+  const cats = ['Arma', 'Buff', 'Assistência', 'Outros'];
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Simulador de skills</h1><p>Distribua os pontos nas árvores. A skill anterior sobe sozinha para o nível 5 quando precisa. A build fica salva neste aparelho e dá para compartilhar por link.</p></div></div>'
+    + '<div class="sktool" id="sktool"></div>'
+    + '<div class="grid2 skgrid"><div>' + cats.map(c => '<h2 class="sect">' + c + '</h2>' + SKT.filter(t => skCat(t) === c).map(t => '<section class="card sktree" data-k="' + t.k + '"><button type="button" class="skhead" data-open="' + t.k + '"><b>' + esc(skTreeName(t)) + '</b><span class="sksp" id="sp-' + t.k + '"></span><span class="skarrow">▸</span></button><div class="skbody" id="skb-' + t.k + '" hidden></div></section>').join('')).join('') + '</div>'
+    + '<div><section class="card skpanel"><h2>Skills escolhidas</h2><div id="sksel"></div><div class="chips" style="margin-top:12px"><button class="btn" id="skshare" type="button">Copiar link da build</button><button class="btn ghost" id="skclear" type="button">Zerar tudo</button></div><p class="note" id="skmsg">Salvo automaticamente neste aparelho.</p></section></div></div>'
+    + '<p class="note" style="color:var(--ink-2)">Árvores e pré-requisitos do simulador do coryn.club. Os nomes das skills ficam em inglês, como no jogo.</p>';
+  SKS.open.forEach(k => openTree(k, true));
+  skRefresh();
+  view.addEventListener('click', skClick);
+}
+function skToolbar() {
+  const used = SKT.reduce((a, t) => a + skTreeSP(t), 0), have = skillPts(SKS.plv);
+  $('#sktool').innerHTML = '<div class="skstat"><span><small>Pontos usados</small><b>' + fmt(used) + '</b></span><span><small>Do nível</small><input id="skplv" type="number" inputmode="numeric" min="1" value="' + SKS.plv + '" aria-label="Seu nível"></span><span><small>' + (used > have ? 'Passou' : 'Sobram') + '</small><b class="' + (used > have ? 'neg' : '') + '">' + fmt(Math.abs(have - used)) + '</b></span></div>'
+    + '<div class="skmode"><div class="seg2" role="group" aria-label="Tocar para"><button type="button" data-mode="1" aria-pressed="' + (SKS.mode > 0) + '">+ Somar</button><button type="button" data-mode="-1" aria-pressed="' + (SKS.mode < 0) + '">− Tirar</button></div>'
+    + '<div class="seg2" role="group" aria-label="Quanto por toque"><button type="button" data-step="1" aria-pressed="' + (SKS.step === 1) + '">1</button><button type="button" data-step="5" aria-pressed="' + (SKS.step === 5) + '">5</button><button type="button" data-step="10" aria-pressed="' + (SKS.step === 10) + '">Máx</button></div></div>';
+  $('#skplv').addEventListener('change', e => { SKS.plv = Math.max(1, +e.target.value || 1); store.set('lv', SKS.plv); skToolbar(); });
+}
+const SK_CW = 86, SK_CH = 40, SK_PAD = 46;
+function treeHtml(t) {
+  const X = Math.max(...t.s.map(s => s[3])), Y = Math.max(...t.s.map(s => s[4]));
+  const w = X * SK_CW + SK_PAD * 2, h = Y * SK_CH + SK_PAD * 2 + 10;
+  const P = (x, y) => (x * SK_CW + SK_PAD) + ',' + (y * SK_CH + SK_PAD);
+  const lines = t.s.filter(s => s[2] >= 0).map(s => {
+    const p = t.s.find(x => x[0] === s[2]); if (!p) return '';
+    const on = skLv(t.k, s[0]) > 0;
+    const pts = s[5] === -1 ? [P(s[3], s[4]), P((s[3] + p[3]) / 2, s[4]), P((s[3] + p[3]) / 2, p[4]), P(p[3], p[4])] : [P(s[3], s[4]), P(s[5], s[6]), P(p[3], p[4])];
+    return '<polyline points="' + pts.join(' ') + '" class="' + (on ? 'on' : '') + '"/>';
+  }).join('');
+  const nodes = t.s.map(s => { const v = skLv(t.k, s[0]); return '<button type="button" class="sknode' + (v ? ' on' : '') + (v === 10 ? ' max' : '') + '" data-t="' + t.k + '" data-id="' + s[0] + '" style="left:' + (s[3] * SK_CW + SK_PAD) + 'px;top:' + (s[4] * SK_CH + SK_PAD) + 'px" aria-label="' + esc(s[1]) + ', nível ' + v + '"><i>' + v + '</i><span>' + esc(s[1]) + '</span></button>'; }).join('');
+  return '<div class="skbar"><span class="muted">' + skTreeSP(t) + ' pontos nesta árvore<span class="skhint"> · arraste para o lado</span></span><button type="button" class="link" data-reset="' + t.k + '">Zerar árvore</button></div><div class="skscroll"><div class="skcanvas" style="width:' + w + 'px;height:' + h + 'px"><svg width="' + w + '" height="' + h + '" aria-hidden="true">' + lines + '</svg>' + nodes + '</div></div>';
+}
+function openTree(k, on) {
+  const b = $('#skb-' + k); if (!b) return;
+  const t = SKT.find(x => x.k === k);
+  b.hidden = !on; b.closest('.sktree').classList.toggle('open', on);
+  if (on) { SKS.open.add(k); b.innerHTML = treeHtml(t); } else SKS.open.delete(k);
+}
+function skRefresh(onlyTree) {
+  store.set('skills', SKS.lv);
+  skToolbar();
+  SKT.forEach(t => { const sp = skTreeSP(t); const el = $('#sp-' + t.k); if (el) el.textContent = sp ? sp + ' SP' : ''; });
+  if (onlyTree) { const b = $('#skb-' + onlyTree); if (b && !b.hidden) b.innerHTML = treeHtml(SKT.find(x => x.k === onlyTree)); }
+  const sel = SKT.filter(t => skTreeSP(t) > 0);
+  $('#sksel').innerHTML = sel.length ? sel.map(t => '<div class="dgroup"><span class="lbl">' + esc(skTreeName(t)) + ' · ' + skTreeSP(t) + ' SP</span><div class="links">' + t.s.filter(s => skLv(t.k, s[0]) > 0).map(s => '<span class="lk">' + esc(s[1]) + ' <small>' + skLv(t.k, s[0]) + '</small></span>').join('') + '</div></div>').join('')
+    : '<p class="muted" style="margin:0">Nenhuma skill ainda. Abra uma árvore e toque nas skills.</p>';
+}
+function skClick(e) {
+  if (!location.hash.startsWith('#/skills')) { view.removeEventListener('click', skClick); return; }
+  const o = e.target.closest('[data-open]'); if (o) { const k = o.dataset.open; openTree(k, !SKS.open.has(k)); return; }
+  const n = e.target.closest('.sknode');
+  if (n) { const t = SKT.find(x => x.k === n.dataset.t), id = +n.dataset.id; SKS.mode > 0 ? skAdd(t, id, SKS.step) : skRemove(t, id, SKS.step); skRefresh(t.k); return; }
+  const r = e.target.closest('[data-reset]'); if (r) { delete SKS.lv[r.dataset.reset]; skRefresh(r.dataset.reset); return; }
+  const m = e.target.closest('[data-mode]'); if (m) { SKS.mode = +m.dataset.mode; skToolbar(); return; }
+  const s = e.target.closest('[data-step]'); if (s) { SKS.step = +s.dataset.step; skToolbar(); return; }
+  if (e.target.closest('#skshare')) {
+    const url = location.href.split('#')[0] + '#/skills/' + skCode();
+    const done = () => { $('#skmsg').textContent = 'Link copiado! Cole no grupo para mostrar a build.'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { fallbackCopy(url); done(); }); else { fallbackCopy(url); done(); }
+    return;
+  }
+  if (e.target.closest('#skclear')) { if (confirm('Zerar todas as árvores?')) { SKS.lv = {}; SKS.open.forEach(k => openTree(k, true)); skRefresh(); } }
 }
 
 // ---------- calculadora de dano ----------
