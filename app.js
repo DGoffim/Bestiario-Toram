@@ -111,6 +111,7 @@ const ROUTES = [
   [/^#\/crystas$/, 'itens', () => viewCrystas()],
   [/^#\/registlets$/, 'itens', () => viewRegistlets()],
   [/^#\/traits$/, 'itens', () => viewTraits()],
+  [/^#\/glossario$/, 'ferramentas', () => viewGlossary()],
   [/^#\/item\/(\d+)$/, 'itens', id => viewItem(+id)],
   [/^#\/mapas$/, 'inicio', () => viewMaps()],
   [/^#\/mapa\/(\d+)$/, 'inicio', id => viewMap(+id)],
@@ -320,6 +321,31 @@ function viewTraits() {
   };
   $('#tq').addEventListener('input', e => { TS.q = e.target.value; draw(); });
   $('#tc').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b) return; TS.c = b.dataset.c; view.querySelectorAll('#tc .chip').forEach(c => c.setAttribute('aria-pressed', c.dataset.c === TS.c)); draw(); });
+  draw();
+}
+
+// ---------- glossário (traduzido do Cy's Grimoire) ----------
+let GLOS = null; const GS = { q: '', c: '' };
+const glTxt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>');
+function viewGlossary() {
+  setTitle('Glossário');
+  if (!GLOS) { view.innerHTML = '<p class="loading">Carregando o glossário…</p>'; load('glossario').then(d => { GLOS = d; if (location.hash.startsWith('#/glossario')) viewGlossary(); }); return; }
+  const cats = [...new Set(GLOS.itens.map(x => x[1]))];
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Glossário</h1><p>Como o jogo funciona por dentro: fórmulas de dano, acerto e crítico, status negativos, combos e regras das armas.</p></div></div>'
+    + '<div class="tools"><input id="gq2" type="search" placeholder="Buscar (ex: Flinch, crítico, estabilidade, aggro)" value="' + esc(GS.q) + '" aria-label="Buscar no glossário"></div>'
+    + '<div class="chips" id="gc" style="margin:0 0 10px">' + [['', 'Todos'], ['*', '★ Importantes']].concat(cats.map(c => [c, c])).map(([v, l]) => '<button type="button" class="chip" data-c="' + esc(v) + '" aria-pressed="' + (GS.c === v) + '">' + esc(l) + '</button>').join('') + '</div>'
+    + '<div class="status"><span id="gcount"></span><button class="link" id="gall" type="button">Abrir todos</button></div><div id="glist"></div>'
+    + '<p class="note" style="color:var(--ink-2)">' + esc(GLOS.fonte) + '</p>';
+  let openAll = false;
+  const draw = () => {
+    const q = GS.q.trim().toLowerCase();
+    const rows = GLOS.itens.filter(x => (!GS.c || (GS.c === '*' ? x[2] : x[1] === GS.c)) && (!q || (x[0] + ' ' + x[3] + ' ' + x[4].join(' ')).toLowerCase().includes(q)));
+    $('#gcount').textContent = rows.length + (rows.length === 1 ? ' verbete' : ' verbetes');
+    $('#glist').innerHTML = rows.map(x => '<details class="card gl"' + (q || openAll || rows.length <= 3 ? ' open' : '') + '><summary><h2>' + esc(x[0]) + (x[2] ? ' <span class="tag ok">importante</span>' : '') + ' <small>' + esc(x[1]) + '</small></h2></summary><p>' + glTxt(x[3]) + '</p>' + (x[4].length ? '<ul class="flist">' + x[4].map(l => '<li>' + glTxt(l) + '</li>').join('') + '</ul>' : '') + '</details>').join('') || '<p class="empty" style="color:var(--ink-2)">Nada encontrado.</p>';
+  };
+  $('#gq2').addEventListener('input', e => { GS.q = e.target.value; draw(); });
+  $('#gc').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b) return; GS.c = b.dataset.c; view.querySelectorAll('#gc .chip').forEach(c => c.setAttribute('aria-pressed', c.dataset.c === GS.c)); draw(); });
+  $('#gall').addEventListener('click', () => { openAll = !openAll; $('#gall').textContent = openAll ? 'Fechar todos' : 'Abrir todos'; draw(); });
   draw();
 }
 
@@ -751,6 +777,7 @@ function viewTools() {
     + t('#/personagem/equipamento', 'Status do personagem', 'Monte arma, armadura, adicional, anel e crystas e veja os status somados')
     + t('#/dano', 'Calculadora de dano', 'Quanto a sua build bate num boss e quantos golpes para derrubar')
     + t('#/personagem/skills', 'Simulador de skills', 'As 33 árvores de skill, com pré-requisitos e contagem de pontos')
+    + t('#/glossario', 'Glossário', 'Fórmulas de dano, acerto e crítico, status negativos e combos, em português')
     + t('#/smithing', 'Guia de smithing', 'Criação, status (statting), refino e materiais, em português')
     + t('#/statting', 'Simulador de statting', 'Monte a fórmula passo a passo: potencial, sucesso e materiais')
     + t('#/blacksmith', 'Calculadora de blacksmith', 'Dificuldade, taxa de sucesso e potencial da criação')
@@ -1566,6 +1593,8 @@ function skToolbar() {
   $('#skplv').addEventListener('change', e => { SKS.plv = Math.max(1, +e.target.value || 1); store.set('lv', SKS.plv); skToolbar(); });
 }
 const SK_CW = 86, SK_CH = 40, SK_PAD = 46;
+// Ícones das skills (do coryn.club, guardados no site). Fora do GitHub Pages (ex.: no artifact), vêm do site publicado.
+const SKIMG = /github\.io$|localhost$/.test(location.hostname) ? 'img/skills/' : 'https://dgoffim.github.io/Bestiario-Toram/img/skills/';
 function treeHtml(t) {
   const X = Math.max(...t.s.map(s => s[3])), Y = Math.max(...t.s.map(s => s[4]));
   const w = X * SK_CW + SK_PAD * 2, h = Y * SK_CH + SK_PAD * 2 + 10;
@@ -1576,7 +1605,7 @@ function treeHtml(t) {
     const pts = s[5] === -1 ? [P(s[3], s[4]), P((s[3] + p[3]) / 2, s[4]), P((s[3] + p[3]) / 2, p[4]), P(p[3], p[4])] : [P(s[3], s[4]), P(s[5], s[6]), P(p[3], p[4])];
     return '<polyline points="' + pts.join(' ') + '" class="' + (on ? 'on' : '') + '"/>';
   }).join('');
-  const nodes = t.s.map(s => { const v = skLv(t.k, s[0]); return '<button type="button" class="sknode' + (v ? ' on' : '') + (v === 10 ? ' max' : '') + '" data-t="' + t.k + '" data-id="' + s[0] + '" style="left:' + (s[3] * SK_CW + SK_PAD) + 'px;top:' + (s[4] * SK_CH + SK_PAD) + 'px" aria-label="' + esc(s[1]) + ', nível ' + v + '"><i>' + v + '</i><span>' + esc(s[1]) + '</span></button>'; }).join('');
+  const nodes = t.s.map(s => { const v = skLv(t.k, s[0]); return '<button type="button" class="sknode' + (v ? ' on' : '') + (v === 10 ? ' max' : '') + '" data-t="' + t.k + '" data-id="' + s[0] + '" style="left:' + (s[3] * SK_CW + SK_PAD) + 'px;top:' + (s[4] * SK_CH + SK_PAD) + 'px" aria-label="' + esc(s[1]) + ', nível ' + v + '"><i' + (s[7] ? ' class="ic" style="background-image:url(' + SKIMG + s[7] + ')"' : '') + '>' + (s[7] ? '<b>' + v + '</b>' : v) + '</i><span>' + esc(s[1]) + '</span></button>'; }).join('');
   return '<div class="skbar"><span class="muted">' + skTreeSP(t) + ' pontos nesta árvore<span class="skhint"> · arraste para o lado</span></span><button type="button" class="link" data-reset="' + t.k + '">Zerar árvore</button></div><div class="skscroll"><div class="skcanvas" style="width:' + w + 'px;height:' + h + 'px"><svg width="' + w + '" height="' + h + '" aria-hidden="true">' + lines + '</svg>' + nodes + '</div></div>';
 }
 function openTree(k, on) {

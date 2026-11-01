@@ -332,6 +332,24 @@ button.lk { cursor: pointer; font: inherit; font-size: 13.5px; text-align: left;
 .reg h2 { font-size: 15px; }
 .reff { margin: 0; font-size: 14px; line-height: 1.5; }
 
+/* ícones das skills: apagado em 0, colorido com aro dourado quando tem pontos; nível num selo */
+.sknode i.ic { position: relative; width: 44px; height: 44px; background: var(--bg) center / cover no-repeat; border-width: 2px; filter: grayscale(1); opacity: .55; }
+.sknode.on i.ic { filter: none; opacity: 1; border-color: var(--gold-d); box-shadow: 0 0 0 2px rgba(214,176,94,.35); }
+.sknode.max i.ic { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold); }
+.sknode i.ic b { position: absolute; right: -8px; bottom: -6px; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 999px; display: grid; place-items: center; font: 700 11.5px var(--font-mono); background: var(--fg); color: #fff; border: 2px solid var(--surface); }
+.sknode.on i.ic b { background: var(--accent); }
+.sknode.max i.ic b { background: var(--gold-d); }
+.sknode:has(i.ic) { transform: translate(-50%, -22px); }
+
+/* glossário */
+details.gl { padding: 12px 14px; }
+details.gl > summary h2 { margin: 0; font-size: 15px; flex-wrap: wrap; }
+details.gl > summary h2 small { font-size: 12px; }
+details.gl[open] > summary h2 { margin-bottom: 8px; }
+details.gl p { margin: 0 0 8px; font-size: 14.5px; line-height: 1.55; }
+details.gl .flist { font-size: 14px; line-height: 1.5; }
+details.gl code, .prose code { font-family: var(--font-mono); font-size: 12.5px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; white-space: normal; }
+
 /* notícias */
 .nrow { grid-template-columns: 1fr; gap: 3px; }
 .nrow .rn { font-weight: 500; }
