@@ -1806,7 +1806,8 @@ function skiBody(t, s, info, c) {
     const rows = v.ch.filter(x => SKI_ST[x[1]]).map(([b, k, val]) => [SKI_ST[k], skiVal(val, c, k === 'multiplier' || k === 'ailment_chance' ? '%' : '')]);
     if (rows.length) h += '<div class="skiblk"><h4>Com ' + esc(w) + '</h4><dl class="skidl">' + skiRows(rows) + '</dl></div>';
   });
-  if ((info.nt || []).length) h += '<div class="skiblk"><h4>Observações</h4><ul class="skinotes">' + info.nt.map(x => '<li>' + skiTxt(x, c) + '</li>').join('') + '</ul></div>';
+  const nts = (info.nt || []).filter(Boolean);
+  if (nts.length) h += '<div class="skiblk"><h4>Observações</h4><ul class="skinotes">' + nts.map(x => '<li>' + skiTxt(x, c) + '</li>').join('') + '</ul></div>';
   return h;
 }
 function skInfo(t, s) {
