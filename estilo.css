@@ -513,3 +513,36 @@ details.gl code, .prose code { font-family: var(--font-mono); font-size: 12.5px;
 .msortbar .sortb { font-size: 13px; font-weight: 600; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--fg); }
 .msortbar .sortb.on { border-color: var(--gold-d); background: color-mix(in srgb, var(--gold-d) 22%, var(--surface)); }
 @media (min-width: 900px) { .msortbar { display: none; } }
+
+/* Personagem numa página só: blocos à esquerda, painel de status do jogo à direita */
+.pgbuild { display: grid; gap: 0 18px; }
+@media (min-width: 1000px) {
+  .pgbuild { grid-template-columns: minmax(0, 1fr) 420px; align-items: start; }
+  .pgright { position: sticky; top: calc(132px + env(safe-area-inset-top, 0px)); max-height: calc(100vh - 150px); overflow: auto; border-radius: 12px; }
+}
+.blk { margin: 0 0 14px; }
+.blkh { width: 100%; display: flex; align-items: baseline; gap: 10px; padding: 13px 14px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 22px rgba(0,0,0,.18); font: inherit; text-align: left; cursor: pointer; }
+.blk.open .blkh { border-radius: 12px 12px 0 0; }
+.blkh h2 { margin: 0; font-size: 16px; }
+.blkh small { color: var(--muted); font-size: 13px; }
+.blkarrow { margin-left: auto; color: var(--muted); transition: transform .15s; transform: rotate(-90deg); }
+.blk.open .blkarrow { transform: none; }
+.blkb { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-top: 0; border-radius: 0 0 12px 12px; padding: 14px; }
+.blkb .card { box-shadow: none; }
+.blkb > .slots { display: grid; gap: 0 12px; }
+@media (min-width: 700px) { .blkb > .slots { grid-template-columns: 1fr 1fr; } }
+.pgbuild .sktool { position: static; }
+.rgtop { margin-bottom: 12px; }
+
+/* Painel "Status detalhado" com a cara do jogo */
+.gstat { background: linear-gradient(#10141d, #0a0d14); color: #eef0f4; border: 2px solid #6b5a33; border-radius: 12px; padding: 14px 16px 10px; margin: 0 0 14px; box-shadow: 0 6px 22px rgba(0,0,0,.3), inset 0 0 0 1px rgba(255,255,255,.04); }
+.gstat h2 { margin: 0 0 8px; font-size: 16px; color: #f3d48a; display: flex; gap: 8px; align-items: baseline; }
+.gstat h2 small { color: #b9c0cc; font-weight: 400; font-size: 13px; }
+.gstat dl { margin: 0; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.08); }
+.gstat dl:first-of-type { border-top: 0; }
+.gstat dl > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 2px 0; font-size: 14.5px; line-height: 1.35; }
+.gstat dt { color: #e7e9ee; }
+.gstat dt::after { content: ' :'; color: #8d96a6; }
+.gstat dd { margin: 0; font: 500 14.5px var(--font-mono); text-align: right; color: #fff; }
+.gstat .neg dd { color: #ff6b6b; }
+.gnote { margin: 8px 0 4px; font-size: 12px; line-height: 1.5; color: #f1dd8e; }

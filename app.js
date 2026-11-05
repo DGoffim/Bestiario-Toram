@@ -1254,8 +1254,22 @@ const SLOTS = [
 ];
 const REFS = ['0', '+1', '+2', '+3', '+4', '+5', '+6', '+7', '+8', '+9', 'E', 'D', 'C', 'B', 'A', 'S'];
 const ARMOR_KIND = [['normal', 'Normal', 0], ['leve', 'Leve (Light)', 32768], ['pesada', 'Pesada (Heavy)', 16384]];
-// ATK e MATK por arma: [STR, INT, DEX, AGI] para ATK; MATK usa INT×3 + DEX (Staff, MD e Knuckle somam o ATK da arma).
-const ATKF = { '1 Handed Sword': [2, 0, 2, 0], '2 Handed Sword': [3, 0, 1, 0], 'Bow': [1, 0, 3, 0], 'Bowgun': [0, 0, 4, 0], 'Knuckles': [0, 0, 0.5, 2], 'Magic Device': [0, 2, 0, 2], 'Staff': [3, 1, 0, 0], 'Halberd': [2.5, 0, 0, 1.5], 'Katana': [1.5, 0, 2.5, 0], '': [1, 0, 0, 0] };
+// Fórmulas por arma, da planilha de status do Cy's Grimoire:
+// atk [STR, INT, DEX, AGI]; matk [INT, DEX, AGI, × ATK da arma]; aspd [base, AGI, STR, DEX, INT]; stb (estabilidade) [DEX, STR].
+const WK = { '1 Handed Sword': '1h', '2 Handed Sword': '2h', 'Bow': 'bow', 'Bowgun': 'bowgun', 'Knuckles': 'knuckle', 'Magic Device': 'md', 'Staff': 'staff', 'Halberd': 'halberd', 'Katana': 'katana' };
+const WF = {
+  '1h': { atk: [2, 0, 2, 0], matk: [3, 1, 0, 0], aspd: [100, 4.2, 0.2, 0, 0], stb: [0.075, 0.025] },
+  '2h': { atk: [3, 0, 1, 0], matk: [3, 1, 0, 0], aspd: [50, 2.1, 0.2, 0, 0], stb: [0.1, 0] },
+  bow: { atk: [1, 0, 3, 0], matk: [3, 1, 0, 0], aspd: [75, 3.1, 0, 0.2, 0], stb: [0.05, 0.05] },
+  bowgun: { atk: [0, 0, 4, 0], matk: [3, 1, 0, 0], aspd: [30, 2.2, 0, 0.2, 0], stb: [0, 0.05] },
+  staff: { atk: [3, 1, 0, 0], matk: [4, 1, 0, 1], aspd: [60, 1.8, 0, 0, 0.2], stb: [0, 0.05] },
+  md: { atk: [0, 2, 0, 2], matk: [4, 1, 0, 1], aspd: [90, 4, 0, 0, 0.2], stb: [0.1, 0] },
+  knuckle: { atk: [0, 0, 0.5, 2], matk: [4, 1, 0, 0.5], aspd: [120, 4.6, 0.1, 0.1, 0], stb: [0.025, 0] },
+  dual: { atk: [1, 0, 2, 1], matk: [3, 1, 0, 0], aspd: [100, 4.2, 0.2, 0, 0], stb: [0.075, 0.025] },
+  halberd: { atk: [2.5, 0, 0, 1.5], matk: [2, 1, 1, 0], aspd: [25, 3.5, 0.2, 0, 0], stb: [0.05, 0.05] },
+  katana: { atk: [1.5, 0, 2.5, 0], matk: [1.5, 1, 0, 0], aspd: [200, 3.9, 0.3, 0, 0], stb: [0.025, 0.075] },
+  none: { atk: [1, 0, 0, 0], matk: [3, 1, 0, 0], aspd: [1000, 9.6, 0, 0, 0], stb: [0, 0] }
+};
 // Registlets que dão status direto (efeito do coryn.club): status e quanto por nível.
 const REG_STAT = { 'Physical Attack Boost': ['ATK', 1], 'Magic Attack Boost': ['MATK', 1], 'Physical Defense Boost': ['DEF', 1], 'Magic Defense Boost': ['MDEF', 1], 'Accuracy Boost': ['Accuracy', 1], 'Dodge Boost': ['Dodge', 1], 'Attack Speed Boost': ['ASPD', 1], 'Magic Speed Boost': ['CSPD', 1], 'Max HP Boost': ['MaxHP', 10], 'Max MP Boost': ['MaxMP', 1] };
 const REG_MAX_SLOTS = 10;
@@ -1288,44 +1302,72 @@ function buildTotals() {
   (BD.rg || []).forEach(([n, lv]) => { const m = REG_STAT[n]; if (m) { const i = SI(m[0]); if (i >= 0) add(i, m[1] * lv); } });
   return { tot, off, bits };
 }
+// Todos os status do personagem, na conta do jogo: valor base × (100 + soma dos %) ÷ 100 + soma dos valores fixos.
 function buildDerived(tot) {
   const g = n => { const i = SI(n); return i < 0 ? 0 : tot.get(i) || 0; };
-  const L = BD.lv, f = k => Math.floor(BD.st[k] * (1 + g(k + ' %') / 100)) + g(k);
-  const STR = f('STR'), INT = f('INT'), VIT = f('VIT'), AGI = f('AGI'), DEX = f('DEX');
-  const main = DB.ITBYID.get(BD.sl.arma.id), wt = main ? main.tl : '';
-  const baseAtk = main ? ((main.stats.find(s => DB.STATN[s[0]] === 'Base ATK') || [0, 0])[1]) : 0, r = BD.sl.arma.r;
-  const watk = Math.floor(baseAtk * (1 + g('Weapon ATK %') / 100)) + g('Weapon ATK') + Math.floor(baseAtk * r * r / 100) + r;
-  const k = ATKF[wt] || ATKF[''];
-  const atkRaw = L + STR * k[0] + INT * k[1] + DEX * k[2] + AGI * k[3] + (wt === 'Knuckles' ? watk * 0.5 : watk);
-  const matkRaw = L + INT * (wt === 'Staff' || wt === 'Magic Device' ? 4 : 3) + DEX + (wt === 'Staff' || wt === 'Magic Device' ? watk : wt === 'Knuckles' ? watk * 0.5 : 0);
-  const pct = (raw, n) => Math.floor(raw * (1 + g(n + ' %') / 100)) + g(n);
-  const crt = BD.ps === 'CRT' ? BD.pv : 0, tec = BD.ps === 'TEC' ? BD.pv : 0;
-  return { STR, INT, VIT, AGI, DEX, watk,
-    ATK: pct(atkRaw, 'ATK'), MATK: pct(matkRaw, 'MATK'),
-    MaxHP: pct(93 + (VIT + 22.41) * L / 3, 'MaxHP'), MaxMP: pct(99 + L + INT / 10 + tec, 'MaxMP'),
-    CRIT: pct(25 + crt / 3.4, 'Critical Rate'), CSPD: pct(L + AGI * 1.16 + DEX * 2.94, 'CSPD'),
-    HIT: pct(L + DEX, 'Accuracy'), FLEE: pct(L + AGI, 'Dodge') };
+  const L = BD.lv, B = BD.st, P = k => BD.ps === k ? BD.pv || 0 : 0;
+  const pf = (base, pn, fn, extra = 0) => Math.floor(base * (100 + (pn ? g(pn) : 0) + extra) / 100) + (fn ? g(fn) : 0);
+  const stt = k => pf(B[k], k + ' %', k);
+  const STR = stt('STR'), INT = stt('INT'), VIT = stt('VIT'), AGI = stt('AGI'), DEX = stt('DEX');
+  const it = k => DB.ITBYID.get(BD.sl[k].id);
+  const main = it('arma'), sub = it('sub'), arm = it('armadura');
+  const bs = (x, n) => x ? ((x.stats.find(s => DB.STATN[s[0]] === n) || [0, 0])[1]) : 0;
+  const st2 = sub ? sub.tl : '';
+  const dual = !!(main && main.tl === '1 Handed Sword' && st2 === '1 Handed Sword');
+  const wk = dual ? 'dual' : main ? WK[main.tl] || 'none' : 'none', F = WF[wk];
+  const ak = arm ? BD.sl.armadura.k : 'none'; // normal, leve, pesada ou sem armadura
+  const arrowF = st2 === 'Arrow' ? (wk === 'bow' ? 1 : wk === 'bowgun' ? 0.5 : 0) : 0;
+  const up = pre => ['STR', 'INT', 'VIT', 'AGI', 'DEX'].reduce((a, k) => a + g(pre + ' (' + k + ' %)') * B[k] / 100, 0);
+  const wb = bs(main, 'Base ATK'), r = BD.sl.arma.r;
+  const watk = Math.floor(wb * (100 + g('Weapon ATK %')) / 100) + Math.floor(wb * r * r / 100) + r + g('Weapon ATK');
+  const none1 = wk === 'none' ? 1 : 0;
+  const ATK = pf(L + STR * F.atk[0] + INT * F.atk[1] + DEX * F.atk[2] + AGI * F.atk[3] + none1 + watk + bs(sub, 'Base ATK') * arrowF + up('ATK UP') - up('ATK DOWN'), 'ATK %', 'ATK', st2 === 'Magic Device' ? -15 : 0);
+  const MATK = pf(L + INT * F.matk[0] + DEX * F.matk[1] + AGI * F.matk[2] + watk * F.matk[3] + none1 + up('MATK UP') - up('MATK DOWN'), 'MATK %', 'MATK', st2 === 'Knuckles' ? -15 : 0);
+  const stbRaw = (wk === 'none' ? DEX / 2.85 + 1 : DEX * F.stb[0] + STR * F.stb[1]) + bs(main, 'Base Stability %') + bs(sub, 'Base Stability %') * arrowF + g('Stability %');
+  const STAB = Math.max(1, Math.min(100, Math.floor(stbRaw)));
+  const MaxHP = Math.min(99999, pf(Math.floor(93 + L * (127 / 17 + VIT / 3)), 'MaxHP %', 'MaxHP'));
+  const MaxMP = Math.min(2000, pf(Math.floor(99 + L + INT / 10 + P('TEC')), 'MaxMP %', 'MaxMP'));
+  const CRIT = pf(25 + Math.floor(P('CRT') / 3.4), 'Critical Rate %', 'Critical Rate', dual ? -55 : 0);
+  const cd0 = pf(Math.max(150 + STR / 5, 150 + (STR + AGI) / 10), 'Critical Damage %', 'Critical Damage');
+  const CDMG = Math.floor(cd0 - Math.max(0, (cd0 - 300) / 2)); // acima de 300% o excesso vale a metade
+  const ASPD = pf(L + F.aspd[0] + AGI * F.aspd[1] + STR * F.aspd[2] + DEX * F.aspd[3] + INT * F.aspd[4], 'ASPD %', 'ASPD', (st2 === 'Shield' ? -50 : 0) + (ak === 'pesada' ? -50 : ak === 'leve' ? 50 : 0));
+  const fleeB = { normal: L + AGI, leve: 1.25 * L + 1.75 * AGI + 30, pesada: 0.5 * L + 0.75 * AGI - 15, none: 1.5 * L + 2 * AGI + 75 }[ak];
+  const defOf = k => bs(it(k), 'Base DEF');
+  const eqDef = defOf('armadura') + defOf('adicional') + defOf('especial') + (st2 === 'Shield' ? defOf('sub') : 0);
+  const defB = (a, s) => Math.floor({ normal: L + s, pesada: 1.2 * L + 2 * s, leve: 0.8 * L + s / 4, none: 0.4 * L + s / 10 }[a]);
+  return { STR, INT, VIT, AGI, DEX, watk, ATK, MATK, STAB, MaxHP, MaxMP, CRIT, CDMG, ASPD,
+    CSPD: pf(L + Math.floor(AGI * 1.16 + DEX * 2.94), 'CSPD %', 'CSPD'),
+    HIT: pf(L + DEX, 'Accuracy %', 'Accuracy', dual ? -55 : 0), FLEE: pf(Math.floor(fleeB), 'Dodge %', 'Dodge'),
+    DEF: pf(eqDef + defB(ak, VIT), 'DEF %', 'DEF', st2 === 'Arrow' ? -25 : 0), MDEF: pf(eqDef + defB(ak, INT), 'MDEF %', 'MDEF', st2 === 'Arrow' ? -25 : 0),
+    NHR: pf(10 + MaxHP * 0.04, 'Natural HP Regen %', 'Natural HP Regen'), NMR: pf(1 + MaxMP * 0.01, 'Natural MP Regen %', 'Natural MP Regen'),
+    AMPR: pf(10 + Math.floor(MaxMP * 0.01), 'Attack MP Recovery %', 'Attack MP Recovery') * (dual ? 2 : 1),
+    MCRIT: 0, MCDMG: Math.floor(100 + (CDMG - 100) * 0.5), // sem skill de conversão: crítico mágico 0 e dano crítico mágico com 50% de conversão
+    MOTION: Math.min(50, g('Motion Speed %') + Math.max(0, Math.floor((ASPD - 1000) / 180))),
+    AIL: Math.floor(P('MTL') / 3.4) + g('Ailment Resistance %'), DROP: Math.floor(100 + P('LUK') / 5) + g('Drop Rate %'),
+    EVA: ak === 'leve' ? 6 : st2 === 'Dagger' ? 4 : wk === 'md' || st2 === 'Magic Device' ? 8 : wk === 'knuckle' || st2 === 'Knuckles' || dual ? 2 : 0,
+    REFRES: ['armadura', 'adicional'].reduce((a, k) => a + BD.sl[k].r, 0) + (st2 === 'Shield' ? BD.sl.sub.r : 0),
+    wk, ak, dual, g };
 }
 function saveBuild() { store.set('build', BD); syncChar(); }
-function viewBuild(code) {
-  setTitle('Status do personagem');
-  if (code) { try { const b = JSON.parse(b64d(code)); if (b && b.sl) { BD = Object.assign(newBuild(), b); saveBuild(); } } catch (e) {} history.replaceState(null, '', '#/personagem/equipamento'); }
-  const n = (id, lab, v, extra) => '<div class="field"><label class="lbl" for="' + id + '">' + lab + '</label><input id="' + id + '" type="number" inputmode="numeric" min="0" value="' + v + '"' + (extra || '') + '></div>';
-  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Status do personagem</h1><p>Monte seu equipamento e veja os status somados. A build fica salva neste aparelho e dá para compartilhar por link. No modo <b>ⓘ Info</b>, toque numa skill para ver o que ela faz, em português.</p></div></div>'
-    + '<button type="button" class="bdsum" id="bdsum" aria-label="Ver resultado completo"></button>'
-    + '<div class="grid2"><div>'
-    + '<section class="card"><h2>Personagem</h2><div class="calc">' + n('bdlv', 'Nível', BD.lv) + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => n('bd' + s, s, BD.st[s])).join('')
-    + '<div class="field"><label class="lbl" for="bdps">Status pessoal</label><select id="bdps">' + ['CRT', 'LUK', 'MTL', 'TEC'].map(p => '<option' + (BD.ps === p ? ' selected' : '') + '>' + p + '</option>').join('') + '</select></div>' + n('bdpv', 'Valor', BD.pv)
-    + '</div><p class="note" id="bdpts"></p></section>'
-    + '<div id="bdslots"></div>'
-    + '<section class="card"><h2>Bônus extras <small>comida, skills, avatar…</small></h2><div id="bdex"></div><div class="range" style="margin-top:8px"><select id="bdexs" aria-label="Status"></select><input id="bdexv" type="number" step="any" placeholder="valor" style="width:90px;flex:none" aria-label="Valor"><button id="bdexa" class="btn" type="button">+</button></div></section>'
-    + '</div><div>'
-    + '<section class="card" id="bdres"></section>'
-    + '<section class="card"><h2>Salvar e compartilhar</h2><div class="chips"><button class="btn" id="bdshare" type="button">Copiar link da build</button><button class="btn ghost" id="bdclear" type="button">Começar do zero</button></div><p class="note" id="bdmsg">A build é salva automaticamente neste aparelho.</p></section>'
-    + '</div></div>'
-    + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar item" aria-label="Buscar item"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>'
-    + '<div class="toast" id="toast" hidden></div>';
-  const statOpts = DB.STATN.map((s, i) => [s, i]).filter(x => x[0].trim() && !isBase([x[1]])).sort((a, b) => a[0].localeCompare(b[0]));
+// Página única de montar o personagem: blocos que abrem e fecham à esquerda, painel de status do jogo à direita.
+const BLK_OPEN = Object.assign({ st: 1, eq: 1, bn: 1, rg: 1, sk: 0 }, store.get('blk', {}));
+const blk = (id, title, inner) => '<section class="blk' + (BLK_OPEN[id] ? ' open' : '') + '" id="blk-' + id + '"><button type="button" class="blkh" data-blk="' + id + '" aria-expanded="' + !!BLK_OPEN[id] + '"><h2>' + title + '</h2><small id="blks-' + id + '"></small><span class="blkarrow" aria-hidden="true">▾</span></button><div class="blkb" id="blkb-' + id + '"' + (BLK_OPEN[id] ? '' : ' hidden') + '>' + inner + '</div></section>';
+function viewCharBuild(focus) {
+  if (focus) BLK_OPEN[focus] = 1;
+  const n = (id, lab, v) => '<div class="field"><label class="lbl" for="' + id + '">' + lab + '</label><input id="' + id + '" type="number" inputmode="numeric" min="0" value="' + v + '"></div>';
+  view.innerHTML = '<button type="button" class="bdsum" id="bdsum" aria-label="Ver status completo"></button>'
+    + '<div class="pgbuild"><div class="pgleft">'
+    + blk('st', 'Personagem', '<div class="calc">' + n('bdlv', 'Nível', BD.lv) + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => n('bd' + s, s, BD.st[s])).join('')
+      + '<div class="field"><label class="lbl" for="bdps">Status pessoal</label><select id="bdps">' + ['CRT', 'LUK', 'MTL', 'TEC'].map(p => '<option' + (BD.ps === p ? ' selected' : '') + '>' + p + '</option>').join('') + '</select></div>' + n('bdpv', 'Valor', BD.pv)
+      + '</div><p class="note" id="bdpts"></p>')
+    + blk('eq', 'Equipamento', '<div id="bdslots" class="slots"></div>')
+    + blk('bn', 'Comida, avatar e outros bônus', '<p class="muted" style="margin:0 0 8px;font-size:13.5px">Some aqui o que não vem dos equipamentos: comida, avatar, poções, buffs. Todos os status do jogo estão na lista. <a class="tl" href="#/comida">Códigos de comida</a></p><div id="bdex"></div><div class="range" style="margin-top:8px"><select id="bdexs" aria-label="Status"></select><input id="bdexv" type="number" step="any" placeholder="valor" style="width:90px;flex:none" aria-label="Valor"><button id="bdexa" class="btn" type="button">+</button></div>')
+    + blk('rg', 'Registlets', '<div id="rgbox"></div>')
+    + blk('sk', 'Skills', '<div id="skbox"></div>')
+    + '<section class="card"><div class="chips"><button class="btn" id="bdshare" type="button">Copiar link da build</button><a class="btn ghost" href="#/dano">Calcular dano num boss</a><button class="btn ghost" id="bdclear" type="button">Começar do zero</button></div><p class="note" id="bdmsg">Tudo é salvo sozinho neste aparelho.</p></section>'
+    + '</div><aside class="pgright" id="gstatw" aria-label="Status do personagem"><div class="gstat" id="gstat"></div></aside></div>'
+    + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar item" aria-label="Buscar item"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>';
+  const statOpts = DB.STATN.map((s, i) => [s, i]).filter(x => x[0].trim() && !isBase([x[1]]) && !/^Adds? 1 slot|^Upgrade for|^Potential$/.test(x[0])).sort((a, b) => a[0].localeCompare(b[0]));
   $('#bdexs').innerHTML = statOpts.map(([s, i]) => '<option value="' + i + '">' + esc(s) + '</option>').join('');
   renderSlots(); renderBuild();
   const upd = () => {
@@ -1338,11 +1380,12 @@ function viewBuild(code) {
   $('#bdexa').addEventListener('click', () => { const v = +$('#bdexv').value; if (!v) return; BD.ex.push([+$('#bdexs').value, v]); $('#bdexv').value = ''; saveBuild(); renderBuild(); });
   $('#bdex').addEventListener('click', e => { const b = e.target.closest('[data-ex]'); if (!b) return; BD.ex.splice(+b.dataset.ex, 1); saveBuild(); renderBuild(); });
   $('#bdshare').addEventListener('click', () => {
-    const url = location.href.split('#')[0] + '#/build/' + b64e(JSON.stringify(BD));
-    const done = () => { $('#bdmsg').textContent = 'Link copiado! Cole no grupo para mostrar a build.'; };
+    syncChar();
+    const url = location.href.split('#')[0] + '#/p/' + charCode(CHARS.list[CHARS.cur]);
+    const done = () => { $('#bdmsg').textContent = 'Link copiado! Quem abrir recebe uma cópia desta build.'; };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { fallbackCopy(url); done(); }); else { fallbackCopy(url); done(); }
   });
-  $('#bdclear').addEventListener('click', () => { if (!confirm('Apagar a build atual e começar do zero?')) return; BD = newBuild(); saveBuild(); viewChar('equipamento'); });
+  $('#bdclear').addEventListener('click', () => { if (!confirm('Apagar a build atual e começar do zero?')) return; BD = newBuild(); SKS.lv = {}; SKS.gem = {}; saveBuild(); store.set('skills', SKS.lv); store.set('stargems', SKS.gem); viewChar('montar'); });
   $('#bdslots').addEventListener('click', e => {
     const p = e.target.closest('[data-pick]'); if (p) { openPicker(p.dataset.pick, +p.dataset.x); return; }
     const c = e.target.closest('[data-clr]'); if (c) { const [k, x] = c.dataset.clr.split(':'); if (x === undefined || x === '') BD.sl[k].id = 0; else BD.sl[k].x[+x] = 0; saveBuild(); renderSlots(); renderBuild(); }
@@ -1351,9 +1394,19 @@ function viewBuild(code) {
     const r = e.target.closest('[data-ref]'); if (r) { BD.sl[r.dataset.ref].r = +r.value; saveBuild(); renderBuild(); }
     const kk = e.target.closest('#bdkind'); if (kk) { BD.sl.armadura.k = kk.value; saveBuild(); renderBuild(); }
   });
-  $('#bdsum').addEventListener('click', () => $('#bdres').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  $('#bdsum').addEventListener('click', () => $('#gstatw').scrollIntoView({ behavior: 'smooth', block: 'start' }));
   $('#pclose').addEventListener('click', () => { $('#pick').hidden = true; });
   $('#pick').addEventListener('click', e => { if (e.target.id === 'pick') $('#pick').hidden = true; });
+  // Registlets e skills só montam quando o bloco está aberto (as skills são pesadas).
+  const fill = id => { if (id === 'rg') viewCharRegs($('#rgbox')); else if (id === 'sk' && !$('#sktool')) viewSkills(null, $('#skbox')); };
+  ['rg', 'sk'].forEach(id => { if (BLK_OPEN[id]) fill(id); });
+  view.querySelector('.pgleft').addEventListener('click', e => {
+    const h = e.target.closest('[data-blk]'); if (!h) return;
+    const id = h.dataset.blk, on = !BLK_OPEN[id]; BLK_OPEN[id] = on ? 1 : 0; store.set('blk', BLK_OPEN);
+    h.setAttribute('aria-expanded', on); $('#blk-' + id).classList.toggle('open', on); $('#blkb-' + id).hidden = !on;
+    if (on) fill(id);
+  });
+  if (focus) setTimeout(() => { const el = $('#blk-' + focus); if (el) el.scrollIntoView({ block: 'start' }); }, 0);
 }
 let PK = null;
 function openPicker(slot, x) {
@@ -1385,19 +1438,56 @@ function renderSlots() {
     return '<section class="card slot"><h2>' + lab + '</h2>' + h + '</section>';
   }).join('');
 }
+// Painel de status na ordem e com os nomes do "Status detalhado" do jogo.
+function gstatRows(d) {
+  const g = d.g, pc = v => fmt(v) + '%', pl = v => fmt(Math.floor(v)), on = v => v ? 'ON' : 'OFF';
+  const ELS = ['Fire', 'Water', 'Wind', 'Earth', 'Light', 'Dark', 'Neutral'];
+  const pers = BD.ps ? [[BD.ps === 'MTL' ? 'MEN' : BD.ps, BD.pv || 0, pl]] : [];
+  return [
+    [['STR', d.STR, pl], ['INT', d.INT, pl], ['VIT', d.VIT, pl], ['AGI', d.AGI, pl], ['DEX', d.DEX, pl]].concat(pers),
+    [['MaxHP', d.MaxHP, pl], ['Natural HP Regen', d.NHR, pl], ['MaxMP', d.MaxMP, pl], ['Natural MP Regen', d.NMR, pl], ['Attack MP Recovery', d.AMPR, pl]],
+    [['Weapon ATK', d.watk, pl], ['Stability', d.STAB, pc], ['Physical Attack (ATK)', d.ATK, pl], ['Physical Pierce', g('Physical Pierce %'), pc], ['Magic Attack (MATK)', d.MATK, pl], ['Magic Pierce', g('Magic Pierce %'), pc],
+      ['Accuracy (HIT)', d.HIT, pl], ['Dodge (FLEE)', d.FLEE, pl], ['Physical Defense (DEF)', d.DEF, pl], ['Magic Defense (MDEF)', d.MDEF, pl],
+      ['Armor Refinement Resistance', d.REFRES, pc], ['Physical Resistance', g('Physical Resistance %'), pc], ['Magic Resistance', g('Magic Resistance %'), pc], ['Ailment Resistance', d.AIL, pc]],
+    [['Physical Critical Rate', d.CRIT, pc], ['Physical Critical Damage', d.CDMG, pc], ['Magic Critical Rate', d.MCRIT, pc], ['Magic Critical Damage', d.MCDMG, pc]],
+    [['Attack Speed (ASPD)', d.ASPD, pl], ['Action Speed', d.MOTION, pc], ['Cast Speed (CSPD)', d.CSPD, pl]],
+    [['Short Range Damage (within 7m)', 100 + g('Short Range Damage %'), pc], ['Long Range Damage (8m or more)', 100 + g('Long Range Damage %'), pc], ['Unsheathe Attack Power Boost', g('Unsheathe Attack'), pl], ['Unsheathe Attack Damage Rate', 100 + g('Unsheathe Attack %'), pc]],
+    [['Aggro', 100 + g('Aggro %'), pc], ['EXP Gain', 100 + g('EXP Gain %'), pc], ['Pet EXP Gain', 100 + g('Pet EXP %'), pc], ['Drop Rate', d.DROP, pc], ['Evasion Recharge', 100 + g('Evasion Recharge %'), pc], ['Evasion Count', d.EVA, pl],
+      ['Guard Recharge', 100 + g('Guard Recharge %'), pc], ['Guard Power', 100 + g('Guard Power %'), pc], ['Revive Time Reduction', -g('Revive Time %') || 0, pc]],
+    ELS.map(e => ['Advantage against ' + e, g('% stronger against ' + e), pc]),
+    ELS.map(e => [e + ' Resistance', e === 'Neutral' ? g('Neutral Resistance %') : g(e + ' resistance %') + (e === 'Light' ? g('Light Resistance') : 0), pc]),
+    [['Foe Epicenter', 'Foe Epicenter'], ['Player Epicenter', 'Player Epicenter'], ['Straight Line', 'Straight Line'], ['Charge', 'Charge'], ['Meteor', 'Meteor'], ['Bullet', 'Bullet'], ['Bowling', 'Bowling'], ['Floor', 'Floor']].map(([l, k]) => ['Reduce Dmg (' + l + ')', g('Reduce Dmg (' + k + ') %'), pc])
+      .concat([['Reduce Emission', 0, pc], ['Reduce Explosion', g('Reduce Explosion %'), pc], ['Reduce Vortex', g('Reduce Vortex %'), pc]]),
+    [['Physical Barrier', g('Physical Barrier'), pl], ['Magic Barrier', g('Magic Barrier'), pl], ['Fractional Barrier', g('Fractional Barrier %'), pc], ['Barrier Recovery Speed', g('Barrier Cooldown %'), pc]],
+    [['Absolute Accuracy', g('Absolute Accuracy %'), pc], ['Absolute Dodge', g('Absolute Dodge %'), pc]],
+    [['Anticipate (Evasion Pierce)', g('Anticipate %'), pc], ['Guard Break (Guard Pierce)', g('Guard Break %'), pc]],
+    [['Additional Melee', g('Additional Melee %'), pc], ['Additional Magic', g('Additional Magic %'), pc], ['Reflect', g('Reflect %'), pc], ['Recoil', g('Recoil %'), pc]],
+    [['Flinch Unavailable', g('Flinch Unavailable'), on], ['Tumble Unavailable', g('Tumble Unavailable'), on], ['Stun Unavailable', g('Stun Unavailable'), on]]
+  ];
+}
 function renderBuild() {
   const { tot, off } = buildTotals(), d = buildDerived(tot);
   const used = ['STR', 'INT', 'VIT', 'AGI', 'DEX'].reduce((a, s) => a + BD.st[s] - 1, 0) + BD.pv, have = statPts(BD.lv) + lvEmblemPts(BD.lv);
   $('#bdpts').textContent = 'Pontos usados: ' + fmt(used) + ' de ' + fmt(have) + ' (2 por nível + emblema de nível; sem os emblemas de função).';
   $('#bdex').innerHTML = BD.ex.length ? '<div class="chips">' + BD.ex.map(([si, v], i) => '<button type="button" class="chip" data-ex="' + i + '">' + esc(DB.STATN[si]) + ' ' + (v > 0 ? '+' : '') + fmt(v) + ' <span class="x">×</span></button>').join('') + '</div>' : '<p class="muted" style="margin:0;font-size:13.5px">Nenhum bônus extra.</p>';
-  const box = (l, v) => '<div><span class="lbl">' + l + '</span><div class="big">' + fmt(Math.floor(v)) + '</div></div>';
-  $('#bdsum').innerHTML = [['ATK', d.ATK], ['MATK', d.MATK], ['Crít.', d.CRIT], ['HP', d.MaxHP]].map(([l, v]) => '<span><small>' + l + '</small>' + fmt(Math.floor(v)) + '</span>').join('') + '<em>ver tudo ↓</em>';
-  const rows = [...tot.entries()].filter(([, v]) => v).sort((a, b) => DB.STATN[a[0]].localeCompare(DB.STATN[b[0]]));
-  $('#bdres').innerHTML = '<h2>Resultado</h2><div class="res">' + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => box(s, d[s])).join('') + '</div>'
-    + '<h4 class="sub4">Estimativas</h4><div class="res">' + [['ATK', d.ATK], ['MATK', d.MATK], ['ATK da arma', d.watk], ['MaxHP', d.MaxHP], ['MaxMP', d.MaxMP], ['Taxa crítica', d.CRIT], ['CSPD', d.CSPD], ['Precisão', d.HIT], ['Esquiva', d.FLEE]].map(([l, v]) => box(l, v)).join('') + '</div>'
-    + '<h4 class="sub4">Soma dos equipamentos e bônus <small>exata</small></h4>' + (rows.length ? '<div class="slist">' + rows.map(([si, v]) => { const [nm, vv] = sparts([si, v, 0]); return '<div class="' + (v < 0 ? 'neg' : '') + '"><span>' + esc(nm) + '</span><b>' + vv + '</b></div>'; }).join('') + '</div>' : '<p class="muted" style="margin:0">Escolha equipamentos para ver a soma.</p>')
-    + (off.length ? '<p class="note">Não contam com a arma e armadura atuais: ' + off.map(([it, s]) => { const [nm, vv, c] = sparts(s); return esc(nm + ' ' + vv + ' (' + c + ', ' + it.name + ')'); }).join('; ') + '.</p>' : '')
-    + '<p class="note">As estimativas usam fórmulas da comunidade (ATK por tipo de arma, refino ≈ ATK base × refino² ÷ 100 + refino) e não incluem skills passivas. Use para comparar builds, não como valor exato do jogo.</p>';
+  const mag = d.MATK > d.ATK;
+  $('#bdsum').innerHTML = [[mag ? 'MATK' : 'ATK', mag ? d.MATK : d.ATK], ['Crít.', d.CRIT], ['ASPD', d.ASPD], ['CSPD', d.CSPD], ['HP', d.MaxHP]].map(([l, v]) => '<span><small>' + l + '</small>' + fmt(Math.floor(v)) + '</span>').join('') + '<em>status ↓</em>';
+  $('#gstat').innerHTML = '<h2>Status detalhado <small>Lv ' + BD.lv + '</small></h2>'
+    + gstatRows(d).map(grp => '<dl>' + grp.map(([l, v, f]) => '<div' + (typeof v === 'number' && v < 0 ? ' class="neg"' : '') + '><dt>' + l + '</dt><dd>' + f(v) + '</dd></div>').join('') + '</dl>').join('')
+    + (off.length ? '<p class="gnote">Não contam com a arma e armadura atuais: ' + off.map(([it, s]) => { const [nm, vv, c] = sparts(s); return esc(nm + ' ' + vv + ' (' + c + ', ' + it.name + ')'); }).join('; ') + '.</p>' : '')
+    + '<p class="gnote">Fórmulas do Cy\'s Grimoire. Skills passivas e buffs ainda não entram: some no bloco “outros bônus” se quiser. Como no jogo, efeitos de skills com cálculo especial podem não aparecer.</p>';
+  blkSubs();
+}
+// Resumo de cada bloco no cabeçalho dele.
+function blkSubs() {
+  const set = (id, t) => { const e = $('#blks-' + id); if (e) e.textContent = t; };
+  const eqN = SLOTS.filter(([k]) => BD.sl[k].id).length;
+  set('st', 'Lv ' + BD.lv);
+  set('eq', eqN ? eqN + ' de ' + SLOTS.length + ' equipados' : 'nada equipado');
+  set('bn', BD.ex.length ? BD.ex.length + (BD.ex.length === 1 ? ' bônus' : ' bônus') : '');
+  set('rg', (BD.rg || []).length + ' de ' + REG_MAX_SLOTS);
+  const sp = Object.values(SKS.lv).reduce((a, o) => a + Object.values(o).reduce((x, y) => x + y, 0), 0);
+  set('sk', sp + ' de ' + skillPts(BD.lv) + ' pontos');
 }
 
 // ---------- notícias do site oficial ----------
@@ -1452,7 +1542,9 @@ function viewNewsItem(id) {
 
 // ---------- personagem (no esquema do Cy's Grimoire): abas Visão geral, Equipamento, Skills, Comida e Salvar ----------
 // Cada personagem guarda a build (equipamento e status) e as skills. Fica tudo salvo neste aparelho.
-const PG_TABS = [['geral', 'Geral'], ['equipamento', 'Equipamento'], ['skills', 'Skills'], ['registlets', 'Registlets'], ['comida', 'Comida'], ['comparar', 'Comparar'], ['salvar', 'Salvar']];
+const PG_TABS = [['montar', 'Montar'], ['comparar', 'Comparar'], ['salvar', 'Salvar']];
+// Abas antigas viram blocos da página Montar (links velhos continuam funcionando).
+const PG_OLD = { geral: '', equipamento: 'eq', skills: 'sk', registlets: 'rg', comida: 'bn' };
 let CHARS = store.get('chars', null) || { cur: 0, list: [{ name: 'Build 1', bd: store.get('build', null), sk: store.get('skills', {}) }] };
 const clone = o => JSON.parse(JSON.stringify(o));
 function syncChar() { const c = CHARS.list[CHARS.cur]; if (!c) return; c.bd = clone(BD); c.sk = clone(SKS.lv); c.sg = clone(SKS.gem); store.set('chars', CHARS); }
@@ -1465,10 +1557,9 @@ function addChar(name, bd, sk, sg) { CHARS.list.push({ name, bd: bd || newBuild(
 const charCode = c => b64e(JSON.stringify({ n: c.name, b: c.bd, s: c.sk, g: c.sg || {} }));
 function importChar(code) {
   try { const o = JSON.parse(b64d(code)); addChar((o.n || 'Build') + ' (importada)', o.b, o.s, o.g); } catch (e) { alert('Esse link ou código de personagem não é válido.'); }
-  location.replace('#/personagem/geral');
+  location.replace('#/personagem');
 }
 function viewChar(tab, code) {
-  tab = PG_TABS.some(x => x[0] === tab) ? tab : 'geral';
   // links antigos: #/build/<código> e #/skills/<código> viram um personagem novo, sem apagar o atual
   if (code) {
     try {
@@ -1477,6 +1568,8 @@ function viewChar(tab, code) {
     } catch (e) {}
     history.replaceState(null, '', '#/personagem/' + tab);
   }
+  const focus = PG_OLD[tab] || '';
+  tab = PG_TABS.some(x => x[0] === tab) ? tab : 'montar';
   setTitle('Personagem');
   const c = CHARS.list[CHARS.cur];
   mainView.innerHTML = '<div class="ph"><div><h1>' + esc(c.name) + '</h1><p>Monte sua build como no jogo: equipamento, skills e comida. Tudo fica salvo sozinho neste aparelho; é só voltar depois.</p></div>'
@@ -1486,32 +1579,11 @@ function viewChar(tab, code) {
   const on = mainView.querySelector('.pgtabs .on'); if (on) on.parentNode.scrollLeft = on.offsetLeft - 12; // aba aberta sempre visível no celular
   view = $('#pgbody');
   try {
-    if (tab === 'equipamento') viewBuild();
-    else if (tab === 'skills') viewSkills();
-    else if (tab === 'comida') viewFood();
-    else if (tab === 'salvar') viewCharSave();
+    if (tab === 'salvar') viewCharSave();
     else if (tab === 'comparar') viewCharCompare();
-    else if (tab === 'registlets') viewCharRegs();
-    else viewCharOverview();
+    else viewCharBuild(focus);
   } finally { view = mainView; }
   setTitle(c.name + ' · ' + PG_TABS.find(x => x[0] === tab)[1]);
-}
-function viewCharOverview() {
-  if (!SKT) { load('skills').then(d => { SKT = d.trees; if (location.hash === '#/personagem' || location.hash.startsWith('#/personagem/geral')) viewChar('geral'); }).catch(() => {}); }
-  const { tot } = buildTotals(), d = buildDerived(tot);
-  const box = (l, v) => '<div><span class="lbl">' + l + '</span><div class="big">' + fmt(Math.floor(v)) + '</div></div>';
-  const eq = SLOTS.map(([k, lab]) => { const s = BD.sl[k], it = DB.ITBYID.get(s.id); return it ? '<div><span>' + lab + '</span><b><a class="tl" href="' + itemUrl(it) + '">' + esc(it.name) + '</a>' + (s.r ? ' ' + REFS[s.r] : '') + '</b></div>' : ''; }).join('');
-  const trees = SKT ? SKT.map(t => [skTreeName(t), skTreeSP(t)]).filter(x => x[1]) : Object.entries(SKS.lv).map(([k, o]) => [k, Object.values(o).reduce((a, b) => a + b, 0)]);
-  const sp = trees.reduce((a, x) => a + x[1], 0), gemPts = SKT ? SKT.reduce((a, t) => a + skTreeGem(t), 0) : 0;
-  view.innerHTML = '<div class="grid2"><div>'
-    + '<section class="card"><h2>Status <small>Lv ' + BD.lv + '</small></h2><div class="res">' + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => box(s, d[s])).join('') + '</div>'
-    + '<h4 class="sub4">Estimativas</h4><div class="res">' + [['ATK', d.ATK], ['MATK', d.MATK], ['MaxHP', d.MaxHP], ['MaxMP', d.MaxMP], ['Taxa crítica', d.CRIT], ['CSPD', d.CSPD], ['Precisão', d.HIT], ['Esquiva', d.FLEE]].map(([l, v]) => box(l, v)).join('') + '</div>'
-    + '<p class="note">Fórmulas da comunidade, sem skills passivas. Para mudar, use a aba Equipamento.</p></section></div><div>'
-    + '<section class="card"><h2>Equipamento</h2>' + (eq ? '<div class="slist">' + eq + '</div>' : '<p class="muted" style="margin:0">Nada equipado ainda. <a class="tl" href="#/personagem/equipamento">Escolher equipamento</a></p>') + '</section>'
-    + '<section class="card"><h2>Skills <small>' + sp + ' pontos · sobram ' + Math.max(0, skillPts(BD.lv) - sp) + ' no Lv ' + BD.lv + (gemPts ? ' · ★ ' + gemPts + ' Star Gem' : '') + '</small></h2>' + (trees.length ? '<div class="slist">' + trees.map(([n, v]) => '<div><span>' + esc(n) + '</span><b>' + v + ' SP</b></div>').join('') + '</div>' : '<p class="muted" style="margin:0">Nenhuma skill ainda. <a class="tl" href="#/personagem/skills">Distribuir pontos</a></p>') + '</section>'
-    + '<section class="card"><h2>Registlets <small>' + (BD.rg || []).length + ' de ' + REG_MAX_SLOTS + '</small></h2>' + ((BD.rg || []).length ? '<div class="links">' + BD.rg.map(([n, lv]) => '<span class="lk">' + esc(n) + ' <small>Lv ' + lv + '</small></span>').join('') + '</div>' : '<p class="muted" style="margin:0">Nenhum registlet. <a class="tl" href="#/personagem/registlets">Equipar registlets</a></p>') + '</section>'
-    + '<section class="card"><h2>Usar este personagem</h2><div class="chips"><a class="btn" href="#/dano">Calcular dano num boss</a><a class="btn ghost" href="#/statting">Simular statting</a><a class="btn ghost" href="#/personagem/salvar">Compartilhar</a></div></section>'
-    + '</div></div>';
 }
 function viewCharSave() {
   const list = CHARS.list.map((c, i) => { const w = DB.ITBYID.get(((c.bd || {}).sl || {}).arma ? c.bd.sl.arma.id : 0); return '<div class="charrow' + (i === CHARS.cur ? ' on' : '') + '"><div><b>' + esc(c.name) + '</b><small>Lv ' + ((c.bd || {}).lv || '—') + (w ? ' · ' + esc(w.name) : '') + (i === CHARS.cur ? ' · em uso' : '') + '</small></div><div class="chips">'
@@ -1550,31 +1622,31 @@ function viewCharSave() {
     }).catch(() => alert('Esse arquivo não é um backup do Bestiário de Toram.'));
   });
 }
-// Aba Registlets: até 10 equipados, cada um com nível; os de status entram na soma da build.
-function viewCharRegs() {
-  if (!REGS) { view.innerHTML = '<p class="loading">Carregando registlets…</p>'; load('registlets').then(d => { REGS = d.regs; if (location.hash.startsWith('#/personagem/registlets')) viewChar('registlets'); }); return; }
+// Bloco Registlets: até 10 equipados, cada um com nível; os de status entram na soma da build.
+function viewCharRegs(box) {
+  if (!REGS) { box.innerHTML = '<p class="loading">Carregando registlets…</p>'; load('registlets').then(d => { REGS = d.regs; if (box.isConnected) viewCharRegs(box); }); return; }
   BD.rg = BD.rg || [];
   const reg = n => REGS.find(r => r[0] === n) || [n, 1, '', ''];
   const bonus = BD.rg.map(([n, lv]) => REG_STAT[n] ? [REG_STAT[n][0], REG_STAT[n][1] * lv] : null).filter(Boolean);
   const cards = BD.rg.map(([n, lv], i) => { const r = reg(n), m = REG_STAT[n]; return '<section class="card reg"><h2>' + esc(n) + ' <button type="button" class="slotx" data-rmreg="' + i + '" aria-label="Tirar registlet" style="margin-left:auto;height:30px;width:30px;font-size:16px">×</button></h2>'
     + '<div class="range" style="margin:-2px 0 8px"><label class="lbl" for="rgl' + i + '" style="flex:none">Nível</label><select id="rgl' + i + '" data-rglv="' + i + '" style="width:auto">' + Array.from({ length: Math.max(1, r[1]) }, (_, k) => '<option' + (k + 1 === lv ? ' selected' : '') + '>' + (k + 1) + '</option>').join('') + '</select><span class="muted" style="font-size:12.5px">de ' + (r[1] || 1) + '</span>' + (m ? '<span class="tag ok">' + esc(m[0]) + ' +' + fmt(m[1] * lv) + '</span>' : '') + (r[2] ? '<span class="tag info">Muda: ' + esc(r[2]) + '</span>' : '') + '</div><p class="reff">' + esc(r[3]) + '</p></section>'; }).join('');
-  view.innerHTML = '<section class="card"><h2>Registlets equipados <small>' + BD.rg.length + ' de ' + REG_MAX_SLOTS + '</small></h2>'
+  box.innerHTML = '<div class="rgtop">'
     + (bonus.length ? '<p style="margin:0 0 8px;font-size:14px"><span class="muted">Somam na build:</span> ' + bonus.map(([s, v]) => '<b>' + esc(s) + ' +' + fmt(v) + '</b>').join(' · ') + '</p>' : '')
     + '<div class="chips"><button type="button" class="btn" id="rgadd"' + (BD.rg.length >= REG_MAX_SLOTS ? ' disabled' : '') + '>+ Adicionar registlet</button></div>'
-    + '<p class="note">Os registlets de status (ATK, MATK, DEF, MDEF, Precisão, Esquiva, ASPD, CSPD, HP e MP) entram na soma da build e nas calculadoras. Os que mudam skills ficam anotados aqui. Efeitos do coryn.club, traduzidos.</p></section>'
+    + '<p class="note">Os registlets de status (ATK, MATK, DEF, MDEF, Precisão, Esquiva, ASPD, CSPD, HP e MP) entram na soma da build e nas calculadoras. Os que mudam skills ficam anotados aqui. Efeitos do coryn.club, traduzidos.</p></div>'
     + (cards ? '<div class="regs">' + cards + '</div>' : '')
-    + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar registlet (nome, skill ou efeito)" aria-label="Buscar registlet"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>';
-  const rerender = () => { saveBuild(); viewChar('registlets'); };
-  view.querySelectorAll('[data-rglv]').forEach(s => s.addEventListener('change', () => { BD.rg[+s.dataset.rglv][1] = +s.value; rerender(); }));
-  view.querySelectorAll('[data-rmreg]').forEach(b => b.addEventListener('click', () => { BD.rg.splice(+b.dataset.rmreg, 1); rerender(); }));
-  const list = () => { const q = $('#pq').value.trim().toLowerCase(); const have = new Set(BD.rg.map(x => x[0]));
-    $('#plist2').innerHTML = REGS.filter(r => !have.has(r[0]) && (!q || (r[0] + ' ' + r[2] + ' ' + r[3] + ' ' + (r[5] || '')).toLowerCase().includes(q))).sort((a, b) => (REG_STAT[b[0]] ? 1 : 0) - (REG_STAT[a[0]] ? 1 : 0) || a[0].localeCompare(b[0])).slice(0, 80)
+    + '<div class="picker" id="rpick" hidden><div class="pbox"><div class="phead"><input id="rpq" type="search" placeholder="Buscar registlet (nome, skill ou efeito)" aria-label="Buscar registlet"><button class="btn ghost" id="rpclose" type="button">Fechar</button></div><div id="rplist" class="plist"></div></div></div>';
+  const rerender = () => { saveBuild(); viewCharRegs(box); if ($('#gstat')) renderBuild(); };
+  box.querySelectorAll('[data-rglv]').forEach(s => s.addEventListener('change', () => { BD.rg[+s.dataset.rglv][1] = +s.value; rerender(); }));
+  box.querySelectorAll('[data-rmreg]').forEach(b => b.addEventListener('click', () => { BD.rg.splice(+b.dataset.rmreg, 1); rerender(); }));
+  const list = () => { const q = $('#rpq').value.trim().toLowerCase(); const have = new Set(BD.rg.map(x => x[0]));
+    $('#rplist').innerHTML = REGS.filter(r => !have.has(r[0]) && (!q || (r[0] + ' ' + r[2] + ' ' + r[3] + ' ' + (r[5] || '')).toLowerCase().includes(q))).sort((a, b) => (REG_STAT[b[0]] ? 1 : 0) - (REG_STAT[a[0]] ? 1 : 0) || a[0].localeCompare(b[0])).slice(0, 80)
       .map(r => '<button type="button" class="prow2" data-reg="' + esc(r[0]) + '"><b>' + esc(r[0]) + '</b> <small>nível máx. ' + r[1] + (r[2] ? ' · muda ' + esc(r[2]) : '') + (REG_STAT[r[0]] ? ' · soma ' + esc(REG_STAT[r[0]][0]) : '') + '</small><span>' + esc(r[3]) + '</span></button>').join('') || '<p class="empty">Nenhum registlet.</p>'; };
-  $('#rgadd').addEventListener('click', () => { $('#pq').value = ''; $('#pick').hidden = false; list(); $('#pq').focus(); });
-  $('#pq').addEventListener('input', list);
-  $('#plist2').addEventListener('click', e => { const b = e.target.closest('[data-reg]'); if (!b) return; const r = reg(b.dataset.reg); BD.rg.push([r[0], Math.max(1, r[1])]); rerender(); });
-  $('#pclose').addEventListener('click', () => { $('#pick').hidden = true; });
-  $('#pick').addEventListener('click', e => { if (e.target.id === 'pick') $('#pick').hidden = true; });
+  $('#rgadd').addEventListener('click', () => { $('#rpq').value = ''; $('#rpick').hidden = false; list(); $('#rpq').focus(); });
+  $('#rpq').addEventListener('input', list);
+  $('#rplist').addEventListener('click', e => { const b = e.target.closest('[data-reg]'); if (!b) return; const r = reg(b.dataset.reg); BD.rg.push([r[0], Math.max(1, r[1])]); rerender(); });
+  $('#rpclose').addEventListener('click', () => { $('#rpick').hidden = true; });
+  $('#rpick').addEventListener('click', e => { if (e.target.id === 'rpick') $('#rpick').hidden = true; });
 }
 // Calcula os status de uma build salva sem mexer na build em uso.
 function charCalc(c) {
@@ -1649,19 +1721,19 @@ function skSetGem(k, id, v) { v = Math.max(0, Math.min(10, v)); if (!SKS.gem[k])
 const skTreeGem = t => t.s.reduce((a, s) => a + Math.max(0, skGem(t.k, s[0]) - skLv(t.k, s[0])), 0);
 const skCode = () => b64e(Object.entries(SKS.lv).map(([k, o]) => k + ':' + Object.entries(o).map(([i, v]) => i + '.' + v).join(',')).join(';'));
 function skDecode(code) { const o = {}; b64d(code).split(';').filter(Boolean).forEach(p => { const [k, rest] = p.split(':'); o[k] = {}; (rest || '').split(',').filter(Boolean).forEach(x => { const [i, v] = x.split('.'); if (+v > 0) o[k][+i] = Math.min(10, +v); }); }); return o; }
-function viewSkills(code) {
-  setTitle('Simulador de skills');
-  if (!SKT) { view.innerHTML = '<p class="loading">Carregando as árvores de skill…</p>'; load('skills').then(d => { SKT = d.trees; viewChar('skills', code); }).catch(() => { view.innerHTML = '<p class="nojs">Não deu para carregar as skills. Recarregue a página.</p>'; }); return; }
+// Simulador de skills, montado dentro do bloco Skills da página do personagem.
+function viewSkills(code, box) {
+  if (!SKT) { box.innerHTML = '<p class="loading">Carregando as árvores de skill…</p>'; load('skills').then(d => { SKT = d.trees; if (box.isConnected) viewSkills(code, box); }).catch(() => { box.innerHTML = '<p class="nojs">Não deu para carregar as skills. Recarregue a página.</p>'; }); return; }
   if (code) { try { SKS.lv = skDecode(code); store.set('skills', SKS.lv); } catch (e) {} history.replaceState(null, '', '#/personagem/skills'); }
   const cats = ['Arma', 'Buff', 'Assistência', 'Outros'];
-  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Simulador de skills</h1><p>Distribua os pontos nas árvores. A skill anterior sobe sozinha para o nível 5 quando precisa. A build fica salva neste aparelho e dá para compartilhar por link. No modo <b>ⓘ Info</b>, toque numa skill para ver o que ela faz, em português.</p></div></div>'
+  box.innerHTML = '<p class="muted" style="margin:0 0 10px;font-size:13.5px">A skill anterior sobe sozinha para o nível 5 quando precisa. No modo <b>ⓘ Info</b>, toque numa skill para ver o que ela faz, em português.</p>'
     + '<div class="sktool" id="sktool"></div>'
     + '<div class="grid2 skgrid"><div>' + cats.map(c => '<h2 class="sect">' + c + '</h2>' + SKT.filter(t => skCat(t) === c).map(t => '<section class="card sktree" data-k="' + t.k + '"><button type="button" class="skhead" data-open="' + t.k + '"><b>' + esc(skTreeName(t)) + '</b><span class="sksp" id="sp-' + t.k + '"></span><span class="skarrow">▸</span></button><div class="skbody" id="skb-' + t.k + '" hidden></div></section>').join('')).join('') + '</div>'
     + '<div><section class="card skpanel"><h2>Skills escolhidas</h2><div id="sksel"></div><div class="chips" style="margin-top:12px"><button class="btn" id="skshare" type="button">Copiar link da build</button><button class="btn ghost" id="skclear" type="button">Zerar tudo</button></div><p class="note" id="skmsg">Salvo automaticamente neste aparelho.</p></section></div></div>'
     + '<p class="note" style="color:var(--ink-2)">Árvores e pré-requisitos do simulador do coryn.club. Os nomes das skills ficam em inglês, como no jogo.</p>';
   SKS.open.forEach(k => openTree(k, true));
   skRefresh();
-  view.addEventListener('click', skClick);
+  box.addEventListener('click', skClick);
 }
 function skToolbar() {
   const used = SKT.reduce((a, t) => a + skTreeSP(t), 0), have = skillPts(SKS.plv), gems = SKT.reduce((a, t) => a + skTreeGem(t), 0);
@@ -1694,7 +1766,7 @@ function openTree(k, on) {
 }
 function skRefresh(onlyTree) {
   store.set('skills', SKS.lv); store.set('stargems', SKS.gem); syncChar();
-  skToolbar();
+  skToolbar(); blkSubs();
   SKT.forEach(t => { const sp = skTreeSP(t); const el = $('#sp-' + t.k); if (el) el.textContent = sp ? sp + ' SP' : ''; });
   if (onlyTree) { const b = $('#skb-' + onlyTree); if (b && !b.hidden) b.innerHTML = treeHtml(SKT.find(x => x.k === onlyTree)); }
   const sel = SKT.filter(t => skTreeSP(t) > 0 || t.s.some(s => skGem(t.k, s[0])));
@@ -2105,8 +2177,7 @@ function damageCalc() {
   const g = n => { const i = SI(n); return i < 0 ? 0 : tot.get(i) || 0; };
   const mon = DB.GBYID.get(DM.gid), magic = DM.type === 'm';
   const main = DB.ITBYID.get(BD.sl.arma.id), wt = main ? main.tl : '';
-  const stabBase = main ? ((main.stats.find(s => DB.STATN[s[0]] === 'Base Stability %') || [0, 0])[1]) : 50;
-  const physStab = Math.min(100, Math.max(0, stabBase + g('Stability %')));
+  const physStab = d.STAB; // estabilidade pela fórmula da arma (DEX/STR + base da arma + flecha)
   // estabilidade mágica: 50 + base ÷ 2; acima de 90% o piso trava em 90 e o teto sobe (até 110)
   const magStab = 50 + physStab / 2;
   const [stLo, stHi] = magic ? (magStab <= 90 ? [magStab, 100] : [90, Math.min(110, 100 + (magStab - 90))]) : [physStab, 100];
@@ -2126,7 +2197,7 @@ function damageCalc() {
   const mods = elemMult * (DM.mult / 100) * (1 + uns / 100) * (DM.pror / 100) * (DM.combo / 100) * (1 + rng / 100) * (1 + DM.buff / 100) * (DM.other / 100);
   const hi = Math.floor(base * mods * stHi / 100), lo = Math.floor(base * mods * stLo / 100), avg = (hi + lo) / 2;
   // crítico (mágico usa a conversão)
-  const physCD = DM.critd !== '' ? +DM.critd : 150 + Math.floor(d.STR / 5) + g('Critical Damage %') + g('Critical Damage');
+  const physCD = DM.critd !== '' ? +DM.critd : d.CDMG;
   const critD = magic ? 100 + (physCD - 100) * Math.min(100, DM.mcd) / 100 : physCD;
   const critRaw = magic ? d.CRIT * Math.min(100, DM.mcr + (wt === 'Staff' && !wEl ? 25 : 0)) / 100 : d.CRIT;
   const cr = Math.max(0, Math.min(100, critRaw - DM.cres)) / 100;
