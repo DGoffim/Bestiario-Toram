@@ -124,6 +124,7 @@ const ROUTES = [
   [/^#\/ninjutsu$/, 'ferramentas', () => viewScroll()],
   [/^#\/smithing$/, 'ferramentas', () => viewSmithing()],
   [/^#\/pet$/, 'ferramentas', () => viewPetGuide()],
+  [/^#\/creditos$/, 'inicio', () => viewCredits()],
   [/^#\/comida$/, 'ferramentas', () => viewFood()],
   [/^#\/eventos$/, 'inicio', () => viewEvents()],
   [/^#\/evento\/([a-z-]+)$/, 'inicio', k => viewEvent(k)],
@@ -552,7 +553,7 @@ function viewMonster(id) {
     + '</tbody></table></div>' + (g.entries.some(e => e.exp > 0) && g.t === 'B' ? '<p class="note">EXP base, sem quebrar partes. Bosses dão mais EXP quando as partes quebráveis são quebradas.</p>' : '') + '</section>';
   const drops = dropsHtml(g);
   const loc = locHtml(g.mapList.map(m => m.name));
-  const raid = f ? '<details class="card" open><summary><h2>Guia de batalha <small>Toram Yo</small></h2></summary>' + fichaHtml(f) + '</details>' : '';
+  const raid = f ? '<details class="card" open><summary><h2>Guia de batalha</h2></summary>' + fichaHtml(f) + '</details>' : '';
   view.innerHTML = backBtn('#/monstros/' + g.t) + head + '<div class="grid2"><div>' + diff + drops + '</div><div>' + raid + loc + '</div></div>';
   const td = $('#todmg');
   if (td) td.addEventListener('click', () => { setTarget(g, (g.entries.find(x => x.mode === 'Ultimate') || g.entries[g.entries.length - 1]).mode); store.set('dano', DM); location.hash = '#/dano'; });
@@ -586,7 +587,7 @@ function fichaHtml(f) {  const row = (a, num) => '<tr>' + a.map((c, i) => '<' + 
     return it ? '<a class="fitem" href="' + itemUrl(it) + '">' + inner + '</a>' : '<div class="fitem">' + inner + '</div>';
   }).join('') + '</div>');
   if (!f.it.length && !f.in.length && !f.tk.length) h += '<p class="fsrc">Este guia não traz dicas de luta nem dados de interrupção.</p>';
-  h += '<p class="fsrc">Fonte: guia da comunidade Toram Yo (' + f.y + '). Os dados podem ter mudado com os patches e podem ter erros de leitura.</p>';
+  h += '<p class="fsrc">Guia da comunidade (' + f.y + '), <a href="#/creditos">veja os créditos</a>. Os dados podem ter mudado com os patches e podem ter erros de leitura.</p>';
   return '<div class="fbody">' + h + '</div>';
 }
 
@@ -1244,6 +1245,32 @@ function viewSmithing() {
 }
 
 
+
+// ---------- créditos ----------
+const CREDITS = [
+  ['coryn.club', 'https://coryn.club/', 'Base de monstros, itens, mapas e drops (API pública), simulador de skills e ícones, fórmulas de statting, registlets, traits e o guia de pet.'],
+  ["Cy's Grimoire", 'https://cy-grimoire.netlify.app/', 'Fórmulas de status do personagem, informações das skills, glossário e valores das skills de pet.'],
+  ['Toram Yo', 'https://toramyo.blogspot.com/', 'Guias de batalha dos bosses: defesas, resistências, interrupções, dicas e partes quebráveis.'],
+  ['Toram Tools (Insane23)', 'https://toramtools.github.io/', 'Calculadoras de EXP, pontos de status e skill, blacksmith e Ninjutsu Scroll.'],
+  ['DOPR e JosuaK62', '', 'Testes que deram origem às fórmulas de criação de equipamento (smith).'],
+  ['Tamyo02', '', 'Planilha de EXP das missões principais.'],
+  ['さるびあのトーラムメモ', 'https://slv-memo.space/', 'Pesquisas sobre o sistema de pets, usadas pelo guia do coryn.club e pelo Cy.'],
+  ['Toram Online Wiki', 'https://toram-online.fandom.com/', 'Mapas-múndi de Iruna e de Toram.'],
+  ['Site oficial do Toram Online', 'https://en.toram.jp/', 'Notícias e atualizações do jogo.'],
+  ['venenako.app e RaffyDB', 'https://venenako.app/', 'Consultados como referência de organização e de calculadoras.', 'https://raffydb.com/'],
+  ['Comunidade BR', '', 'Códigos de casas de comida, testes no jogo e sugestões da guild.']
+];
+function viewCredits() {
+  setTitle('Créditos');
+  const a = u => '<a href="' + u + '" target="_blank" rel="noopener">' + u.replace(/^https?:\/\//, '').replace(/\/$/, '') + '</a>';
+  view.innerHTML = backBtn('#/') + '<div class="ph"><div><h1>Créditos</h1><p>De onde vem cada informação do site e quem fez esse trabalho.</p></div></div>'
+    + '<section class="card"><h2>Sobre o Bestiário</h2><div class="prose">'
+    + '<p>A ideia do Bestiário de Toram é juntar <b>o melhor de cada site e guia da comunidade</b> num lugar só, em português e fácil de usar no celular, para os jogadores BR não precisarem pular entre vários sites em inglês, japonês ou chinês.</p>'
+    + '<p>Nada disso existiria sem o trabalho das pessoas abaixo, que passaram horas testando, medindo e organizando o jogo. Os textos daqui são reescritos em português, e cada dado mantém o crédito de quem fez. O site é da comunidade, <b>sem fins lucrativos e sem anúncios</b>.</p>'
+    + '<p>Se você é autor de alguma dessas fontes e quer que algo seja ajustado ou retirado, fale com a gente pelo <a href="https://github.com/DGoffim/Bestiario-Toram" target="_blank" rel="noopener">GitHub do projeto</a> ou com o DGoffim no jogo.</p></div></section>'
+    + '<section class="card"><h2>Fontes e agradecimentos</h2><ul class="credits">' + CREDITS.map(c => '<li><b>' + esc(c[0]) + '</b>' + (c[1] ? ' <span class="cl">' + a(c[1]) + (c[3] ? ' · ' + a(c[3]) : '') + '</span>' : '') + '<p>' + c[2] + '</p></li>').join('') + '</ul></section>'
+    + '<p class="note" style="color:var(--ink-2)">Toram Online é marca registrada da Asobimo. Este site não tem ligação oficial com a Asobimo.</p>';
+}
 // ---------- guia de pet ----------
 // Base: guia de pet do coryn.club (pesquisa própria do autor + さるびあのトーラムメモ), valores de skill conferidos com a planilha do Cy's Grimoire. Texto reescrito em PT.
 // Grade 5x5 na ordem do jogo (1 a 25). Cada skill: [nome, tipo, MP, o que faz, Lv 10].
@@ -2422,7 +2449,7 @@ function viewDamage() {
     $('#dmpick').innerHTML = g ? '<b>' + esc(g.name) + '</b><small>' + TLAB[g.t] + ' · ' + g.els.map(e => EL[e][0]).join(', ') + (fichaFor(g) ? ' · com guia de batalha' : '') + '</small>' : '<span class="muted">Escolher monstro (ou digite os valores abaixo)</span>';
     $('#dmmode').innerHTML = g ? g.entries.map(e => '<option value="' + esc(e.mode) + '"' + (e.mode === DM.mode ? ' selected' : '') + '>' + esc(MODE[e.mode] ? MODE[e.mode][2] : e.mode || '—') + ' · Lv ' + e.lv + '</option>').join('') : '<option value="">—</option>';
     [['dmlv', 'lv'], ['dmhp', 'hp'], ['dmdef', 'def'], ['dmmdef', 'mdef'], ['dmpres', 'pres'], ['dmmres', 'mres'], ['dmcres', 'cres'], ['dmflee', 'flee']].forEach(([id, k]) => { $('#' + id).value = DM[k]; });
-    $('#dmsrc').textContent = !g ? 'Digite os dados do alvo.' : DM.auto ? 'DEF, MDEF, resistências e esquiva do guia de batalha (Toram Yo) (podem estar desatualizados). Ajuste se precisar.' : 'Este monstro não tem dados de defesa no bestiário. Preencha DEF, resistências e esquiva se souber; com zero, o dano sai mais alto que o real.';
+    $('#dmsrc').textContent = !g ? 'Digite os dados do alvo.' : DM.auto ? 'DEF, MDEF, resistências e esquiva do guia de batalha (podem estar desatualizados). Ajuste se precisar.' : 'Este monstro não tem dados de defesa no bestiário. Preencha DEF, resistências e esquiva se souber; com zero, o dano sai mais alto que o real.';
   };
   fillTarget(); damageCalc();
   const read = () => {

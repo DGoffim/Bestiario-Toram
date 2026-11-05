@@ -583,3 +583,10 @@ details.gl code, .prose code { font-family: var(--font-mono); font-size: 12.5px;
 .tbl.pnat td:nth-child(3) { font-size: 12.5px; min-width: 150px; }
 details.pmore { margin: 8px 0; } details.pmore summary { cursor: pointer; font-weight: 600; }
 @media (min-width: 700px) { .pgrid button { font-size: 13px; } }
+/* créditos */
+.foot a { color: var(--gold); font-weight: 600; }
+.credits { list-style: none; margin: 0; padding: 0; }
+.credits li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.credits li:last-child { border-bottom: 0; }
+.credits .cl { font-size: 13px; overflow-wrap: anywhere; }
+.credits p { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
