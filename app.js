@@ -1361,23 +1361,28 @@ function viewCharBuild(focus) {
       + '<div class="field"><label class="lbl" for="bdps">Status pessoal</label><select id="bdps">' + ['CRT', 'LUK', 'MTL', 'TEC'].map(p => '<option' + (BD.ps === p ? ' selected' : '') + '>' + p + '</option>').join('') + '</select></div>' + n('bdpv', 'Valor', BD.pv)
       + '</div><p class="note" id="bdpts"></p>')
     + blk('eq', 'Equipamento', '<div id="bdslots" class="slots"></div>')
-    + blk('bn', 'Comida, avatar e outros bônus', '<p class="muted" style="margin:0 0 8px;font-size:13.5px">Some aqui o que não vem dos equipamentos: comida, avatar, poções, buffs. Todos os status do jogo estão na lista. <a class="tl" href="#/comida">Códigos de comida</a></p><div id="bdex"></div><div class="range" style="margin-top:8px"><select id="bdexs" aria-label="Status"></select><input id="bdexv" type="number" step="any" placeholder="valor" style="width:90px;flex:none" aria-label="Valor"><button id="bdexa" class="btn" type="button">+</button></div>')
+    + blk('bn', 'Comida, avatar e outros bônus', '<nav class="seg2 bntabs" id="bntabs" role="group" aria-label="Tipo de bônus"></nav><p class="muted" id="bnhint" style="margin:10px 0 8px;font-size:13.5px"></p><div id="bdex"></div><div class="range" style="margin-top:8px"><select id="bdexs" aria-label="Status"></select><input id="bdexv" type="number" step="any" placeholder="valor" style="width:90px;flex:none" aria-label="Valor"><button id="bdexa" class="btn" type="button">+</button></div>')
     + blk('rg', 'Registlets', '<div id="rgbox"></div>')
     + blk('sk', 'Skills', '<div id="skbox"></div>')
     + '<section class="card"><div class="chips"><button class="btn" id="bdshare" type="button">Copiar link da build</button><a class="btn ghost" href="#/dano">Calcular dano num boss</a><button class="btn ghost" id="bdclear" type="button">Começar do zero</button></div><p class="note" id="bdmsg">Tudo é salvo sozinho neste aparelho.</p></section>'
     + '</div><aside class="pgright" id="gstatw" aria-label="Status do personagem"><div class="gstat" id="gstat"></div></aside></div>'
     + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar item" aria-label="Buscar item"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>';
-  const statOpts = DB.STATN.map((s, i) => [s, i]).filter(x => x[0].trim() && !isBase([x[1]]) && !/^Adds? 1 slot|^Upgrade for|^Potential$/.test(x[0])).sort((a, b) => a[0].localeCompare(b[0]));
-  $('#bdexs').innerHTML = statOpts.map(([s, i]) => '<option value="' + i + '">' + esc(s) + '</option>').join('');
-  renderSlots(); renderBuild();
+  renderSlots(); renderBuild(); renderBnAdd();
   const upd = () => {
     BD.lv = Math.max(1, +$('#bdlv').value || 1);
     ['STR', 'INT', 'VIT', 'AGI', 'DEX'].forEach(s => { BD.st[s] = Math.max(1, +$('#bd' + s).value || 1); });
     BD.ps = $('#bdps').value; BD.pv = Math.max(0, +$('#bdpv').value || 0);
     saveBuild(); renderBuild();
+    if ($('#sktool')) { SKS.plv = BD.lv; store.set('lv', SKS.plv); skToolbar(); }
   };
   ['bdlv', 'bdSTR', 'bdINT', 'bdVIT', 'bdAGI', 'bdDEX', 'bdps', 'bdpv'].forEach(id => $('#' + id).addEventListener('input', upd));
-  $('#bdexa').addEventListener('click', () => { const v = +$('#bdexv').value; if (!v) return; BD.ex.push([+$('#bdexs').value, v]); $('#bdexv').value = ''; saveBuild(); renderBuild(); });
+  $('#bdexa').addEventListener('click', () => {
+    const v = +$('#bdexv').value, sel = $('#bdexs').value; if (!v) return;
+    if (BN_TAB === 'com') { const [lab, food] = FOOD[+sel], st = FOOD_STAT[lab]; BD.ex.push([SI(st), lab === 'Aggro −' ? -Math.abs(v) : v, 'com', food]); }
+    else BD.ex.push([+sel, v, BN_TAB]);
+    $('#bdexv').value = ''; saveBuild(); renderBuild();
+  });
+  $('#bntabs').addEventListener('click', e => { const b = e.target.closest('[data-bn]'); if (!b) return; BN_TAB = b.dataset.bn; renderBuild(); renderBnAdd(); });
   $('#bdex').addEventListener('click', e => { const b = e.target.closest('[data-ex]'); if (!b) return; BD.ex.splice(+b.dataset.ex, 1); saveBuild(); renderBuild(); });
   $('#bdshare').addEventListener('click', () => {
     syncChar();
@@ -1469,7 +1474,9 @@ function renderBuild() {
   const { tot, off } = buildTotals(), d = buildDerived(tot);
   const used = ['STR', 'INT', 'VIT', 'AGI', 'DEX'].reduce((a, s) => a + BD.st[s] - 1, 0) + BD.pv, have = statPts(BD.lv) + lvEmblemPts(BD.lv);
   $('#bdpts').textContent = 'Pontos usados: ' + fmt(used) + ' de ' + fmt(have) + ' (2 por nível + emblema de nível; sem os emblemas de função).';
-  $('#bdex').innerHTML = BD.ex.length ? '<div class="chips">' + BD.ex.map(([si, v], i) => '<button type="button" class="chip" data-ex="' + i + '">' + esc(DB.STATN[si]) + ' ' + (v > 0 ? '+' : '') + fmt(v) + ' <span class="x">×</span></button>').join('') + '</div>' : '<p class="muted" style="margin:0;font-size:13.5px">Nenhum bônus extra.</p>';
+  const exCat = x => x[2] || 'out', mine = BD.ex.map((x, i) => [x, i]).filter(([x]) => exCat(x) === BN_TAB);
+  $('#bntabs').innerHTML = BN_CATS.map(([k, l]) => { const c = BD.ex.filter(x => exCat(x) === k).length; return '<button type="button" data-bn="' + k + '" aria-pressed="' + (BN_TAB === k) + '">' + l + (c ? ' <b>' + c + '</b>' : '') + '</button>'; }).join('');
+  $('#bdex').innerHTML = mine.length ? '<div class="chips">' + mine.map(([[si, v, , food], i]) => '<button type="button" class="chip" data-ex="' + i + '">' + (food ? esc(food) + ' · ' : '') + esc(DB.STATN[si]) + ' ' + (v > 0 ? '+' : '') + fmt(v) + ' <span class="x">×</span></button>').join('') + '</div>' : '<p class="muted" style="margin:0;font-size:13.5px">Nada em ' + BN_CATS.find(c => c[0] === BN_TAB)[1].toLowerCase() + ' ainda.</p>';
   const mag = d.MATK > d.ATK;
   $('#bdsum').innerHTML = [[mag ? 'MATK' : 'ATK', mag ? d.MATK : d.ATK], ['Crít.', d.CRIT], ['ASPD', d.ASPD], ['CSPD', d.CSPD], ['HP', d.MaxHP]].map(([l, v]) => '<span><small>' + l + '</small>' + fmt(Math.floor(v)) + '</span>').join('') + '<em>status ↓</em>';
   $('#gstat').innerHTML = '<h2>Status detalhado <small>Lv ' + BD.lv + '</small></h2>'
@@ -1477,6 +1484,18 @@ function renderBuild() {
     + (off.length ? '<p class="gnote">Não contam com a arma e armadura atuais: ' + off.map(([it, s]) => { const [nm, vv, c] = sparts(s); return esc(nm + ' ' + vv + ' (' + c + ', ' + it.name + ')'); }).join('; ') + '.</p>' : '')
     + '<p class="gnote">Fórmulas do Cy\'s Grimoire. Skills passivas e buffs ainda não entram: some no bloco “outros bônus” se quiser. Como no jogo, efeitos de skills com cálculo especial podem não aparecer.</p>';
   blkSubs();
+}
+// Bônus que não vêm dos equipamentos, separados por tipo. Cada um é [status, valor, tipo, nome da comida].
+const BN_CATS = [['com', 'Comida'], ['ava', 'Avatar'], ['pot', 'Poções e buffs'], ['out', 'Outros']];
+const BN_HINT = { com: 'Escolha a comida e digite o valor do buff (aparece no jogo, no ícone da comida). <a class="tl" href="#/comida">Códigos de comida</a>', ava: 'Some os status das peças de avatar: topo, parte de baixo e acessório.', pot: 'Poções, pergaminhos e buffs de skill de outros jogadores.', out: 'Qualquer outro bônus. Todos os status do jogo estão na lista.' };
+// Status de cada comida da lista de códigos.
+const FOOD_STAT = { STR: 'STR', INT: 'INT', VIT: 'VIT', AGI: 'AGI', DEX: 'DEX', 'ATK de Arma': 'Weapon ATK', ATK: 'ATK', 'Recuperação de MP por ataque': 'Attack MP Recovery', MaxHP: 'MaxHP', MaxMP: 'MaxMP', 'Taxa crítica': 'Critical Rate', 'Precisão': 'Accuracy', 'Aggro −': 'Aggro %', 'Aggro +': 'Aggro %', 'Dano contra Neutro': '% stronger against Neutral', 'Dano contra Vento': '% stronger against Wind', 'Dano contra Água': '% stronger against Water', 'Dano contra Fogo': '% stronger against Fire', 'Dano contra Terra': '% stronger against Earth', 'Dano contra Trevas': '% stronger against Dark', 'Dano contra Luz': '% stronger against Light', 'Resistência física': 'Physical Resistance %', 'Resistência mágica': 'Magic Resistance %', 'Barreira fracionada': 'Fractional Barrier %' };
+let BN_TAB = 'com';
+function renderBnAdd() {
+  $('#bnhint').innerHTML = BN_HINT[BN_TAB];
+  if (BN_TAB === 'com') { $('#bdexs').innerHTML = FOOD.map(([lab, food], i) => FOOD_STAT[lab] ? '<option value="' + i + '">' + esc(food) + ' — ' + esc(lab) + '</option>' : '').join(''); return; }
+  const opts = DB.STATN.map((s, i) => [s, i]).filter(x => x[0].trim() && !isBase([x[1]]) && !/^Adds? 1 slot|^Upgrade for|^Potential$/.test(x[0])).sort((a, b) => a[0].localeCompare(b[0]));
+  $('#bdexs').innerHTML = opts.map(([s, i]) => '<option value="' + i + '">' + esc(s) + '</option>').join('');
 }
 // Resumo de cada bloco no cabeçalho dele.
 function blkSubs() {
@@ -1724,6 +1743,7 @@ function skDecode(code) { const o = {}; b64d(code).split(';').filter(Boolean).fo
 // Simulador de skills, montado dentro do bloco Skills da página do personagem.
 function viewSkills(code, box) {
   if (!SKT) { box.innerHTML = '<p class="loading">Carregando as árvores de skill…</p>'; load('skills').then(d => { SKT = d.trees; if (box.isConnected) viewSkills(code, box); }).catch(() => { box.innerHTML = '<p class="nojs">Não deu para carregar as skills. Recarregue a página.</p>'; }); return; }
+  SKS.plv = BD.lv; // o simulador usa o nível do personagem
   if (code) { try { SKS.lv = skDecode(code); store.set('skills', SKS.lv); } catch (e) {} history.replaceState(null, '', '#/personagem/skills'); }
   const cats = ['Arma', 'Buff', 'Assistência', 'Outros'];
   box.innerHTML = '<p class="muted" style="margin:0 0 10px;font-size:13.5px">A skill anterior sobe sozinha para o nível 5 quando precisa. No modo <b>ⓘ Info</b>, toque numa skill para ver o que ela faz, em português.</p>'
@@ -1740,7 +1760,7 @@ function skToolbar() {
   $('#sktool').innerHTML = '<div class="skstat"><span><small>Pontos usados</small><b>' + fmt(used) + '</b></span><span><small>Do nível</small><input id="skplv" type="number" inputmode="numeric" min="1" value="' + SKS.plv + '" aria-label="Seu nível"></span><span><small>' + (used > have ? 'Passou' : 'Sobram') + '</small><b class="' + (used > have ? 'neg' : '') + '">' + fmt(Math.abs(have - used)) + '</b></span><span><small>Star Gem</small><b>' + fmt(gems) + '</b></span></div>'
     + '<div class="skmode"><div class="seg2" role="group" aria-label="O que o toque muda"><button type="button" data-edit="pt" aria-pressed="' + (SKS.edit === 'pt') + '">Pontos</button><button type="button" data-edit="sg" aria-pressed="' + (SKS.edit === 'sg') + '">★ Star Gem</button><button type="button" data-edit="info" aria-pressed="' + (SKS.edit === 'info') + '">ⓘ Info</button></div><div class="seg2" role="group" aria-label="Tocar para"><button type="button" data-mode="1" aria-pressed="' + (SKS.mode > 0) + '">+ Somar</button><button type="button" data-mode="-1" aria-pressed="' + (SKS.mode < 0) + '">− Tirar</button></div>'
     + '<div class="seg2" role="group" aria-label="Quanto por toque"><button type="button" data-step="1" aria-pressed="' + (SKS.step === 1) + '">1</button><button type="button" data-step="5" aria-pressed="' + (SKS.step === 5) + '">5</button><button type="button" data-step="10" aria-pressed="' + (SKS.step === 10) + '">Máx</button></div></div>';
-  $('#skplv').addEventListener('change', e => { SKS.plv = Math.max(1, +e.target.value || 1); store.set('lv', SKS.plv); skToolbar(); });
+  $('#skplv').addEventListener('change', e => { SKS.plv = Math.max(1, +e.target.value || 1); store.set('lv', SKS.plv); BD.lv = SKS.plv; saveBuild(); const lv = $('#bdlv'); if (lv) { lv.value = BD.lv; renderBuild(); } skToolbar(); });
 }
 const SK_CW = 86, SK_CH = 40, SK_PAD = 46;
 // Ícones das skills (do coryn.club, guardados no site). Fora do GitHub Pages (ex.: no artifact), vêm do site publicado.

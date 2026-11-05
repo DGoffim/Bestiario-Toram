@@ -546,3 +546,9 @@ details.gl code, .prose code { font-family: var(--font-mono); font-size: 12.5px;
 .gstat dd { margin: 0; font: 500 14.5px var(--font-mono); text-align: right; color: #fff; }
 .gstat .neg dd { color: #ff6b6b; }
 .gnote { margin: 8px 0 4px; font-size: 12px; line-height: 1.5; color: #f1dd8e; }
+.bntabs { display: flex; flex-wrap: wrap; border-color: var(--line); }
+.bntabs button { color: var(--fg); }
+.bntabs button b { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 4px; padding: 0 5px; border-radius: 999px; background: var(--fg); color: var(--surface); font-size: 11px; }
+.bntabs button[aria-pressed="true"] b { background: #2a1d05; color: var(--gold); }
+.blk { scroll-margin-top: calc(190px + env(safe-area-inset-top, 0px)); }
+@media (min-width: 900px) { .blk { scroll-margin-top: calc(140px + env(safe-area-inset-top, 0px)); } }
