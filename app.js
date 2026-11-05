@@ -123,6 +123,7 @@ const ROUTES = [
   [/^#\/blacksmith$/, 'ferramentas', () => viewBlacksmith()],
   [/^#\/ninjutsu$/, 'ferramentas', () => viewScroll()],
   [/^#\/smithing$/, 'ferramentas', () => viewSmithing()],
+  [/^#\/pet$/, 'ferramentas', () => viewPetGuide()],
   [/^#\/comida$/, 'ferramentas', () => viewFood()],
   [/^#\/eventos$/, 'inicio', () => viewEvents()],
   [/^#\/evento\/([a-z-]+)$/, 'inicio', k => viewEvent(k)],
@@ -443,7 +444,7 @@ function viewMonsters(t) {
   if (t && t !== MS.t) { MS.t = t; MS.q = ''; MS.limit = 60; }
   setTitle('Monstros');
   const cnt = k => DB.MONS.filter(g => g.t === k).length;
-  view.innerHTML = '<div class="ph"><div><h1>Monstros</h1><p>Toque num monstro para ver dificuldades, HP, EXP, drops, onde fica e o guia RAID.</p></div></div>'
+  view.innerHTML = '<div class="ph"><div><h1>Monstros</h1><p>Toque num monstro para ver dificuldades, HP, EXP, drops, onde fica e o guia de batalha.</p></div></div>'
     + '<nav class="seg" aria-label="Tipo">' + TYPES.map(([k, l]) => '<a href="#/monstros/' + k + '" class="' + (MS.t === k ? 'on' : '') + '">' + l + '<span class="n">' + fmt(cnt(k)) + '</span></a>').join('') + '</nav>'
     + '<div class="tools"><input id="mq" type="search" placeholder="Nome, mapa ou item que dropa" value="' + esc(MS.q) + '" aria-label="Buscar monstro">'
     + '<button class="fbtn" id="mfb" type="button" aria-expanded="' + MS.open + '">Filtros<b id="mfn"></b></button></div>'
@@ -499,7 +500,7 @@ function monList() {
   const left = rows.length - MS.limit;
   more.hidden = left <= 0; more.textContent = 'Mostrar mais ' + Math.min(60, left) + ' (faltam ' + fmt(left) + ')';
 }
-const monTags = g => '<span class="tags">' + (g.event ? '<span class="tag">' + (g.badge && !/^Update/i.test(g.badge) ? esc(g.badge) : 'Evento') + '</span>' : '') + (g.tame ? '<span class="tag ok">Capturável</span>' : '') + (fichaFor(g) ? '<span class="tag info">RAID</span>' : '') + '</span>';
+const monTags = g => '<span class="tags">' + (g.event ? '<span class="tag">' + (g.badge && !/^Update/i.test(g.badge) ? esc(g.badge) : 'Evento') + '</span>' : '') + (g.tame ? '<span class="tag ok">Capturável</span>' : '') + (fichaFor(g) ? '<span class="tag info">Guia</span>' : '') + '</span>';
 
 // ---------- onde fica (mapa-múndi) ----------
 const WORLDS = [
@@ -551,7 +552,7 @@ function viewMonster(id) {
     + '</tbody></table></div>' + (g.entries.some(e => e.exp > 0) && g.t === 'B' ? '<p class="note">EXP base, sem quebrar partes. Bosses dão mais EXP quando as partes quebráveis são quebradas.</p>' : '') + '</section>';
   const drops = dropsHtml(g);
   const loc = locHtml(g.mapList.map(m => m.name));
-  const raid = f ? '<details class="card" open><summary><h2>Guia RAID <small>Toram Yo</small></h2></summary>' + fichaHtml(f) + '</details>' : '';
+  const raid = f ? '<details class="card" open><summary><h2>Guia de batalha <small>Toram Yo</small></h2></summary>' + fichaHtml(f) + '</details>' : '';
   view.innerHTML = backBtn('#/monstros/' + g.t) + head + '<div class="grid2"><div>' + diff + drops + '</div><div>' + raid + loc + '</div></div>';
   const td = $('#todmg');
   if (td) td.addEventListener('click', () => { setTarget(g, (g.entries.find(x => x.mode === 'Ultimate') || g.entries[g.entries.length - 1]).mode); store.set('dano', DM); location.hash = '#/dano'; });
@@ -825,6 +826,7 @@ function viewTools() {
     + t('#/traits', 'Traits', 'Efeitos, regras de transferência e custo no ferreiro')
     + '</div><h2 class="sect">Monstros</h2><div class="tiles">'
     + t('#/eventos', 'Eventos', 'Monstros, mapas e itens de cada evento do ano')
+    + t('#/pet', 'Guia de pet', 'Capturar, natureza, skills, treino, upar e fusão, com calculadora')
     + t('#/monstros/N', 'Capturáveis (pets)', 'Use o filtro "Só capturáveis" na lista de monstros')
     + t('#/mapas', 'Mapas', 'Todos os mapas com os monstros de cada um')
     + '</div>';
@@ -1241,6 +1243,160 @@ function viewSmithing() {
   $('#gsnav').addEventListener('click', e => { const b = e.target.closest('[data-to]'); if (b) document.getElementById(b.dataset.to).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 }
 
+
+// ---------- guia de pet ----------
+// Base: guia de pet do coryn.club (pesquisa própria do autor + さるびあのトーラムメモ), valores de skill conferidos com a planilha do Cy's Grimoire. Texto reescrito em PT.
+// Grade 5x5 na ordem do jogo (1 a 25). Cada skill: [nome, tipo, MP, o que faz, Lv 10].
+const PET_SK = [
+  ['Ragging Blow', 'Ataque físico', 800, 'Golpe físico forte em um alvo (usa o ATK do pet).', 'Constante 2000, multiplicador 700%'],
+  ['HP Gain', 'Passiva', 0, 'Aumenta o HP máximo do pet. O bônus não aparece na tela de status.', 'HP +5000 e +20%'],
+  ['Absorb MP', 'Passiva', 0, 'Aumenta o MP que o pet recupera a cada ataque (a base é 20).', 'Cerca de +30 por ataque'],
+  ['Hide', 'Passiva', 0, 'O pet recebe metade do dano e passa a outra parte para você.', 'Você recebe 45% do dano do pet'],
+  ['Magic Lance', 'Ataque mágico', 800, 'Golpe mágico forte em um alvo (usa o MATK do pet).', 'Constante 3000, multiplicador 600%'],
+  ['Critical Up', 'Buff de party', 200, 'Dano crítico para a party perto do pet, por 10 s.', 'Dano crítico +10 (+12 com ↑ vermelho)'],
+  ['Heavy Blow', 'Ataque físico', 400, 'Golpe físico em um alvo.', 'Constante 400, multiplicador 500%'],
+  ['Stealth Attack', 'Ataque', 100, 'Ataque que não gera aggro. Físico se o ATK do pet for maior, mágico se o MATK for maior.', 'Constante 100, multiplicador 200%'],
+  ['Magic Shot', 'Ataque mágico', 400, 'Golpe mágico em um alvo.', 'Constante 500, multiplicador 400%'],
+  ['Blast Flare', 'Ataque mágico', 600, 'Dano mágico no alvo e em volta dele. A área cresce com o nível.', 'Constante 600, multiplicador 300%, raio 8 m'],
+  ['Circle of Heal', 'Cura', 600, 'Cura a party num raio de 10 m. A parte que vem do MATK é dividida entre os curados.', '100 + parte do HP máximo + MATK do pet'],
+  ['Encourage', 'Buff de party', 100, 'ATK e ASPD para a party perto do pet, por 10 s.', 'ATK +10% e +50, ASPD +10% e +300 (↑ vermelho: ATK +25 e ASPD +10% a mais)'],
+  ['First Aid', 'Passiva', 0, 'Quando você cai, o pet corta o tempo para reviver. Pet sem essa skill morre junto com você.', 'Tempo para reviver −50% a cada uso'],
+  ['Clear Mind', 'Buff de party', 100, 'MATK e CSPD para a party perto do pet, por 10 s.', 'MATK +10% e +50, CSPD +10% e +300 (↑ vermelho: MATK +25 e CSPD +10% a mais)'],
+  ['Restore', 'Cura', 400, 'Cura o membro da party com menos HP.', '300 + parte do HP máximo + MATK do pet'],
+  ['Sweep Attack', 'Ataque físico', 400, 'Golpe físico com chance de derrubar (Tumble).', 'Multiplicador 250%, chance 80%'],
+  ['Clean Hit', 'Ataque físico', 200, 'Golpe físico com chance de assustar (Flinch).', 'Multiplicador 200%, chance 100%'],
+  ['Rage Attack', 'Ataque', 100, 'Ataque que puxa muito aggro. Físico ou mágico, o que for maior no pet. Ótimo com Devoted.', 'Constante 100, multiplicador 200%, +250 de aggro'],
+  ['Blinding Shadow', 'Ataque mágico', 200, 'Golpe mágico com chance de cegar (Blind).', 'Multiplicador 150%, chance 100%'],
+  ['Resistance Up', 'Buff de party', 200, 'Resistência física e mágica para a party perto do pet, por 10 s.', 'Resistências +30% (+35% com ↑ vermelho)'],
+  ['Stun Attack', 'Ataque físico', 600, 'Golpe físico com chance de atordoar (Stun).', 'Multiplicador 300%, chance 60%'],
+  ['Cover', 'Passiva', 0, 'Você recebe metade do dano e o pet leva parte da outra metade. Vale mesmo durante invencibilidade.', 'O pet recebe 45% do seu dano'],
+  ['Absorb HP', 'Passiva', 0, 'Parte do dano que o pet causa volta como HP para ele.', 'Cerca de 100 + 10% do dano'],
+  ['MP Gain', 'Passiva', 0, 'Aumenta o MP máximo do pet e a recuperação de MP.', 'MP máximo +1000, MP por ataque +10'],
+  ['Shield Break', 'Ataque mágico', 600, 'Golpe mágico com chance de quebrar a defesa (Armor Break).', 'Multiplicador 200%, chance 100%']
+];
+// 0 = centro (1º treino), 1 = lados (2º treino), 2 = cantos (3º treino)
+const petRing = i => { const r = Math.floor(i / 5), c = i % 5, e = (r === 0 || r === 4) + (c === 0 || c === 4); return e; };
+const petNb = i => { const r = Math.floor(i / 5), c = i % 5; return [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].filter(([a, b]) => a >= 0 && a < 5 && b >= 0 && b < 5).map(([a, b]) => a * 5 + b); };
+// Natureza: [nome, bônus, desvia de (8 colunas: alvo, você, linha, investida, meteoro, espinho, projétil, lâmina), treinos até cansar STR/INT/VIT/AGI/DEX]
+const PET_ATK = ['Área no inimigo', 'Área no jogador', 'Linha reta', 'Investida', 'Meteoro', 'Espinho', 'Projétil', 'Lâmina'];
+const PET_NAT = [
+  ['Impulsive', 'Anda numa área pequena (ruim para upar skill)', '00000000', [14, 7, 11, 14, 11]],
+  ['Proactive', 'ASPD +1000, CSPD +500', '00001100', [14, 14, 11, 11, 7]],
+  ['Brave', 'Dano crítico +30', '00000100', [11, 11, 11, 14, 9]],
+  ['Devoted', 'Resistência física e mágica +30%, aggro 400%', '00010100', [11, 11, 41, 6, 11]],
+  ['Agile', 'Anda mais rápido', '10011000', [14, 6, 7, 41, 14]],
+  ['Calm', 'HP +30%', '10100100', [11, 9, 14, 11, 11]],
+  ['Enthusiastic', 'ATK +30%', '01110100', [41, 6, 14, 11, 11]],
+  ['Intelligent', 'MATK +30%', '01110100', [6, 41, 11, 9, 21]],
+  ['Sturdy', 'ATK e MATK +15%, resistências +15%', '11110100', [21, 21, 21, 6, 6]],
+  ['Justice', 'MP por ataque em dobro', '11110000', [14, 14, 9, 9, 11]],
+  ['Steady', 'HIT +30, mas taxa crítica −100%', '11110100', [11, 11, 11, 9, 14]],
+  ['Sly', 'Aggro −25%', '11110000', [6, 14, 6, 21, 14]],
+  ['Timid', 'Não ataca de perto. Ganha 100 MP a cada 5 s', '00111000', [11, 11, 7, 9, 41]],
+  ['Gentle', 'Não ataca. Ganha 100 MP a cada 5 s', '00111000', [6, 21, 14, 7, 21]]
+];
+const PET_TYPE = [['Ordinary', 40, 40, 40, 40, 40, 'gasta menos estamina'], ['Skill Boost', 50, 50, 50, 50, 50], ['All Rounder', 60, 60, 60, 60, 60], ['Genius', 80, 80, 80, 80, 80, 'gasta mais estamina'], ['Physical Attack', 120, 10, 40, 80, 50], ['Magic Attack', 10, 120, 40, 60, 70], ['Dodge', 40, 40, 20, 120, 80], ['Accurate', 40, 40, 40, 60, 120], ['Phys. Defense', 60, 30, 110, 50, 50], ['Magic Defense', 30, 70, 80, 50, 70]];
+// Fórmulas por arma do pet: [nome, ATK, MATK, ASPD] com L = nível, w = poder da arma.
+const PET_W = [
+  ['1H Sword', s => s.L + 2 * s.STR + 2 * s.DEX + s.w, s => s.L + 3 * s.INT + s.DEX + 1, s => 100 + s.L + 4 * s.AGI + (s.AGI + s.STR - 1) / 5],
+  ['2H Sword', s => s.L + 3 * s.STR + s.DEX + s.w, s => s.L + 3 * s.INT + s.DEX + 1, s => 50 + s.L + 2 * s.AGI + (s.AGI + s.STR - 1) / 5],
+  ['Bow', s => s.L + 3 * s.DEX + s.STR + s.w, s => s.L + 3 * s.INT + s.DEX, s => 75 + s.L + 3 * s.AGI + (s.AGI + 2 * s.DEX - 1) / 10],
+  ['Bowgun', s => s.L + 4 * s.DEX + s.w, s => s.L + 3 * s.INT + s.DEX, s => 100 + s.L + 2.2 * s.AGI + 0.2 * s.DEX],
+  ['Staff', s => s.L + 3 * s.STR + s.INT + s.w, s => s.L + 4 * s.INT + s.DEX + s.w, s => 60 + s.L + s.AGI + (4 * s.AGI + s.INT - 1) / 5],
+  ['Magic Device', s => s.L + 2 * s.INT + 2 * s.AGI + s.w, s => s.L + 4 * s.INT + s.DEX + s.w, s => 90 + s.L + 4 * s.AGI + (s.INT - 1) / 5],
+  ['Knuckle', s => s.L + 2 * s.AGI + 0.5 * s.DEX + s.w, s => s.L + 4 * s.INT + s.DEX + 0.5 * s.w, s => 120 + s.L + 4.6 * s.AGI + s.STR / 10]
+];
+const PC = Object.assign({ w: 2, L: 100, STR: 100, INT: 50, VIT: 100, AGI: 100, DEX: 200, pw: 30, hp: 0, mp: 0, a: 100, b: 100, pa: 30, pb: 30, sa: 230, sb: 230 }, store.get('petcalc', {}));
+function viewPetGuide() {
+  setTitle('Guia de pet');
+  const tb = (head, rows, cls) => '<div class="tblw"><table class="tbl' + (cls ? ' ' + cls : '') + '"><thead><tr>' + head.map((h, i) => '<th' + (i && typeof rows[0][i] === 'number' ? ' class="n"' : '') + '>' + h + '</th>').join('') + '</tr></thead><tbody>' + rows.map(r => '<tr>' + r.map((c, i) => '<td' + (i && typeof c === 'number' ? ' class="n"' : '') + '>' + c + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+  const n = (id, lab, v, extra) => '<div class="field"><label class="lbl" for="pc' + id + '">' + lab + '</label><input id="pc' + id + '" data-k="' + id + '" type="number" inputmode="numeric" min="0" value="' + v + '"' + (extra || '') + '></div>';
+  const sec = (id, t, body) => '<section class="card" id="pg-' + id + '"><h2>' + t + '</h2><div class="prose">' + body + '</div></section>';
+  const heal = Array.from({ length: 10 }, (_, i) => { const l = i + 1, t = l >= 10 ? 3 : l >= 7 ? 2 : l >= 4 ? 1 : 0; return ['Lv ' + l, (100 * l) + ' + ' + Math.floor(15 + 2.5 * l) + '%', (100 * l) + ' + ' + Math.floor(2.5 * l) + '%', [3, 2.5, 2, 1.5][t] + ' / ' + [4, 3.3, 2.7, 2][t] + ' / ' + [6, 5, 4, 3][t] + ' s']; });
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Guia de pet</h1><p>Como capturar, treinar, upar e fundir pets, e o que cada skill faz. Os buffs de party você soma no <a href="#/personagem">Personagem</a>, no bloco Pet.</p></div></div>'
+    + '<nav class="seg" id="pgnav" aria-label="Seções do guia">' + [['inicio', 'Passo a passo'], ['cap', 'Capturar'], ['prop', 'Natureza e tipo'], ['sk', 'Skills'], ['tr', 'Treino'], ['up', 'Upar'], ['fu', 'Fusão'], ['pt', 'Party'], ['calc', 'Calculadora']].map(([k, l]) => '<button type="button" data-to="pg-' + k + '">' + l + '</button>').join('') + '</nav>'
+    + sec('inicio', 'Passo a passo', '<ol class="steps">'
+      + '<li><b>Skills de domador:</b> Taming, Skillful Capture e Careful Capture no 10 (30 SP), e pelo menos 10 SP em Capture Technique para ter tempo de captura. Os seus status não influenciam.</li>'
+      + '<li><b>Pegue o pet:</b> capture um monstro (filtro <a href="#/monstros/N">Só capturáveis</a>) ou alimente um pet de rua no seu terreno. O de rua pode vir com nível bem maior.</li>'
+      + '<li><b>Escolha bem:</b> veja arma, tipo e natureza na descrição da gaiola antes de soltar. Depois de solto ele não volta para a gaiola nem pode ser vendido.</li>'
+      + '<li><b>Alimente antes de treinar:</b> espere o bônus de <b>50% de sucesso no treino</b> (a Top Quality Pet Food, de orb, sempre dá esse bônus e 100% de afinidade).</li>'
+      + '<li><b>Treine as skills primeiro</b> (Skill Practice Lv 1, 2 e 3). Se as skills sorteadas não prestarem, troque de pet ou guarde para fusão.</li>'
+      + '<li><b>Depois treine os status</b> no modo Hard (com 50% de bônus ele não falha). Dê Life Potion antes do pet ficar exausto: exaustão tira afinidade para sempre.</li>'
+      + '<li><b>Upe com 100% de afinidade</b> (10× EXP), de preferência em boss com todas as partes quebradas.</li>'
+      + '<li><b>Funda</b> para subir o nível máximo, o poder da arma e os status, e para juntar 2 skills boas.</li></ol>')
+    + sec('cap', 'Capturar', '<h3>Capturando no mapa</h3><p>Deixe o monstro com 5 a 10% de HP, use <b>Taming</b> e espere a barra verde encher sem matar o monstro (pode correr em volta ou bater em outro). Se encher antes do tempo, ele é capturado. O pet começa no nível 1, com nível máximo de até +10 acima do nível do monstro, e tem o elemento do monstro. "Unavailable target" quer dizer que o monstro não pode ser capturado; "Doesn\'t meet the condition" quer dizer que o seu nível é baixo demais.</p>'
+      + '<h3>Pet de rua (no seu terreno)</h3><p>Todo dia, a cada hora, aparece um monstro diferente no terreno, o mesmo para todos os jogadores. Dê <b>Mini Pet Food</b>: rende +5% de afinidade se ele estiver normal e +10% se estiver com fome. Com 35% ele vira seu. O mais rápido é em 20 horas: 0 → 10% → 20% (8 h depois) → 30% (8 h) → 35% (4 h). O nível dele é o seu maior nível de personagem arredondado para baixo de 10 em 10 (ex.: 285 → 280). Se você não alimentar, na hora seguinte vem outro.</p>'
+      + '<p class="muted">Pets de rua conhecidos: Goblin (fogo), Frosch (água), Colon e Shell Mask (terra), Pico (vento), Coryn e Kijimu (luz), Hound, Torpo, Raffy, Wooly e Vanilla Potum (neutro).</p>'
+      + '<h3>Skills de domador</h3>' + tb(['Skill', 'O que faz'], [
+        ['Taming (300 MP)', 'Por nível: +1 s no tempo (Lv 6+ dá +2 s por nível, chega a +15 s no 10), −10% de chance de quebrar a gaiola (0% no 10) e nível máximo do monstro = seu nível − (10 − nível da skill).'],
+        ['Capture Technique I e II', 'Mais tempo de captura (até +15 s cada) e +1 no nível máximo do monstro a cada 2 níveis (+5 cada no 10). Com personagem de nível alto, o nível extra pouco importa.'],
+        ['Skillful Capture', 'Chance de o pet vir com nível máximo maior: de +0 a +10. No 10, sai com pelo menos +5.'],
+        ['Careful Capture', 'Chance de vir com mais potencial de crescimento: no 10, +0 a +10 em cada status.'],
+        ['Pet Heal (100 MP)', 'Cura o HP do pet. Com arco ou cajado cura bem mais (tabela abaixo).'],
+        ['Pet MP Charge (300 MP)', '+100 MP por nível (1000 no 10). Arco é o mais rápido: 3 s no 10, cajado 4 s, outras armas 6 s.']])
+      + '<details class="pmore"><summary>Tabela do Pet Heal</summary>' + tb(['Nível', 'Arco/cajado', 'Outras armas', 'Conjuração (arco / cajado / outras)'], heal) + '<p class="muted">A porcentagem é do HP máximo do pet.</p></details>')
+    + sec('prop', 'Natureza e tipo', '<p>A <b>arma do pet</b> não tem a ver com a aparência nem com a sua arma. Ela define as fórmulas de ATK, MATK e ASPD (veja a <a href="#pg-calc" data-to="pg-calc">calculadora</a>) e o alcance: arco 12 m, besta e cajado 8 m, espadas e manopla de perto. Ataque mágico é sempre de longe. O <b>poder</b> (espada amarela na tela de status) é o ATK da arma: sobe às vezes ao upar, mas não passa do nível atual.</p>'
+      + '<h3>Natureza</h3><p>Muda o bônus, como o pet se comporta em batalha e quanta estamina gasta em cada treino. Os números são quantos treinos dá para fazer até o pet ficar exausto, saindo da estamina cheia (em <b>negrito</b>, o status mais fácil de treinar).</p>'
+      + tb(['Natureza', 'Bônus', 'Desvia de', 'STR', 'INT', 'VIT', 'AGI', 'DEX'], PET_NAT.map(([nm, b, d, t]) => { const mx = Math.max(...t); return ['<b>' + nm + '</b>', b, [...d].map((x, i) => x === '1' ? PET_ATK[i] : '').filter(Boolean).join(', ') || '—'].concat(t.map(v => v === mx ? '<b>' + v + '</b>' : v)); }), 'pnat')
+      + '<p class="muted">Em "Espinho", o pet não desvia: ele fica em cima sem levar dano. Genius sempre gasta mais estamina e Ordinary sempre gasta menos, qualquer que seja a natureza.</p>'
+      + '<h3>Tipo</h3><p>Define o potencial de crescimento inicial: é o valor que o status terá no Lv 100 (o pet ganha 1/100 dele por nível, mais 1 ponto livre por nível). Depois de 255 você não põe mais pontos livres, mas o crescimento continua.</p>'
+      + tb(['Tipo', 'STR', 'INT', 'VIT', 'AGI', 'DEX'], PET_TYPE.map(r => ['<b>' + r[0] + '</b>' + (r[6] ? ' <small class="muted">' + r[6] + '</small>' : '')].concat(r.slice(1, 6))))
+      + '<h3>Padrão de ataque</h3><p>Quanto maior a %, mais dano por golpe, mas erra mais. A velocidade é a mesma, só a animação muda. <b style="color:#c0392b">↑ vermelho</b> = bom para skill de suporte (os buffs ficam mais fortes). <b style="color:#2f6fd6">↓ azul</b> = perde estabilidade se for usado no tipo de ataque errado (físico ou mágico).</p>'
+      + '<p><b>Ataque físico</b>: usa ATK, alcance da arma, pode critar e pode errar (precisa de HIT). <b>Ataque mágico</b>: usa MATK, sempre de longe, nunca crita e nunca erra. Nem todo pet tem ataque mágico; tente trocar o padrão.</p>')
+    + sec('sk', 'Skills', '<p>São 25 skills numa grade 5×5. O <b>1º treino</b> escolhe uma do centro (verde, garantido). O <b>2º</b> sorteia uma vizinha da 1ª, e o <b>3º</b> sorteia uma vizinha da 2ª. Por isso as dos lados (laranja) e as dos cantos (vermelho) são mais raras. A skill nasce com Lv 1 a 5, e quanto mais baixo, mais difícil chegar no 10. Toque numa skill para ver o que ela faz e como conseguir.</p>'
+      + '<div class="pgrid" id="pgrid">' + PET_SK.map((s, i) => '<button type="button" class="pr' + petRing(i) + '" data-i="' + i + '">' + esc(s[0]) + '</button>').join('') + '</div>'
+      + '<div class="pskinfo" id="pskinfo"></div>')
+    + sec('tr', 'Treino', '<p>O pet novo começa com 0% de disciplina e só pode ser usado com 100%. Cada treino sobe 2% (às vezes 1%), então são uns 50 treinos no total. Com 100% não dá para treinar mais, e o crescimento fica fixo.</p>'
+      + tb(['Treino', 'Sucesso', 'Se der certo', 'Se falhar'], [['Status Easy', '80%', '+2', '+1'], ['Status Hard', '60%', '+3', '+0'], ['Status Professional (1 orb)', '70%', '+15', '+10'], ['Skill Lv 1', '100%', 'a skill que você escolher (centro)', '—'], ['Skill Lv 2', '50%', 'skill vizinha da 1ª, sorteada', '—'], ['Skill Lv 3', '25%', 'skill vizinha da 2ª, sorteada', '—']])
+      + '<p><b>Qual compensa?</b> Na média, Easy e Hard dão +90 por status em 50 treinos. Com o bônus de 50% de sucesso, o Hard nunca falha (+150). O Professional custa mais disciplina e só compensa se tiver orb sobrando: o mais barato é dar 1 Top Quality Pet Food e treinar no Hard.</p>'
+      + '<h3>Comida</h3>' + tb(['Comida', 'Preço (spina)', 'Afinidade', 'Estamina', 'Bônus possível'], [['Mini Pet Food', '10', '10%', '10', 'nenhum'], ['Normal Pet Food', '100', '20%', '60', '10% ou 30%'], ['Stamina Pet Food', '1.000', '10%', '100', '10%, 30%, 50% (raro)'], ['Delicious Pet Food', '1.000', '40%', '30', '10%, 30%, 50% (raro)'], ['High Grade Pet Food', '3.000', '40%', '100', '10%, 30%, 50%'], ['Top Quality Pet Food', '1 a 2 orbs', '100%', '100', '50% de treino + EXP']])
+      + '<p>O bônus da comida dura 8 horas e pode ser: bônus da natureza, sucesso no treino ou EXP. Depois de comer o pet fica <b>satisfeito</b>; com 4 h fica normal (come de novo, mas ganha metade); com 8 h fica com fome. Dar comida antes da fome só serve para trocar o bônus.</p>'
+      + '<p><b>Afinidade</b> é a chance de o pet usar skill (com 0% ele não usa nenhuma) e o bônus de EXP: 100% = 10× EXP. Com pouca afinidade o pet fica tentando skill, falhando e não faz nada. A <b>estamina</b> volta comendo, passeando no terreno (fora da hibernação) ou com Life Potion. Pet exausto volta ao normal depois de 12 h no terreno.</p>')
+    + sec('up', 'Upar', '<p>O pet precisa da mesma EXP que o personagem. Bônus que valem para ele: <b>afinidade</b> (100% = 10×), bônus de comida e evento de EXP (multiplicam com a afinidade: 50% de comida + 100% de afinidade = 15×) e gema de boss (conta depois). Emblema, ticket e livro de EXP <b>não</b> contam.</p>'
+      + '<p>O pet precisa <b>acertar</b> o monstro antes de ele morrer para ganhar EXP; ataque que erra não conta. Pets que não atacam (Gentle, e Timid com arma de perto) geram aggro nos monstros que miram você a cada 3 s e ganham EXP de todos eles: bata em vários, espere 3 s e mate.</p>'
+      + tb(['Diferença de nível', 'EXP que o pet ganha'], [['0 a 9', '100%'], ['19', '90%'], ['29', '70%'], ['39', '40%'], ['47 ou mais', '10%']])
+      + '<h3>Nível das skills</h3><p>A skill sobe por número de monstros mortos, contando a partir do nível com que ela nasceu. Usar a skill ajuda um pouco. Desligar skills inúteis não acelera as outras, mas faz o pet gastar MP só nas boas.</p>'
+      + tb(['Níveis acima do inicial', 'Monstros mortos'], [['+1', '300'], ['+2', '600'], ['+3', '1.200'], ['+4', '2.400'], ['+5', '4.800'], ['+6', '9.600'], ['+7', '19.200'], ['+8', '38.400'], ['+9', '76.800']])
+      + '<p>Por isso, prefira skills que nasçam com Lv 4 ou 5. Para upar skill, farme monstros que você mata em 2 ou 3 ataques e que o pet consiga acertar. Para upar nível, boss com todas as partes quebradas (ou miniboss, se o aparelho for lento). Use <a href="#/upar">Onde upar</a> com o nível do pet.</p>')
+    + sec('fu', 'Fusão', '<p>Junta dois pets em um novo, que nasce no Lv 1 com 0% de disciplina, mas com pontos livres de bônus e até <b>2 skills herdadas</b> (uma de cada pet). Você trava só uma entre arma, tipo e natureza; o resto é sorteado entre os dois. Se os dois já tiverem a mesma, não precisa travar.</p>'
+      + tb(['O que', 'Como fica'], [['Nível máximo', '1 + (nível do A + nível do B) ÷ 2, arredondado para baixo: some dois níveis que dê par'], ['Pontos livres', 'nível máximo − 1'], ['Poder da arma', 'poder do A + poder do B (só volta a subir ao upar depois de passar esse valor em nível)'], ['Potencial', '(potencial do A + do B) ÷ 10 a mais em cada status, arredondado para baixo']])
+      + '<p>Dicas: upe os dois antes de fundir; herde as skills só na última fusão; para subir o poder, funda várias vezes com pets que nunca foram fundidos. Travar cor custa 1 milhão de spina por cor (ou orb).</p>'
+      + '<div class="calc" id="pfcalc">' + n('a', 'Nível do pet A', PC.a) + n('b', 'Nível do pet B', PC.b) + n('pa', 'Poder do A', PC.pa) + n('pb', 'Poder do B', PC.pb) + n('sa', 'Potencial de um status no A', PC.sa) + n('sb', 'O mesmo status no B', PC.sb) + '</div><div class="res" id="pfres" style="margin-top:12px"></div>')
+    + sec('pt', 'Pet na party', '<p>Uma party tem até 4 pessoas (jogador, mercenário ou NPC) e 4 pets. O pet não perde EXP na party, mas com mais de 1 pessoa perde dano, ASPD e recuperação de MP (o MP extra do Gentle e do Timid não é afetado). Dancer recupera MP do pet só se ele não for o 5º membro; Chakra nunca recupera.</p>'
+      + tb(['Pessoas na party', 'Penalidade', 'Para tirar 1% (fusões)'], [['2', '−17%', '295 nas primeiras, depois a cada 588'], ['3', '−34%', '148 nas primeiras, depois a cada 294'], ['4', '−51%', '99 nas primeiras, depois a cada 196']])
+      + '<p class="muted">O número de fusões do pet só reduz a penalidade de dano, não a de ASPD nem a de MP. Zerar a penalidade exige quase 10 mil fusões.</p>'
+      + '<p>O dano do pet é como o do personagem, multiplicado pelo padrão de ataque: <span class="formula">(ATK + nível do pet − nível do monstro) × (100% − resistência) × padrão − DEF</span>. Para skill: <span class="formula">(dano normal + constante) × multiplicador</span>.</p>')
+    + '<section class="card" id="pg-calc"><h2>Calculadora de status do pet <small>sem nature e skills</small></h2><div class="calc" id="pscalc">'
+      + '<div class="field full"><label class="lbl" for="pcw">Arma do pet</label><select id="pcw" data-k="w">' + PET_W.map((w, i) => '<option value="' + i + '"' + (+PC.w === i ? ' selected' : '') + '>' + w[0] + '</option>').join('') + '</select></div>'
+      + n('L', 'Nível', PC.L) + n('pw', 'Poder da arma', PC.pw) + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => n(s, s, PC[s])).join('') + n('hp', 'HP Gain (nível)', PC.hp, ' max="10"') + n('mp', 'MP Gain (nível)', PC.mp, ' max="10"')
+      + '</div><div class="res" id="psres" style="margin-top:12px"></div><p class="note">Fórmulas medidas pela comunidade. Some depois o bônus da natureza (ex.: Enthusiastic ATK +30%). O MP máximo base é sempre 1000, e o MP por ataque base é 20.</p></section>'
+    + '<p class="note" style="color:var(--ink-2)">Fonte: guia de pet do coryn.club (com dados de さるびあのトーラムメモ), valores das skills conferidos com o Cy\'s Grimoire. Texto escrito para o Bestiário de Toram.</p>';
+  const skInfo = i => {
+    const s = PET_SK[i], ring = petRing(i), nb = petNb(i);
+    let how;
+    if (ring === 0) how = 'Centro: escolha no <b>1º treino</b> (garantido).';
+    else if (ring === 1) { const g = nb.filter(j => petRing(j) === 0); how = 'Lado: só no <b>2º treino</b>. Escolha <b>' + g.map(j => PET_SK[j][0]).join(' ou ') + '</b> no 1º; aí a chance é 1 em ' + petNb(g[0]).length + '.'; }
+    else { const o = nb, g = [...new Set(o.flatMap(j => petNb(j).filter(k => petRing(k) === 0)))]; how = 'Canto: só no <b>3º treino</b>, chance baixa. Caminho: <b>' + g.map(j => PET_SK[j][0]).join(' / ') + '</b> no 1º → <b>' + o.map(j => PET_SK[j][0]).join(' ou ') + '</b> no 2º → esta no 3º. Outra opção é herdar por fusão.'; }
+    $('#pskinfo').innerHTML = '<h3>' + esc(s[0]) + ' <small class="muted">' + s[1] + (s[2] ? ' · ' + s[2] + ' MP' : '') + '</small></h3><p>' + s[3] + '</p><p><b>Lv 10:</b> ' + s[4] + '</p><p class="muted">' + how + '</p>';
+    $('#pgrid').querySelectorAll('button').forEach(b => { const j = +b.dataset.i; b.classList.toggle('on', j === i); b.classList.toggle('nb', nb.includes(j)); });
+  };
+  skInfo(11);
+  $('#pgrid').addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b) skInfo(+b.dataset.i); });
+  const box = (l, v, s) => '<div><span class="lbl">' + l + '</span><div class="big">' + v + '</div>' + (s ? '<small class="muted">' + s + '</small>' : '') + '</div>';
+  const calc = () => {
+    const s = { L: +PC.L || 1, w: +PC.pw || 0, STR: +PC.STR || 0, INT: +PC.INT || 0, VIT: +PC.VIT || 0, AGI: +PC.AGI || 0, DEX: +PC.DEX || 0 }, W = PET_W[+PC.w] || PET_W[0];
+    const hpL = Math.min(10, +PC.hp || 0), mpL = Math.min(10, +PC.mp || 0), F = Math.floor;
+    const hp0 = 93 + F((s.VIT + 22.4) * s.L / 3), hp = F(hp0 * (1 + 0.02 * hpL)) + 500 * hpL, mp = 1000 + 100 * mpL;
+    $('#psres').innerHTML = box('ATK', fmt(F(W[1](s)))) + box('MATK', fmt(F(W[2](s)))) + box('ASPD', fmt(F(W[3](s)))) + box('CSPD', fmt(s.L + F(1.16 * s.AGI + 2.94 * s.DEX)))
+      + box('HP máximo', fmt(hp), hpL ? 'tela de status mostra ' + fmt(hp0) : '') + box('MP máximo', fmt(mp)) + box('HIT', fmt(s.L + s.DEX)) + box('FLEE', fmt(F(1.5 * s.L + 2 * s.AGI) + 75)) + box('DEF', fmt(F(0.4 * s.L + 0.1 * s.VIT))) + box('MDEF', fmt(F(0.4 * s.L + 0.1 * s.INT)));
+    const cap = 1 + F(((+PC.a || 0) + (+PC.b || 0)) / 2);
+    $('#pfres').innerHTML = box('Nível máximo', cap, ((+PC.a || 0) + (+PC.b || 0)) % 2 ? 'a soma é ímpar: 1 nível a mais num dos pets não muda nada' : '') + box('Pontos livres', cap - 1) + box('Poder da arma', (+PC.pa || 0) + (+PC.pb || 0)) + box('Bônus no status', '+' + F(((+PC.sa || 0) + (+PC.sb || 0)) / 10), ((+PC.sa || 0) + (+PC.sb || 0)) % 10 ? 'faltam ' + (10 - ((+PC.sa || 0) + (+PC.sb || 0)) % 10) + ' pontos para o próximo +1' : 'soma exata, nada perdido');
+  };
+  calc();
+  view.addEventListener('input', e => { const k = e.target.dataset && e.target.dataset.k; if (k && k in PC) { PC[k] = e.target.value; store.set('petcalc', PC); calc(); } });
+  $('#pgnav').addEventListener('click', e => { const b = e.target.closest('[data-to]'); if (b) document.getElementById(b.dataset.to).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  view.querySelector('a[data-to]').addEventListener('click', e => { e.preventDefault(); $('#pg-calc').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+}
 // ---------- calculadora de status do personagem (build) ----------
 // Soma exata dos status dos itens (dados do coryn.club). ATK, MATK, HP etc. são estimativas pelas fórmulas da comunidade.
 const MAIN_W = [['1 Handed Sword', 128], ['2 Handed Sword', 64], ['Bow', 32], ['Bowgun', 16], ['Knuckles', 2], ['Magic Device', 4], ['Staff', 8], ['Halberd', 2048], ['Katana', 8192]];
@@ -2263,10 +2419,10 @@ function viewDamage() {
     + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar monstro" aria-label="Buscar monstro"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>';
   const fillTarget = () => {
     const g = DB.GBYID.get(DM.gid);
-    $('#dmpick').innerHTML = g ? '<b>' + esc(g.name) + '</b><small>' + TLAB[g.t] + ' · ' + g.els.map(e => EL[e][0]).join(', ') + (fichaFor(g) ? ' · com guia RAID' : '') + '</small>' : '<span class="muted">Escolher monstro (ou digite os valores abaixo)</span>';
+    $('#dmpick').innerHTML = g ? '<b>' + esc(g.name) + '</b><small>' + TLAB[g.t] + ' · ' + g.els.map(e => EL[e][0]).join(', ') + (fichaFor(g) ? ' · com guia de batalha' : '') + '</small>' : '<span class="muted">Escolher monstro (ou digite os valores abaixo)</span>';
     $('#dmmode').innerHTML = g ? g.entries.map(e => '<option value="' + esc(e.mode) + '"' + (e.mode === DM.mode ? ' selected' : '') + '>' + esc(MODE[e.mode] ? MODE[e.mode][2] : e.mode || '—') + ' · Lv ' + e.lv + '</option>').join('') : '<option value="">—</option>';
     [['dmlv', 'lv'], ['dmhp', 'hp'], ['dmdef', 'def'], ['dmmdef', 'mdef'], ['dmpres', 'pres'], ['dmmres', 'mres'], ['dmcres', 'cres'], ['dmflee', 'flee']].forEach(([id, k]) => { $('#' + id).value = DM[k]; });
-    $('#dmsrc').textContent = !g ? 'Digite os dados do alvo.' : DM.auto ? 'DEF, MDEF, resistências e esquiva do guia RAID do Toram Yo (podem estar desatualizados). Ajuste se precisar.' : 'Este monstro não tem dados de defesa no bestiário. Preencha DEF, resistências e esquiva se souber; com zero, o dano sai mais alto que o real.';
+    $('#dmsrc').textContent = !g ? 'Digite os dados do alvo.' : DM.auto ? 'DEF, MDEF, resistências e esquiva do guia de batalha (Toram Yo) (podem estar desatualizados). Ajuste se precisar.' : 'Este monstro não tem dados de defesa no bestiário. Preencha DEF, resistências e esquiva se souber; com zero, o dano sai mais alto que o real.';
   };
   fillTarget(); damageCalc();
   const read = () => {
@@ -2279,7 +2435,7 @@ function viewDamage() {
   $('#dmpick').addEventListener('click', () => {
     $('#pq').value = ''; $('#pick').hidden = false; $('#pq').focus();
     const list = () => { const q = $('#pq').value.trim().toLowerCase(); const rows = DB.MONS.filter(g => g.entries.some(e => e.hp > 0) && (!q || g.name.toLowerCase().includes(q))).sort((a, b) => (fichaFor(b) ? 1 : 0) - (fichaFor(a) ? 1 : 0) || 'BMN'.indexOf(a.t) - 'BMN'.indexOf(b.t) || b.hi - a.hi).slice(0, 80);
-      $('#plist2').innerHTML = rows.map(g => '<button type="button" class="prow2" data-g="' + g.id + '"><b>' + esc(g.name) + '</b> <small>' + TLAB[g.t] + ' · Lv ' + lvTxt(g) + (fichaFor(g) ? ' · guia RAID' : '') + '</small></button>').join('') || '<p class="empty">Nenhum monstro.</p>'; };
+      $('#plist2').innerHTML = rows.map(g => '<button type="button" class="prow2" data-g="' + g.id + '"><b>' + esc(g.name) + '</b> <small>' + TLAB[g.t] + ' · Lv ' + lvTxt(g) + (fichaFor(g) ? ' · guia de batalha' : '') + '</small></button>').join('') || '<p class="empty">Nenhum monstro.</p>'; };
     $('#pq').oninput = list; list();
     $('#plist2').onclick = e => { const b = e.target.closest('[data-g]'); if (!b) return; const g = DB.GBYID.get(+b.dataset.g); setTarget(g, (g.entries.find(x => x.mode === 'Ultimate') || g.entries[g.entries.length - 1]).mode); store.set('dano', DM); $('#pick').hidden = true; fillTarget(); damageCalc(); };
   });
