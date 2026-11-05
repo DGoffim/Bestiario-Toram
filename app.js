@@ -1279,11 +1279,11 @@ const b64e = s => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').repl
 const b64d = s => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
 function buildEquipped() {
   const out = [];
-  for (const [k] of SLOTS) { const s = BD.sl[k]; const it = DB.ITBYID.get(s.id); if (it) out.push([k, it, 'item']); (s.x || []).forEach(id => { const c = DB.ITBYID.get(id); if (c) out.push([k, c, 'crysta']); }); }
+  for (const [k] of SLOTS) { const s = BD.sl[k]; const it = slotItem(s); if (it) out.push([k, it, 'item']); (s.x || []).forEach(id => { const c = DB.ITBYID.get(id); if (c) out.push([k, c, 'crysta']); }); }
   return out;
 }
 function buildBits() {
-  const main = DB.ITBYID.get(BD.sl.arma.id), sub = DB.ITBYID.get(BD.sl.sub.id);
+  const main = slotItem(BD.sl.arma), sub = slotItem(BD.sl.sub);
   let bits = 0;
   if (main) bits |= (MAIN_W.find(w => w[0] === main.tl) || [0, 0])[1];
   if (sub) { bits |= (SUB_W.find(w => w[0] === sub.tl) || [0, 0])[1]; if (main && main.tl === '1 Handed Sword' && sub.tl === '1 Handed Sword') bits = (bits & ~128) | 131072; }
@@ -1300,6 +1300,7 @@ function buildTotals() {
   }
   BD.ex.forEach(([si, v]) => add(si, +v || 0));
   (BD.rg || []).forEach(([n, lv]) => { const m = REG_STAT[n]; if (m) { const i = SI(m[0]); if (i >= 0) add(i, m[1] * lv); } });
+  petBonus().forEach(([n, v]) => { const i = SI(n); if (i >= 0) add(i, v); });
   return { tot, off, bits };
 }
 // Todos os status do personagem, na conta do jogo: valor base × (100 + soma dos %) ÷ 100 + soma dos valores fixos.
@@ -1309,7 +1310,7 @@ function buildDerived(tot) {
   const pf = (base, pn, fn, extra = 0) => Math.floor(base * (100 + (pn ? g(pn) : 0) + extra) / 100) + (fn ? g(fn) : 0);
   const stt = k => pf(B[k], k + ' %', k);
   const STR = stt('STR'), INT = stt('INT'), VIT = stt('VIT'), AGI = stt('AGI'), DEX = stt('DEX');
-  const it = k => DB.ITBYID.get(BD.sl[k].id);
+  const it = k => slotItem(BD.sl[k]);
   const main = it('arma'), sub = it('sub'), arm = it('armadura');
   const bs = (x, n) => x ? ((x.stats.find(s => DB.STATN[s[0]] === n) || [0, 0])[1]) : 0;
   const st2 = sub ? sub.tl : '';
@@ -1350,7 +1351,7 @@ function buildDerived(tot) {
 }
 function saveBuild() { store.set('build', BD); syncChar(); }
 // Página única de montar o personagem: blocos que abrem e fecham à esquerda, painel de status do jogo à direita.
-const BLK_OPEN = Object.assign({ st: 1, eq: 1, bn: 1, rg: 1, sk: 0 }, store.get('blk', {}));
+const BLK_OPEN = Object.assign({ st: 1, eq: 1, bn: 1, rg: 1, pt: 1, sk: 0 }, store.get('blk', {}));
 const blk = (id, title, inner) => '<section class="blk' + (BLK_OPEN[id] ? ' open' : '') + '" id="blk-' + id + '"><button type="button" class="blkh" data-blk="' + id + '" aria-expanded="' + !!BLK_OPEN[id] + '"><h2>' + title + '</h2><small id="blks-' + id + '"></small><span class="blkarrow" aria-hidden="true">▾</span></button><div class="blkb" id="blkb-' + id + '"' + (BLK_OPEN[id] ? '' : ' hidden') + '>' + inner + '</div></section>';
 function viewCharBuild(focus) {
   if (focus) BLK_OPEN[focus] = 1;
@@ -1363,11 +1364,13 @@ function viewCharBuild(focus) {
     + blk('eq', 'Equipamento', '<div id="bdslots" class="slots"></div>')
     + blk('bn', 'Comida, avatar e outros bônus', '<nav class="seg2 bntabs" id="bntabs" role="group" aria-label="Tipo de bônus"></nav><p class="muted" id="bnhint" style="margin:10px 0 8px;font-size:13.5px"></p><div id="bdex"></div><div class="range" style="margin-top:8px"><select id="bdexs" aria-label="Status"></select><input id="bdexv" type="number" step="any" placeholder="valor" style="width:90px;flex:none" aria-label="Valor"><button id="bdexa" class="btn" type="button">+</button></div>')
     + blk('rg', 'Registlets', '<div id="rgbox"></div>')
+    + blk('pt', 'Pet', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Skills do pet que dão buff para a party (duram 10 s cada vez que o pet usa). Escolha o nível de cada uma que o seu pet tem. O “↑ vermelho” é a taxa de ação do pet com a seta vermelha, na tela de status dele.</p><div id="petbox"></div>')
     + blk('sk', 'Skills', '<div id="skbox"></div>')
     + '<section class="card"><div class="chips"><button class="btn" id="bdshare" type="button">Copiar link da build</button><a class="btn ghost" href="#/dano">Calcular dano num boss</a><button class="btn ghost" id="bdclear" type="button">Começar do zero</button></div><p class="note" id="bdmsg">Tudo é salvo sozinho neste aparelho.</p></section>'
     + '</div><aside class="pgright" id="gstatw" aria-label="Status do personagem"><div class="gstat" id="gstat"></div></aside></div>'
-    + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar item" aria-label="Buscar item"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>';
-  renderSlots(); renderBuild(); renderBnAdd();
+    + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar item" aria-label="Buscar item"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>'
+    + '<div class="picker" id="cipick" hidden><div class="pbox"><div class="phead"><b style="flex:1;align-self:center">Item personalizado</b><button class="btn ghost" id="ciclose" type="button">Fechar</button></div><div class="plist cif"></div></div></div>';
+  renderSlots(); renderBuild(); renderBnAdd(); renderPet();
   const upd = () => {
     BD.lv = Math.max(1, +$('#bdlv').value || 1);
     ['STR', 'INT', 'VIT', 'AGI', 'DEX'].forEach(s => { BD.st[s] = Math.max(1, +$('#bd' + s).value || 1); });
@@ -1393,7 +1396,8 @@ function viewCharBuild(focus) {
   $('#bdclear').addEventListener('click', () => { if (!confirm('Apagar a build atual e começar do zero?')) return; BD = newBuild(); SKS.lv = {}; SKS.gem = {}; saveBuild(); store.set('skills', SKS.lv); store.set('stargems', SKS.gem); viewChar('montar'); });
   $('#bdslots').addEventListener('click', e => {
     const p = e.target.closest('[data-pick]'); if (p) { openPicker(p.dataset.pick, +p.dataset.x); return; }
-    const c = e.target.closest('[data-clr]'); if (c) { const [k, x] = c.dataset.clr.split(':'); if (x === undefined || x === '') BD.sl[k].id = 0; else BD.sl[k].x[+x] = 0; saveBuild(); renderSlots(); renderBuild(); }
+    const ce = e.target.closest('[data-ciedit]'); if (ce) { ciOpen(ce.dataset.ciedit); return; }
+    const c = e.target.closest('[data-clr]'); if (c) { const [k, x] = c.dataset.clr.split(':'); if (x === undefined || x === '') { BD.sl[k].id = 0; delete BD.sl[k].c; } else BD.sl[k].x[+x] = 0; saveBuild(); renderSlots(); renderBuild(); }
   });
   $('#bdslots').addEventListener('change', e => {
     const r = e.target.closest('[data-ref]'); if (r) { BD.sl[r.dataset.ref].r = +r.value; saveBuild(); renderBuild(); }
@@ -1413,6 +1417,66 @@ function viewCharBuild(focus) {
   });
   if (focus) setTimeout(() => { const el = $('#blk-' + focus); if (el) el.scrollIntoView({ block: 'start' }); }, 0);
 }
+// Item personalizado: para itens que ainda não estão no banco (ex.: itens novos que o coryn.club ainda não cadastrou).
+// Fica guardado no próprio espaço: BD.sl[espaço].c = { n: nome, tl: tipo, atk, def, stb, st: [[status, valor]] }.
+function ciItem(c) {
+  const st = (c.st || []).filter(x => x[1]).map(([si, v]) => [si, v, 0]);
+  [['Base ATK', c.atk], ['Base DEF', c.def], ['Base Stability %', c.stb]].forEach(([n, v]) => { const i = SI(n); if (i >= 0 && +v) st.push([i, +v, 0]); });
+  return { id: 0, custom: true, name: c.n || 'Item personalizado', tl: c.tl, stats: st, by: [], up: [], text: '' };
+}
+const slotItem = s => s && s.c ? ciItem(s.c) : DB.ITBYID.get(s ? s.id : 0);
+// Status que dá para escolher nas listas (sem os de slot/upgrade).
+const statOptList = () => DB.STATN.map((s, i) => [s, i]).filter(x => x[0].trim() && !isBase([x[1]]) && !/^Adds? 1 slot|^Upgrade for|^Potential$/.test(x[0])).sort((a, b) => a[0].localeCompare(b[0]));
+function ciCard() {
+  const mine = SLOTS.filter(([k]) => BD.sl[k].c);
+  return '<section class="card slot cicard"><h2>Item personalizado</h2>'
+    + '<p class="cinote">Aqui é para colocar um item que ainda não existe no nosso banco de dados, como itens novos que acabaram de sair no jogo. Coloque tudo o que o item oferece: ATK ou DEF base, estabilidade, elemento e todos os status. Ele entra no espaço que você escolher, no lugar do item que estiver lá.</p>'
+    + mine.map(([k, lab]) => '<div class="slotrow"><button type="button" class="slotbtn" data-ciedit="' + k + '"><b>' + esc(BD.sl[k].c.n || 'Item personalizado') + '</b><small>' + lab + ' · toque para editar</small></button><button type="button" class="slotx" data-clr="' + k + ':" aria-label="Tirar">×</button></div>').join('')
+    + '<button type="button" class="btn" data-ciedit="">+ Criar item personalizado</button></section>';
+}
+function ciOpen(k0) {
+  const c = k0 ? JSON.parse(JSON.stringify(BD.sl[k0].c)) : { n: '', tl: '', atk: '', def: '', stb: '', st: [] };
+  let k = k0 || 'arma';
+  const opts = statOptList().map(([s, i]) => '<option value="' + i + '">' + esc(s) + '</option>').join('');
+  const box = $('#cipick');
+  const draw = () => {
+    const types = (SLOTS.find(s => s[0] === k) || [])[2] || [];
+    if (!types.includes(c.tl)) c.tl = types[0] || '';
+    const atk = k === 'arma' || (k === 'sub' && c.tl !== 'Shield'), def = k !== 'arma' && (k !== 'sub' || c.tl === 'Shield'), stb = k === 'arma' || (k === 'sub' && c.tl === 'Arrow');
+    box.querySelector('.cif').innerHTML = '<div class="calc">'
+      + '<div class="field full"><label class="lbl" for="cin">Nome do item</label><input id="cin" type="text" maxlength="60" value="' + esc(c.n) + '" placeholder="ex.: Dark Red Arc Arrow"></div>'
+      + '<div class="field"><label class="lbl" for="cis">Espaço</label><select id="cis">' + SLOTS.map(([kk, lab]) => '<option value="' + kk + '"' + (kk === k ? ' selected' : '') + '>' + lab + '</option>').join('') + '</select></div>'
+      + '<div class="field"><label class="lbl" for="cit">Tipo</label><select id="cit">' + types.map(x => '<option' + (x === c.tl ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></div>'
+      + (atk ? '<div class="field"><label class="lbl" for="cia">ATK base</label><input id="cia" type="number" inputmode="numeric" value="' + esc(c.atk) + '"></div>' : '')
+      + (def ? '<div class="field"><label class="lbl" for="cid">DEF base</label><input id="cid" type="number" inputmode="numeric" value="' + esc(c.def) + '"></div>' : '')
+      + (stb ? '<div class="field"><label class="lbl" for="cib">Estabilidade %</label><input id="cib" type="number" inputmode="numeric" value="' + esc(c.stb) + '"></div>' : '')
+      + '</div><h4 class="sub4">Status do item</h4><p class="muted" style="margin:0 0 8px;font-size:13px">Um por linha, como aparece no jogo. Para elemento, escolha “Dark Element” (ou o do item) com valor 1. Valores negativos com sinal de menos, ex.: MaxMP −100.</p>'
+      + '<div id="cirows">' + c.st.map(([si, v], i) => '<div class="range cirow"><select data-cis="' + i + '" aria-label="Status">' + opts.replace('value="' + si + '"', 'value="' + si + '" selected') + '</select><input data-civ="' + i + '" type="number" step="any" value="' + esc(v) + '" style="width:90px;flex:none" aria-label="Valor"><button type="button" class="slotx" data-cirm="' + i + '" aria-label="Tirar status">×</button></div>').join('') + '</div>'
+      + '<div class="chips" style="margin-top:8px"><button type="button" class="btn ghost" id="ciadd">+ Status</button></div>'
+      + '<div class="chips" style="margin-top:14px"><button type="button" class="btn" id="cisave">Salvar item</button>' + (k0 ? '<button type="button" class="btn ghost" id="cidel">Apagar item</button>' : '') + '</div>';
+  };
+  const read = () => {
+    const v = id => { const e = box.querySelector('#' + id); return e ? e.value : ''; };
+    c.n = v('cin').trim(); c.tl = v('cit') || c.tl; c.atk = v('cia'); c.def = v('cid'); c.stb = v('cib');
+    box.querySelectorAll('[data-cis]').forEach(s => { c.st[+s.dataset.cis][0] = +s.value; });
+    box.querySelectorAll('[data-civ]').forEach(s => { c.st[+s.dataset.civ][1] = +s.value || 0; });
+  };
+  box.onchange = e => { if (e.target.id === 'cis' || e.target.id === 'cit') { read(); k = $('#cis').value; draw(); } };
+  box.onclick = e => {
+    if (e.target.id === 'cipick' || e.target.closest('#ciclose')) { box.hidden = true; return; }
+    if (e.target.closest('#ciadd')) { read(); c.st.push([+statOptList()[0][1], 0]); draw(); return; }
+    const rm = e.target.closest('[data-cirm]'); if (rm) { read(); c.st.splice(+rm.dataset.cirm, 1); draw(); return; }
+    if (e.target.closest('#cidel')) { delete BD.sl[k0].c; BD.sl[k0].id = 0; }
+    else if (e.target.closest('#cisave')) {
+      read();
+      const out = { n: c.n || 'Item personalizado', tl: c.tl, atk: +c.atk || 0, def: +c.def || 0, stb: +c.stb || 0, st: c.st.filter(x => x[1]) };
+      if (k0 && k0 !== k) delete BD.sl[k0].c;
+      BD.sl[k].c = out; BD.sl[k].id = 0;
+    } else return;
+    saveBuild(); box.hidden = true; renderSlots(); renderBuild();
+  };
+  draw(); box.hidden = false;
+}
 let PK = null;
 function openPicker(slot, x) {
   const def = SLOTS.find(s => s[0] === slot), types = x >= 0 ? def[3] : def[2];
@@ -1422,7 +1486,7 @@ function openPicker(slot, x) {
   $('#plist2').onclick = e => {
     const b = e.target.closest('[data-id]'); if (!b) return;
     const id = +b.dataset.id;
-    if (PK.x >= 0) BD.sl[PK.slot].x[PK.x] = id; else BD.sl[PK.slot].id = id;
+    if (PK.x >= 0) BD.sl[PK.slot].x[PK.x] = id; else { BD.sl[PK.slot].id = id; delete BD.sl[PK.slot].c; }
     saveBuild(); $('#pick').hidden = true; renderSlots(); renderBuild();
   };
 }
@@ -1434,14 +1498,14 @@ function pickList() {
 }
 function renderSlots() {
   $('#bdslots').innerHTML = SLOTS.map(([k, lab, , xt, ref]) => {
-    const s = BD.sl[k], it = DB.ITBYID.get(s.id);
+    const s = BD.sl[k], it = slotItem(s);
     const one = (txt, data, clr) => '<div class="slotrow"><button type="button" class="slotbtn" data-pick="' + data[0] + '" data-x="' + data[1] + '">' + txt + '</button>' + (clr ? '<button type="button" class="slotx" data-clr="' + clr + '" aria-label="Tirar">×</button>' : '') + '</div>';
-    let h = one(it ? '<b>' + esc(it.name) + '</b><small>' + esc(it.tl) + (baseText(it) ? ' · ' + baseText(it).replace(/<[^>]+>/g, ' ') : '') + '</small>' : '<span class="muted">Escolher ' + lab.toLowerCase() + '</span>', [k, -1], it ? k + ':' : '');
+    let h = one(it ? '<b>' + esc(it.name) + (it.custom ? ' <span class="tag info">personalizado</span>' : '') + '</b><small>' + esc(it.tl) + (baseText(it) ? ' · ' + baseText(it).replace(/<[^>]+>/g, ' ') : '') + '</small>' : '<span class="muted">Escolher ' + lab.toLowerCase() + '</span>', [k, -1], it ? k + ':' : '');
     if (ref) h += '<div class="range" style="margin-top:6px"><label class="lbl" style="flex:none">Refino</label><select data-ref="' + k + '">' + REFS.map((r2, i) => '<option value="' + i + '"' + (s.r === i ? ' selected' : '') + '>' + r2 + '</option>').join('') + '</select>'
       + (k === 'armadura' ? '<select id="bdkind" aria-label="Tipo de armadura">' + ARMOR_KIND.map(a => '<option value="' + a[0] + '"' + (s.k === a[0] ? ' selected' : '') + '>' + a[1] + '</option>').join('') + '</select>' : '') + '</div>';
     if (xt.length) h += [0, 1].map(xi => { const c = DB.ITBYID.get((s.x || [])[xi]); return one(c ? '<b>' + esc(c.name) + '</b><small>' + esc(c.tl) + '</small>' : '<span class="muted">Crysta ' + (xi + 1) + '</span>', [k, xi], c ? k + ':' + xi : ''); }).join('');
     return '<section class="card slot"><h2>' + lab + '</h2>' + h + '</section>';
-  }).join('');
+  }).join('') + ciCard();
 }
 // Painel de status na ordem e com os nomes do "Status detalhado" do jogo.
 function gstatRows(d) {
@@ -1494,17 +1558,48 @@ let BN_TAB = 'com';
 function renderBnAdd() {
   $('#bnhint').innerHTML = BN_HINT[BN_TAB];
   if (BN_TAB === 'com') { $('#bdexs').innerHTML = FOOD.map(([lab, food], i) => FOOD_STAT[lab] ? '<option value="' + i + '">' + esc(food) + ' — ' + esc(lab) + '</option>' : '').join(''); return; }
-  const opts = DB.STATN.map((s, i) => [s, i]).filter(x => x[0].trim() && !isBase([x[1]]) && !/^Adds? 1 slot|^Upgrade for|^Potential$/.test(x[0])).sort((a, b) => a[0].localeCompare(b[0]));
+  const opts = statOptList();
   $('#bdexs').innerHTML = opts.map(([s, i]) => '<option value="' + i + '">' + esc(s) + '</option>').join('');
+}
+// Buffs de party do pet (planilha de skills de pet do Cy's Grimoire). BD.pet = { skill: [nível, ↑ vermelho] }.
+// Cada um: [chave, nome no jogo, o que dá, status por nível, extra com a taxa de ação ↑ vermelha].
+const PET_BUFFS = [
+  ['enc', 'Encourage', 'ATK e ASPD', lv => [['ATK %', lv], ['ATK', 30 + 2 * lv], ['ASPD %', lv], ['ASPD', 100 + 20 * lv]], [['ATK', 25], ['ASPD %', 10]]],
+  ['clr', 'Clear Mind', 'MATK e CSPD', lv => [['MATK %', lv], ['MATK', 30 + 2 * lv], ['CSPD %', lv], ['CSPD', 100 + 20 * lv]], [['MATK', 25], ['CSPD %', 10]]],
+  ['crt', 'Critical Up', 'dano crítico', lv => [['Critical Damage', lv]], [['Critical Damage', 2]]],
+  ['res', 'Resistance Up', 'resistência física e mágica', lv => [['Physical Resistance %', 3 * lv], ['Magic Resistance %', 3 * lv]], [['Physical Resistance %', 5], ['Magic Resistance %', 5]]]
+];
+const petOne = ([k, , , per, red]) => { const p = (BD.pet || {})[k]; return p && p[0] ? per(p[0]).concat(p[1] ? red : []) : []; };
+const petBonus = () => PET_BUFFS.flatMap(petOne);
+function renderPet() {
+  const box = $('#petbox'); if (!box) return;
+  const pet = BD.pet || {};
+  box.innerHTML = PET_BUFFS.map(b => {
+    const [k, name, what] = b, p = pet[k] || [0, 0], sum = {};
+    petOne(b).forEach(([n, v]) => { sum[n] = (sum[n] || 0) + v; });
+    return '<div class="petrow"><div><b>' + name + '</b><small>' + what + '</small></div>'
+      + '<select data-petlv="' + k + '" aria-label="Nível de ' + name + '"><option value="0">Não tem</option>' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => '<option value="' + n + '"' + (p[0] === n ? ' selected' : '') + '>Lv ' + n + '</option>').join('') + '</select>'
+      + '<label class="check"><input type="checkbox" data-petred="' + k + '"' + (p[1] ? ' checked' : '') + (p[0] ? '' : ' disabled') + '> ↑ vermelho</label>'
+      + (Object.keys(sum).length ? '<span class="petsum">' + Object.entries(sum).map(([n, v]) => esc(n.replace(' %', '')) + ' +' + fmt(v) + (n.endsWith('%') ? '%' : '')).join(' · ') + '</span>' : '') + '</div>';
+  }).join('');
+  box.onchange = e => {
+    const lv = e.target.closest('[data-petlv]'), red = e.target.closest('[data-petred]');
+    BD.pet = BD.pet || {};
+    if (lv) { const k = lv.dataset.petlv, v = +lv.value; if (v) BD.pet[k] = [v, (BD.pet[k] || [0, 0])[1]]; else delete BD.pet[k]; }
+    if (red) { const k = red.dataset.petred; if (BD.pet[k]) BD.pet[k][1] = red.checked ? 1 : 0; }
+    saveBuild(); renderPet(); renderBuild();
+  };
 }
 // Resumo de cada bloco no cabeçalho dele.
 function blkSubs() {
   const set = (id, t) => { const e = $('#blks-' + id); if (e) e.textContent = t; };
-  const eqN = SLOTS.filter(([k]) => BD.sl[k].id).length;
+  const eqN = SLOTS.filter(([k]) => BD.sl[k].id || BD.sl[k].c).length;
   set('st', 'Lv ' + BD.lv);
   set('eq', eqN ? eqN + ' de ' + SLOTS.length + ' equipados' : 'nada equipado');
   set('bn', BD.ex.length ? BD.ex.length + (BD.ex.length === 1 ? ' bônus' : ' bônus') : '');
   set('rg', (BD.rg || []).length + ' de ' + REG_MAX_SLOTS);
+  const pn = PET_BUFFS.filter(([k]) => (BD.pet || {})[k]).length;
+  set('pt', pn ? pn + (pn === 1 ? ' buff ativo' : ' buffs ativos') : 'nenhum buff');
   const sp = Object.values(SKS.lv).reduce((a, o) => a + Object.values(o).reduce((x, y) => x + y, 0), 0);
   set('sk', sp + ' de ' + skillPts(BD.lv) + ' pontos');
 }
@@ -1605,7 +1700,7 @@ function viewChar(tab, code) {
   setTitle(c.name + ' · ' + PG_TABS.find(x => x[0] === tab)[1]);
 }
 function viewCharSave() {
-  const list = CHARS.list.map((c, i) => { const w = DB.ITBYID.get(((c.bd || {}).sl || {}).arma ? c.bd.sl.arma.id : 0); return '<div class="charrow' + (i === CHARS.cur ? ' on' : '') + '"><div><b>' + esc(c.name) + '</b><small>Lv ' + ((c.bd || {}).lv || '—') + (w ? ' · ' + esc(w.name) : '') + (i === CHARS.cur ? ' · em uso' : '') + '</small></div><div class="chips">'
+  const list = CHARS.list.map((c, i) => { const w = slotItem(((c.bd || {}).sl || {}).arma); return '<div class="charrow' + (i === CHARS.cur ? ' on' : '') + '"><div><b>' + esc(c.name) + '</b><small>Lv ' + ((c.bd || {}).lv || '—') + (w ? ' · ' + esc(w.name) : '') + (i === CHARS.cur ? ' · em uso' : '') + '</small></div><div class="chips">'
     + (i !== CHARS.cur ? '<button type="button" class="btn" data-use="' + i + '">Usar</button>' : '') + '<button type="button" class="btn ghost" data-ren="' + i + '">Renomear</button><button type="button" class="btn ghost" data-dup="' + i + '">Duplicar</button><button type="button" class="btn ghost" data-link="' + i + '">Copiar link</button>' + (CHARS.list.length > 1 ? '<button type="button" class="btn ghost" data-del="' + i + '">Excluir</button>' : '') + '</div></div>'; }).join('');
   view.innerHTML = '<section class="card"><h2>Suas builds <small>' + CHARS.list.length + '</small></h2><div class="charlist">' + list + '</div><div class="chips" style="margin-top:12px"><button type="button" class="btn" id="pgnew">+ Nova build</button>' + (CHARS.list.length > 1 ? '<a class="btn ghost" href="#/personagem/comparar">Comparar builds</a>' : '') + '</div><p class="note" id="pgmsg">Cada mudança é salva na hora neste aparelho. Para mandar uma build a alguém, use “Copiar link”.</p></section>'
     + '<section class="card"><h2>Backup</h2><p class="muted" style="margin:0 0 10px;font-size:14px">Guarde um arquivo com todas as suas builds. Se o navegador for limpo ou você trocar de celular, é só restaurar.</p><div class="chips"><button type="button" class="btn" id="pgbak">Baixar backup</button><label class="btn ghost" for="pgrest" style="cursor:pointer">Restaurar backup</label><input id="pgrest" type="file" accept=".json,application/json" hidden></div></section>'
@@ -1687,8 +1782,8 @@ function viewCharCompare() {
   const head = '<thead><tr><th></th><th scope="col" class="n">' + esc(A.name) + '</th><th scope="col" class="n">' + esc(B.name) + '</th><th scope="col" class="n">Diferença</th></tr></thead>';
   const status = numRow('Nível', ca.bd.lv, cb.bd.lv) + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => numRow(s, ca.d[s], cb.d[s])).join('');
   const est = [['ATK', 'ATK'], ['MATK', 'MATK'], ['ATK da arma', 'watk'], ['MaxHP', 'MaxHP'], ['MaxMP', 'MaxMP'], ['Taxa crítica', 'CRIT'], ['CSPD', 'CSPD'], ['Precisão', 'HIT'], ['Esquiva', 'FLEE']].map(([l, k]) => numRow(l, ca.d[k], cb.d[k])).join('');
-  const itemTxt = (s, withX) => { const it = DB.ITBYID.get(s.id); if (!it) return '<span class="muted">—</span>'; const xs = withX ? (s.x || []).map(id => DB.ITBYID.get(id)).filter(Boolean) : []; return '<a class="tl" href="' + itemUrl(it) + '">' + esc(it.name) + '</a>' + (s.r ? ' <b>' + REFS[s.r] + '</b>' : '') + (xs.length ? '<small>' + xs.map(x => esc(x.name)).join(' · ') + '</small>' : ''); };
-  const equip = SLOTS.map(([k, lab]) => { const sa = ca.bd.sl[k], sb = cb.bd.sl[k], same = sa.id === sb.id && sa.r === sb.r && JSON.stringify(sa.x || []) === JSON.stringify(sb.x || []); return '<tr' + (same ? '' : ' class="chg"') + '><th scope="row">' + lab + '</th><td>' + itemTxt(sa, true) + '</td><td>' + itemTxt(sb, true) + '</td><td class="n ' + (same ? 'dz">igual' : 'up">diferente') + '</td></tr>'; }).join('');
+  const itemTxt = (s, withX) => { const it = slotItem(s); if (!it) return '<span class="muted">—</span>'; const xs = withX ? (s.x || []).map(id => DB.ITBYID.get(id)).filter(Boolean) : []; return (it.custom ? esc(it.name) + ' <small>(personalizado)</small>' : '<a class="tl" href="' + itemUrl(it) + '">' + esc(it.name) + '</a>') + (s.r ? ' <b>' + REFS[s.r] + '</b>' : '') + (xs.length ? '<small>' + xs.map(x => esc(x.name)).join(' · ') + '</small>' : ''); };
+  const equip = SLOTS.map(([k, lab]) => { const sa = ca.bd.sl[k], sb = cb.bd.sl[k], same = sa.id === sb.id && sa.r === sb.r && JSON.stringify(sa.x || []) === JSON.stringify(sb.x || []) && JSON.stringify(sa.c || null) === JSON.stringify(sb.c || null); return '<tr' + (same ? '' : ' class="chg"') + '><th scope="row">' + lab + '</th><td>' + itemTxt(sa, true) + '</td><td>' + itemTxt(sb, true) + '</td><td class="n ' + (same ? 'dz">igual' : 'up">diferente') + '</td></tr>'; }).join('');
   const regTxt = bd => (bd.rg || []).length ? (bd.rg || []).map(([n, lv]) => esc(n) + ' ' + lv).join('<br>') : '<span class="muted">—</span>';
   const regSame = JSON.stringify(ca.bd.rg || []) === JSON.stringify(cb.bd.rg || []);
   const regRow = '<tr' + (regSame ? '' : ' class="chg"') + '><th scope="row">Registlets</th><td>' + regTxt(ca.bd) + '</td><td>' + regTxt(cb.bd) + '</td><td class="n ' + (regSame ? 'dz">igual' : 'up">diferente') + '</td></tr>';
@@ -2196,7 +2291,7 @@ function damageCalc() {
   const { tot } = buildTotals(), d = buildDerived(tot);
   const g = n => { const i = SI(n); return i < 0 ? 0 : tot.get(i) || 0; };
   const mon = DB.GBYID.get(DM.gid), magic = DM.type === 'm';
-  const main = DB.ITBYID.get(BD.sl.arma.id), wt = main ? main.tl : '';
+  const main = slotItem(BD.sl.arma), wt = main ? main.tl : '';
   const physStab = d.STAB; // estabilidade pela fórmula da arma (DEX/STR + base da arma + flecha)
   // estabilidade mágica: 50 + base ÷ 2; acima de 90% o piso trava em 90 e o teto sobe (até 110)
   const magStab = 50 + physStab / 2;

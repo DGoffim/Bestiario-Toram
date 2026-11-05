@@ -552,3 +552,20 @@ details.gl code, .prose code { font-family: var(--font-mono); font-size: 12.5px;
 .bntabs button[aria-pressed="true"] b { background: #2a1d05; color: var(--gold); }
 .blk { scroll-margin-top: calc(190px + env(safe-area-inset-top, 0px)); }
 @media (min-width: 900px) { .blk { scroll-margin-top: calc(140px + env(safe-area-inset-top, 0px)); } }
+/* Item personalizado (itens que ainda não estão no banco) */
+.cicard { border-style: dashed; }
+.cinote { margin: 0 0 10px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.cicard .btn { width: 100%; justify-content: center; margin-top: 4px; }
+.cif .calc { margin-bottom: 4px; }
+.cif .field.full { grid-column: 1 / -1; }
+.cirow { margin-bottom: 6px; }
+.cirow select { min-width: 0; flex: 1; }
+/* Pet: buffs de party */
+.petrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.petrow:first-child { border-top: 0; padding-top: 0; }
+.petrow > div { display: flex; flex-direction: column; }
+.petrow small { color: var(--muted); font-size: 12.5px; }
+.petrow select { width: auto; }
+.petrow .check { grid-column: 1 / -1; font-size: 13.5px; }
+.petsum { grid-column: 1 / -1; font-size: 13px; font-weight: 600; color: var(--teal-d); }
+@media (min-width: 700px) { .petrow { grid-template-columns: minmax(0, 1fr) auto auto; } .petrow .check { grid-column: auto; } }
