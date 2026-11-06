@@ -598,3 +598,12 @@ details.pmore { margin: 8px 0; } details.pmore summary { cursor: pointer; font-w
 .dropc .msortbar, .dropc .lh { border-top: 1px solid var(--line); }
 #dmore { margin-bottom: 14px; }
 @media (min-width: 900px) { .lh { column-gap: 12px; } }
+/* títulos que ordenam */
+.sortb i.z { color: inherit; opacity: .45; font-size: 1em; }
+.msortbar .sortb i.z { display: none; }
+.lh .sortb:hover { text-decoration: underline; }
+.mrow.nm .rstat { grid-column: 1 / -1; text-align: left; }
+@media (min-width: 900px) {
+  .mrow.nm, .lh.lm.nm { grid-template-columns: minmax(0, 2.2fr) 92px 150px 170px; grid-template-areas: "n lv el st"; }
+  .mrow.nm .rstat { grid-column: auto; text-align: right; }
+}
