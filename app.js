@@ -2664,3 +2664,24 @@ Promise.all(['monstros', 'itens', 'fichas', 'loc'].map(load)).then(([mo, it, fi,
 }).catch(err => {
   view.innerHTML = '<p class="nojs">Não deu para carregar os dados (' + esc(err.message) + '). Verifique a internet e recarregue a página.</p>';
 });
+
+// O GitHub Pages deixa o navegador guardar a página por 10 minutos. Ao abrir o site e ao voltar para a aba, compara a
+// versão no ar com a carregada e recarrega sozinho quando há versão nova (uma vez por versão, para nunca entrar em loop).
+(function autoUpdate() {
+  if (!/github\.io$/.test(location.hostname)) return;
+  const tag = document.querySelector('script[src*="app.js"]'), mine = tag && (tag.src.match(/v=(\d+)/) || [])[1];
+  if (!mine) return;
+  let last = 0;
+  const check = () => {
+    if (Date.now() - last < 60000) return;
+    last = Date.now();
+    fetch(location.pathname + location.search, { cache: 'no-cache' }).then(r => r.text()).then(html => {
+      const v = (html.match(/app\.js\?v=(\d+)/) || [])[1];
+      if (!v || v === mine) return;
+      try { if (sessionStorage.getItem('bt:up') === v) return; sessionStorage.setItem('bt:up', v); } catch (e) { return; }
+      location.reload();
+    }).catch(() => {});
+  };
+  check();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+})();
