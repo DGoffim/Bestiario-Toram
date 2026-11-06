@@ -590,3 +590,11 @@ details.pmore { margin: 8px 0; } details.pmore summary { cursor: pointer; font-w
 .credits li:last-child { border-bottom: 0; }
 .credits .cl { font-size: 13px; overflow-wrap: anywhere; }
 .credits p { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+/* página do item: quem dropa */
+.dropc { padding: 14px 0 0; overflow: hidden; }
+.dropc > h2 { padding: 0 14px; }
+.dctl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 0 14px 12px; }
+.dctl .chip small { opacity: .75; font-family: var(--font-mono); }
+.dropc .msortbar, .dropc .lh { border-top: 1px solid var(--line); }
+#dmore { margin-bottom: 14px; }
+@media (min-width: 900px) { .lh { column-gap: 12px; } }

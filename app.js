@@ -424,18 +424,22 @@ function monFiltered() {
     if (MS.els.size && !g.els.some(e => MS.els.has(e))) return false;
     return true;
   });
+  return monSort(rows, MS.sort, MS.dir, MS.mode);
+}
+// Ordena monstros; serve para a lista de monstros e para a lista de drops do item.
+function monSort(rows, sort, dir, mode) {
   const nm = (a, b) => a.name.localeCompare(b.name, 'pt', { ignorePunctuation: true });
-  const ent = g => (MS.mode && g.entries.find(x => x.mode === MS.mode)) || g;
+  const ent = g => (mode && g.entries.find(x => x.mode === mode)) || g;
   const elN = g => g.els.length ? EL[g.els[0]][0] : '~';
   const mapN = g => g.mapList.length ? g.mapList[0].name : '';
   const by = {
     name: nm, lv: (a, b) => (ent(a).lv || a.lo) - (ent(b).lv || b.lo) || a.hi - b.hi,
     el: (a, b) => elN(a).localeCompare(elN(b), 'pt'),
     // Sem mapa fica sempre no fim, nas duas direções.
-    map: (a, b) => (!mapN(a) - !mapN(b)) * MS.dir || mapN(a).localeCompare(mapN(b), 'pt'),
+    map: (a, b) => (!mapN(a) - !mapN(b)) * dir || mapN(a).localeCompare(mapN(b), 'pt'),
     hp: (a, b) => ent(a).hp - ent(b).hp, exp: (a, b) => ent(a).exp - ent(b).exp
-  }[MS.sort] || (() => 0);
-  return rows.sort((a, b) => by(a, b) * MS.dir || nm(a, b));
+  }[sort] || (() => 0);
+  return rows.sort((a, b) => by(a, b) * dir || nm(a, b));
 }
 // Colunas que ordenam a lista; o 3º valor é a direção do 1º toque (1 = crescente, -1 = decrescente).
 const MSORTS = [['name', 'Nome', 1], ['lv', 'Nível', 1], ['el', 'Elemento', 1], ['map', 'Mapa', 1], ['hp', 'HP', -1], ['exp', 'EXP', -1]];
@@ -491,15 +495,18 @@ function monList() {
     + '<div class="lh lm"><span>' + sb('name') + '</span><span>' + sb('lv') + '</span><span>' + sb('el') + '</span><span>' + sb('map') + '</span><span>' + sb('hp') + ' · ' + sb('exp') + '</span></div>' + rows.slice(0, MS.limit).map(g => {
     let via = '';
     if (q && !g.text.includes(q)) { const hits = g.items.filter(i => i.name.toLowerCase().includes(q)).map(i => i.name); via = ' <small>· dropa ' + esc(hits.slice(0, 2).join(', ')) + (hits.length > 2 ? ' +' + (hits.length - 2) : '') + '</small>'; }
-    const e = MS.mode ? g.entries.find(x => x.mode === MS.mode) || null : null;
-    const hp = e ? e.hp : g.hp, ex = e ? e.exp : g.exp;
-    return '<a class="row mrow" href="' + monUrl(g) + '"><span class="rn">' + esc(g.name) + monTags(g) + via + '</span>'
-      + '<span class="rlv">Lv ' + (e ? e.lv : lvTxt(g)) + '</span><span class="els">' + elHtml(g.els) + '</span>'
-      + '<span class="rmap">' + (g.mapList.length ? esc(g.mapList[0].name) + (g.mapList.length > 1 ? ' +' + (g.mapList.length - 1) : '') : 'sem mapa') + '</span>'
-      + '<span class="rstat">' + (hp > 0 ? 'HP ' + short(hp) : '') + (hp > 0 && ex > 0 ? ' · ' : '') + (ex > 0 ? 'EXP ' + short(ex) : '') + '</span></a>';
+    return monRow(g, MS.mode, via);
   }).join('');
   const left = rows.length - MS.limit;
   more.hidden = left <= 0; more.textContent = 'Mostrar mais ' + Math.min(60, left) + ' (faltam ' + fmt(left) + ')';
+}
+function monRow(g, mode, via) {
+  const e = mode ? g.entries.find(x => x.mode === mode) || null : null;
+  const hp = e ? e.hp : g.hp, ex = e ? e.exp : g.exp;
+  return '<a class="row mrow" href="' + monUrl(g) + '"><span class="rn">' + esc(g.name) + monTags(g) + (via || '') + '</span>'
+    + '<span class="rlv">Lv ' + (e ? e.lv : lvTxt(g)) + '</span><span class="els">' + elHtml(g.els) + '</span>'
+    + '<span class="rmap">' + (g.mapList.length ? esc(g.mapList[0].name) + (g.mapList.length > 1 ? ' +' + (g.mapList.length - 1) : '') : 'sem mapa') + '</span>'
+    + '<span class="rstat">' + (hp > 0 ? 'HP ' + short(hp) : '') + (hp > 0 && ex > 0 ? ' · ' : '') + (ex > 0 ? 'EXP ' + short(ex) : '') + '</span></a>';
 }
 const monTags = g => '<span class="tags">' + (g.event ? '<span class="tag">' + (g.badge && !/^Update/i.test(g.badge) ? esc(g.badge) : 'Evento') + '</span>' : '') + (g.tame ? '<span class="tag ok">Capturável</span>' : '') + (fichaFor(g) ? '<span class="tag info">Guia</span>' : '') + '</span>';
 
@@ -732,6 +739,26 @@ function itemList() {
   more.hidden = left <= 0; more.textContent = 'Mostrar mais ' + Math.min(60, left) + ' (faltam ' + fmt(left) + ')';
 }
 const itemTags = i => '<span class="tags">' + (i.badge ? '<span class="tag">' + esc(i.badge) + '</span>' : i.event ? '<span class="tag">Evento</span>' : '') + (i.by.length ? '<span class="tag ok">Drop de ' + i.by.length + '</span>' : '') + '</span>';
+// Lista de quem dropa o item, com o mesmo layout da lista de monstros. Eventos ficam ocultos enquanto houver drop fora de evento.
+const DS = { id: 0, t: '', ev: false, sort: 'lv', dir: 1, limit: 25 };
+function dropList(i) {
+  const box = $('#dropbox'); if (!box) return;
+  const evN = i.by.filter(g => g.event).length, canHide = evN > 0 && evN < i.by.length;
+  const base = canHide && !DS.ev ? i.by.filter(g => !g.event) : i.by;
+  const types = TYPES.filter(([t]) => base.some(g => g.t === t));
+  if (DS.t && !types.some(x => x[0] === DS.t)) DS.t = '';
+  const rows = monSort(base.filter(g => !DS.t || g.t === DS.t), DS.sort, DS.dir);
+  const sb = ([k, l]) => sortBtn(DS.sort, DS.dir, k, l), s = k => sb(MSORTS.find(x => x[0] === k));
+  const chip = (t, l, n) => '<button type="button" class="chip" data-dt="' + t + '" aria-pressed="' + (DS.t === t) + '">' + l + ' <small>' + n + '</small></button>';
+  const left = rows.length - DS.limit;
+  box.innerHTML = '<section class="card dropc"><h2>Onde dropa <small>' + i.by.length + (i.by.length === 1 ? ' monstro' : ' monstros') + '</small></h2>'
+    + (types.length > 1 || canHide ? '<div class="dctl"><div class="chips">' + (types.length > 1 ? chip('', 'Todos', base.length) + types.map(([t, l]) => chip(t, l, base.filter(g => g.t === t).length)).join('') : '') + '</div>'
+      + (canHide ? '<label class="check" style="min-height:0;color:inherit"><input id="dev" type="checkbox"' + (DS.ev ? ' checked' : '') + '> Mostrar eventos (' + evN + ')</label>' : '') + '</div>' : '')
+    + '<div class="msortbar" role="group" aria-label="Ordenar por"><span class="lbl">Ordenar</span>' + MSORTS.map(sb).join('') + '</div>'
+    + '<div class="lh lm"><span>' + s('name') + '</span><span>' + s('lv') + '</span><span>' + s('el') + '</span><span>' + s('map') + '</span><span>' + s('hp') + ' · ' + s('exp') + '</span></div>'
+    + rows.slice(0, DS.limit).map(g => monRow(g)).join('') + '</section>'
+    + (left > 0 ? '<button class="more" id="dmore" type="button">Mostrar mais ' + Math.min(25, left) + ' (faltam ' + fmt(left) + ')</button>' : '');
+}
 function viewItem(id) {
   const i = DB.ITBYID.get(id);
   if (!i) { view.innerHTML = backBtn('#/itens') + '<p class="empty">Item não encontrado.</p>'; return; }
@@ -741,16 +768,26 @@ function viewItem(id) {
   const meta = [['Tipo', esc(i.tl || 'Outros')], i.proc ? ['Processar', i.pa + ' ' + PROC[i.proc]] : null, i.sell ? ['Venda', fmt(i.sell) + ' Spina'] : null, i.badge ? ['Origem', esc(i.badge)] : null].filter(Boolean);
   const tree = (i.from || i.up.length) ? '<section class="card"><h2>Evolução</h2>' + (i.from ? '<div class="dgroup"><span class="lbl">Evolui de</span><div class="links"><a class="lk" href="' + itemUrl(i.from) + '">' + esc(i.from.name) + '</a></div></div>' : '')
     + (i.up.length ? '<div class="dgroup"><span class="lbl">Evolui para</span><div class="links">' + i.up.map(u => '<a class="lk" href="' + itemUrl(u) + '">' + esc(u.name) + '</a>').join('') + '</div></div>' : '') + '</section>' : '';
-  const by = i.by.slice().sort((a, b) => 'BMN'.indexOf(a.t) - 'BMN'.indexOf(b.t) || a.lo - b.lo);
-  const drops = '<section class="card"><h2>Dropado por' + (by.length ? ' <small>' + by.length + (by.length === 1 ? ' monstro' : ' monstros') + '</small>' : '') + '</h2>'
-    + (by.length ? '<div class="links">' + by.map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + ' <small>' + TLAB[g.t] + ' · Lv ' + lvTxt(g) + (g.mapList[0] ? ' · ' + esc(g.mapList[0].name) : '') + '</small></a>').join('') + '</div>'
-      : '<p class="muted" style="margin:0">Nenhum monstro do bestiário dropa este item. Ele pode vir de craft, NPC, missão, evento ou baú.</p>') + '</section>';
+  if (DS.id !== i.id) Object.assign(DS, { id: i.id, t: '', ev: false, sort: 'lv', dir: 1, limit: 25 });
+  const drops = i.by.length ? '<div id="dropbox"></div>' : '<section class="card"><h2>Onde dropa</h2><p class="muted" style="margin:0">Nenhum monstro do bestiário dropa este item. Ele pode vir de craft, NPC, missão, evento ou baú.</p></section>';
   // Em que espaço da calculadora de status o item entra (arma, sub, armadura... ou crysta).
   const slotFor = SLOTS.find(s => s[2].includes(i.tl)) || SLOTS.find(s => s[3].includes(i.tl));
   const equip = (slotFor || i.by.length || i.stats.length) ? '<p class="chips" style="margin:10px 0 0">' + (slotFor ? '<button type="button" class="btn" id="equip">Equipar na calculadora de status</button>' : '') + (i.by.length ? '<a class="btn ghost" href="#/farmar/' + i.id + '">Onde farmar perto do meu nível</a>' : '') + (i.stats.length ? '<button type="button" class="btn ghost" id="cmpbtn">' + (inCmp(i.id) ? '✓ Na comparação' : 'Comparar') + '</button>' + (CMP.length ? '<a class="tl" href="#/comparar" style="align-self:center">ver comparação (' + CMP.length + ')</a>' : '') : '') + '</p>' : '';
   view.innerHTML = backBtn('#/itens') + '<div class="dhead"><h1>' + esc(i.name) + favBtn('i:' + i.id) + '</h1><div class="dmeta">' + meta.map(([k, v]) => '<span><span class="muted">' + k + '</span> ' + v + '</span>').join('') + itemTags(i) + '</div>'
-    + (i.note ? '<p class="inote">' + esc(i.note) + '</p>' : '') + equip + '</div><div class="grid2"><div>' + list + tree + '</div><div>' + drops + '</div></div>';
+    + (i.note ? '<p class="inote">' + esc(i.note) + '</p>' : '') + equip + '</div>' + (list && tree ? '<div class="grid2"><div>' + list + '</div><div>' + tree + '</div></div>' : '<div class="itop">' + list + tree + '</div>') + drops;
   const cb = $('#cmpbtn'); if (cb) cb.addEventListener('click', () => { toggleCmp(i.id); viewItem(i.id); });
+  const dbox = $('#dropbox');
+  if (dbox) {
+    dropList(i);
+    dbox.addEventListener('click', e => {
+      const b = e.target.closest('[data-sort],[data-dt],#dmore'); if (!b) return;
+      if (b.id === 'dmore') DS.limit += 25;
+      else if (b.dataset.dt !== undefined) { DS.t = b.dataset.dt; DS.limit = 25; }
+      else { const k = b.dataset.sort; if (DS.sort === k) DS.dir = -DS.dir; else { DS.sort = k; DS.dir = MSORTS.find(x => x[0] === k)[2]; } }
+      dropList(i);
+    });
+    dbox.addEventListener('change', e => { if (e.target.id === 'dev') { DS.ev = e.target.checked; DS.limit = 25; dropList(i); } });
+  }
   if (slotFor) $('#equip').addEventListener('click', () => {
     const s = BD.sl[slotFor[0]];
     if (slotFor[2].includes(i.tl)) s.id = i.id;
