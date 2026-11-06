@@ -169,7 +169,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
-  ['2026-11-06', ['Entrada nova, com abas no topo', 'Itens, mapas e eventos com a lista completa dos monstros', 'Títulos das listas ordenam ao clicar', 'Onde farmar com filtros de tipo, elemento e distância', 'Screenshots: 1ª Raid Tartaros BR']],
+  ['2026-11-06', ['Entrada nova, com abas no topo', 'Itens, mapas e eventos com a lista completa dos monstros', 'Títulos das listas ordenam ao clicar', 'Onde farmar com filtros de tipo, elemento e distância', 'Screenshots: 1ª Raid Tartaros BR, com ampliar e baixar']],
   ['2026-11-05', ['Personagem numa página só, com painel igual ao do jogo', 'Guia de pet', 'Item personalizado e buffs do pet', 'Página de créditos']]
 ];
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -211,19 +211,31 @@ function viewHome() {
 // ---------- screenshots (data/screenshots.json: arquivo em img/screenshots, título e autor) ----------
 let SHOTS = null;
 const loadShots = () => SHOTS ? Promise.resolve(SHOTS) : load('screenshots').catch(() => []).then(r => (SHOTS = r));
-const shotHtml = s => '<button type="button" class="shot" data-src="img/screenshots/' + esc(s.arquivo) + '" data-cap="' + esc(s.titulo + (s.autor ? ' — por ' + s.autor : '')) + '"><img loading="lazy" src="img/screenshots/' + esc(s.arquivo) + '" alt="' + esc(s.titulo) + '"><span>' + esc(s.titulo) + (s.autor ? '<small>por ' + esc(s.autor) + '</small>' : '') + '</span></button>';
+const shotHtml = s => {
+  const src = 'img/screenshots/' + esc(s.arquivo), open = 'class="shotopen" data-src="' + src + '" data-file="' + esc(s.arquivo) + '" data-cap="' + esc(s.titulo + (s.autor ? ' — por ' + s.autor : '')) + '"';
+  return '<figure class="shot"><button type="button" ' + open + ' aria-label="Ampliar ' + esc(s.titulo) + '"><img loading="lazy" src="' + src + '" alt="' + esc(s.titulo) + '"></button><figcaption><b>' + esc(s.titulo) + (s.autor ? '<small>por ' + esc(s.autor) + '</small>' : '') + '</b>'
+    + '<span class="shotact"><button type="button" ' + open.replace('shotopen', 'shotopen btn ghost') + '>Ampliar</button><a class="btn ghost" href="' + src + '" download="' + esc(s.arquivo) + '">Baixar</a></span></figcaption></figure>';
+};
+// Tela cheia: a imagem abre ajustada à tela; tocar nela ou em "Ampliar" dá zoom, e dá para arrastar para ver o resto.
 function bindShots(el) {
   el.addEventListener('click', e => {
-    const b = e.target.closest('.shot'); if (!b) return;
+    const b = e.target.closest('.shotopen'); if (!b) return;
     const d = document.createElement('dialog'); d.className = 'shotdlg';
-    d.innerHTML = '<img alt=""><p></p>'; d.querySelector('img').src = b.dataset.src; d.querySelector('p').textContent = b.dataset.cap;
-    d.addEventListener('click', () => d.close()); d.addEventListener('close', () => d.remove());
+    d.innerHTML = '<div class="shotbar"><span></span><button type="button" class="btn ghost" data-z>Ampliar</button><a class="btn ghost" download>Baixar</a><button type="button" class="btn" data-x>Fechar</button></div><div class="shotv"><img alt=""></div>';
+    d.querySelector('.shotbar span').textContent = b.dataset.cap;
+    d.querySelector('img').src = b.dataset.src; d.querySelector('img').alt = b.dataset.cap;
+    const dl = d.querySelector('a'); dl.href = b.dataset.src; dl.setAttribute('download', b.dataset.file);
+    const v = d.querySelector('.shotv'), zb = d.querySelector('[data-z]');
+    const zoom = () => { const on = v.classList.toggle('z'); zb.textContent = on ? 'Reduzir' : 'Ampliar'; if (on) { v.scrollLeft = (v.scrollWidth - v.clientWidth) / 2; v.scrollTop = (v.scrollHeight - v.clientHeight) / 2; } };
+    zb.addEventListener('click', zoom); d.querySelector('img').addEventListener('click', zoom);
+    d.querySelector('[data-x]').addEventListener('click', () => { d.close(); d.remove(); });
+    d.addEventListener('close', () => d.remove());
     document.body.appendChild(d); d.showModal();
   });
 }
 function viewShots() {
   setTitle('Screenshots');
-  view.innerHTML = '<div class="ph"><div><h1>Screenshots</h1><p>Imagens do jogo enviadas pela comunidade.</p></div></div><div id="shotbox"><p class="loading">Carregando…</p></div>';
+  view.innerHTML = '<div class="ph"><div><h1>Screenshots</h1><p>Imagens do jogo e wallpapers da comunidade. Toque para ampliar ou baixe para o seu aparelho.</p></div></div><div id="shotbox"><p class="loading">Carregando…</p></div>';
   loadShots().then(s => {
     const b = $('#shotbox'); if (!b) return;
     b.innerHTML = s.length ? '<div class="shots">' + s.map(shotHtml).join('') + '</div>' : '<section class="card"><p class="muted" style="margin:0">As primeiras screenshots entram aqui em breve.</p></section>';

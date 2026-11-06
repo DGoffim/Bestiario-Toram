@@ -647,14 +647,24 @@ details.pmore { margin: 8px 0; } details.pmore summary { cursor: pointer; font-w
   .frow .els { justify-content: flex-start; }
 }
 .shots { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
-.shot { display: block; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); color: var(--fg); cursor: zoom-in; text-align: left; font: inherit; }
+.shot { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); color: var(--fg); }
+.shot > button { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
 .shot img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
-.shot span { display: block; padding: 7px 10px; font-size: 13.5px; font-weight: 600; }
+.shot figcaption { padding: 8px 10px 10px; font-size: 13.5px; }
+.shot figcaption b { display: block; font-weight: 600; }
 .shot small { display: block; font-weight: 400; color: var(--muted); }
-.shotdlg { max-width: min(96vw, 1200px); padding: 0; border: 0; border-radius: 10px; background: #0a1328; color: #fff; cursor: zoom-out; }
-.shotdlg::backdrop { background: rgba(0,0,0,.8); }
-.shotdlg img { display: block; max-width: 100%; max-height: 82vh; }
-.shotdlg p { margin: 0; padding: 8px 12px; font-size: 14px; }
+.shotact { display: flex; gap: 6px; margin-top: 8px; }
+.shotact .btn { flex: 1; text-align: center; padding: 7px 10px; font-size: 13px; min-height: 0; }
+.shotdlg { width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: #060b18; color: #fff; }
+.shotdlg[open] { display: flex; flex-direction: column; }
+.shotdlg::backdrop { background: #060b18; }
+.shotbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; background: rgba(8,16,36,.95); border-bottom: 1px solid rgba(214,176,94,.35); }
+.shotbar span { flex: 1 1 160px; min-width: 0; font-size: 14px; font-weight: 600; }
+.shotbar .btn { padding: 7px 12px; font-size: 13px; min-height: 0; }
+.shotbar .btn.ghost { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.3); }
+.shotv { flex: 1; min-height: 0; overflow: auto; }
+.shotv img { display: block; width: 100%; height: 100%; object-fit: contain; cursor: zoom-in; }
+.shotv.z img { width: 250%; max-width: none; height: auto; cursor: zoom-out; }
 .nav a.dx { display: none; }
 @media (min-width: 600px) { .igrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 900px) {
