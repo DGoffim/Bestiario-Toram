@@ -169,7 +169,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
-  ['2026-11-06', ['Entrada nova, com abas no topo', 'Itens, mapas e eventos com a lista completa dos monstros', 'Títulos das listas ordenam ao clicar']],
+  ['2026-11-06', ['Entrada nova, com abas no topo', 'Itens, mapas e eventos com a lista completa dos monstros', 'Títulos das listas ordenam ao clicar', 'Onde farmar com filtros de tipo, elemento e distância']],
   ['2026-11-05', ['Personagem numa página só, com painel igual ao do jogo', 'Guia de pet', 'Item personalizado e buffs do pet', 'Página de créditos']]
 ];
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -190,10 +190,10 @@ function viewHome() {
   const lk = (u, n) => '<a href="' + u + '">' + esc(n) + '</a>';
   const newest = DB.MONS.filter(g => g.t !== 'N').sort((a, b) => b.maxId - a.maxId).slice(0, 4);
   const newItems = DB.ITEMS.slice().sort((a, b) => b.id - a.id).filter(i => i.stats.length).slice(0, 4);
-  const hn = (u, l, cls) => '<a href="' + u + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + l + '</a>';
+  const hn = (u, l) => '<a href="' + u + '">' + l + '</a>';
   view.innerHTML = '<div class="hero"><img src="img/logo.webp" alt="Bestiário de Toram" width="840" height="768"></div>'
     + homeEvent()
-    + '<nav class="hnav" aria-label="Atalhos">' + hn('#/monstros/B', 'Bosses') + hn('#/upar', 'Onde upar') + hn('#/farmar', 'Onde farmar') + hn('#/mapas', 'Mapas', 'mx') + hn('#/eventos', 'Eventos', 'mx') + hn('#/screenshots', 'Screenshots', 'mx') + '</nav>'
+    + '<nav class="hnav" aria-label="Atalhos">' + hn('#/mapas', 'Mapas') + hn('#/eventos', 'Eventos') + hn('#/screenshots', 'Screenshots') + '</nav>'
     + '<div class="igrid">'
     + infoBox('', 'Novidades do site', SITE_NEWS.map(([d, l]) => [dayTxt(d), l.map(esc)]))
     + infoBox('homeev', 'Eventos do jogo', [['Carregando…', []]])
@@ -232,7 +232,8 @@ function viewShots() {
 }
 
 // ---------- onde farmar: monstros que dropam um item, do mais perto ao mais longe do seu nível ----------
-const FS = { id: 0, q: '', lv: store.get('lv', 100), ev: false };
+const FS = { id: 0, q: '', lv: store.get('lv', 100), ev: false, t: '', el: -1, near: 0, sort: 'd', dir: 1 };
+const FSORTS = [['name', 'Monstro'], ['tp', 'Tipo'], ['lv', 'Nível'], ['dif', 'Dificuldade'], ['el', 'Elemento'], ['map', 'Mapa'], ['d', 'Distância']];
 function viewFarm(id) {
   setTitle('Onde farmar');
   if (id) FS.id = id;
@@ -249,16 +250,43 @@ function viewFarm(id) {
   const res = () => {
     const it = DB.ITBYID.get(FS.id);
     if (!it) { $('#fres').innerHTML = ''; return; }
-    const rows = it.by.filter(g => FS.ev || !g.event).map(g => { const e = g.entries.slice().sort((a, b) => Math.abs(a.lv - FS.lv) - Math.abs(b.lv - FS.lv))[0]; return { g, e, d: Math.abs(e.lv - FS.lv) }; }).sort((a, b) => a.d - b.d || a.e.lv - b.e.lv);
-    $('#fres').innerHTML = '<div class="status"><span>' + esc(it.name) + ' · ' + rows.length + (rows.length === 1 ? ' monstro' : ' monstros') + (it.by.length > rows.length ? ' (+' + (it.by.length - rows.length) + ' de evento)' : '') + '</span><a class="tl" href="' + itemUrl(it) + '" style="color:#9fe3e6">ver o item</a></div>'
-      + (rows.length ? '<div class="list"><div class="lh lm"><span>Monstro</span><span>Nível</span><span>Dificuldade</span><span>Mapa</span><span>Distância</span></div>' + rows.map(({ g, e, d }) => '<a class="row mrow" href="' + monUrl(g) + '"><span class="rn">' + esc(g.name) + ' <small>' + TLAB[g.t] + '</small></span><span class="rlv">Lv ' + e.lv + '</span><span class="els">' + (g.t !== 'N' && MODE[e.mode] ? '<span class="m ' + MODE[e.mode][1] + '">' + MODE[e.mode][1] + '</span> ' + MODE[e.mode][2] : elHtml(g.els)) + '</span><span class="rmap">' + (e.map ? esc(e.map.name) : '') + '</span><span class="rstat">' + (d <= 5 ? '<span class="tag ok">no seu nível</span>' : (e.lv > FS.lv ? '+' : '−') + d + ' níveis') + '</span></a>').join('') + '</div>'
-        : '<p class="empty" style="color:var(--ink-2)">Só monstros de evento dropam este item. Marque “Eventos e limitados”.</p>')
+    const all = it.by.filter(g => FS.ev || !g.event).map(g => { const e = g.entries.slice().sort((a, b) => Math.abs(a.lv - FS.lv) - Math.abs(b.lv - FS.lv))[0]; return { g, e, d: Math.abs(e.lv - FS.lv), dif: g.t !== 'N' && MODE[e.mode] ? MODE[e.mode] : null }; });
+    const types = TYPES.filter(([t]) => all.some(r => r.g.t === t)), els = [...new Set(all.flatMap(r => r.g.els))].sort((a, b) => EL[a][0].localeCompare(EL[b][0], 'pt'));
+    if (FS.t && !types.some(x => x[0] === FS.t)) FS.t = '';
+    if (FS.el >= 0 && !els.includes(FS.el)) FS.el = -1;
+    const nm = (a, b) => a.g.name.localeCompare(b.g.name, 'pt', { ignorePunctuation: true });
+    const elN = r => r.g.els.length ? EL[r.g.els[0]][0] : '~', mapN = r => r.e.map ? r.e.map.name : '';
+    const by = {
+      name: nm, tp: (a, b) => 'BMN'.indexOf(a.g.t) - 'BMN'.indexOf(b.g.t), lv: (a, b) => a.e.lv - b.e.lv, d: (a, b) => a.d - b.d,
+      // Normal não tem dificuldade e monstro sem mapa não tem mapa: ficam no fim, nas duas direções.
+      dif: (a, b) => (!a.dif - !b.dif) * FS.dir || modeOrder(a.e.mode) - modeOrder(b.e.mode),
+      el: (a, b) => elN(a).localeCompare(elN(b), 'pt'), map: (a, b) => (!mapN(a) - !mapN(b)) * FS.dir || mapN(a).localeCompare(mapN(b), 'pt')
+    }[FS.sort];
+    const rows = all.filter(r => (!FS.t || r.g.t === FS.t) && (FS.el < 0 || r.g.els.includes(FS.el)) && (!FS.near || r.d <= FS.near)).sort((a, b) => by(a, b) * FS.dir || a.d - b.d || nm(a, b));
+    const sb = ([k, l]) => sortBtn(FS.sort, FS.dir, k, l), chip = (a, v, on, h) => '<button type="button" class="chip" data-' + a + '="' + v + '" aria-pressed="' + on + '">' + h + '</button>';
+    const filters = all.length ? '<section class="card"><div class="ffil">'
+      + (types.length > 1 ? '<div class="field"><span class="lbl">Tipo</span><div class="chips">' + chip('ft', '', !FS.t, 'Todos') + types.map(([t, l]) => chip('ft', t, FS.t === t, l + ' <small>' + all.filter(r => r.g.t === t).length + '</small>')).join('') + '</div></div>' : '')
+      + (els.length > 1 ? '<div class="field"><span class="lbl">Elemento</span><div class="chips">' + chip('fe', -1, FS.el < 0, 'Todos') + els.map(e => chip('fe', e, FS.el === e, elHtml([e]))).join('') + '</div></div>' : '')
+      + '<div class="field"><label class="lbl" for="fnear">Distância do seu nível</label><select id="fnear">' + [[0, 'Qualquer'], [5, 'Até 5 níveis'], [10, 'Até 10 níveis'], [20, 'Até 20 níveis'], [50, 'Até 50 níveis']].map(([v, l]) => '<option value="' + v + '"' + (FS.near === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>'
+      + '</div></section>' : '';
+    $('#fres').innerHTML = filters + '<div class="status"><span>' + esc(it.name) + ' · ' + rows.length + (rows.length === 1 ? ' monstro' : ' monstros') + (it.by.length > all.length ? ' (+' + (it.by.length - all.length) + ' de evento)' : '') + '</span><a class="tl" href="' + itemUrl(it) + '" style="color:#9fe3e6">ver o item</a></div>'
+      + (rows.length ? '<div class="list"><div class="msortbar" role="group" aria-label="Ordenar por"><span class="lbl">Ordenar</span>' + FSORTS.map(sb).join('') + '</div><div class="lh lf">' + FSORTS.map(c => '<span>' + sb(c) + '</span>').join('') + '</div>'
+        + rows.map(({ g, e, d, dif }) => '<a class="row frow" href="' + monUrl(g) + '"><span class="rn">' + esc(g.name) + ' <small>' + TLAB[g.t] + '</small></span><span class="ftp">' + TLAB[g.t] + '</span><span class="rlv">Lv ' + e.lv + '</span><span class="fdf">' + (dif ? '<span class="m ' + dif[1] + '">' + dif[1] + '</span> ' + dif[2] : '') + '</span><span class="els">' + elHtml(g.els) + '</span><span class="rmap">' + (e.map ? esc(e.map.name) : '') + '</span><span class="rstat">' + (d <= 5 ? '<span class="tag ok">no seu nível</span>' : (e.lv > FS.lv ? '+' : '−') + d + ' níveis') + '</span></a>').join('') + '</div>'
+        : '<p class="empty" style="color:var(--ink-2)">' + (all.length ? 'Nenhum monstro com esses filtros.' : 'Só monstros de evento dropam este item. Marque “Eventos e limitados”.') + '</p>')
       + '<p class="note" style="color:var(--ink-2)">Sem taxa de drop: o jogo não mostra. Em bosses, aparece a dificuldade mais perto do seu nível.</p>';
   };
+  $('#fres').addEventListener('click', e => {
+    const b = e.target.closest('[data-sort],[data-ft],[data-fe]'); if (!b) return;
+    if (b.dataset.ft !== undefined) FS.t = b.dataset.ft;
+    else if (b.dataset.fe !== undefined) FS.el = +b.dataset.fe;
+    else { const k = b.dataset.sort; if (FS.sort === k) FS.dir = -FS.dir; else { FS.sort = k; FS.dir = 1; } }
+    res();
+  });
+  $('#fres').addEventListener('change', e => { if (e.target.id === 'fnear') { FS.near = +e.target.value; res(); } });
   $('#fq').addEventListener('input', e => { FS.q = e.target.value; sug(); });
   $('#flv').addEventListener('input', e => { FS.lv = Math.max(1, +e.target.value || 1); store.set('lv', FS.lv); res(); });
   $('#fev').addEventListener('change', e => { FS.ev = e.target.checked; res(); });
-  $('#fsug').addEventListener('click', e => { const b = e.target.closest('[data-fi]'); if (!b) return; FS.id = +b.dataset.fi; sug(); res(); });
+  $('#fsug').addEventListener('click', e => { const b = e.target.closest('[data-fi]'); if (!b) return; FS.id = +b.dataset.fi; FS.t = ''; FS.el = -1; sug(); res(); });
   const cur = DB.ITBYID.get(FS.id); if (cur && !FS.q) { FS.q = cur.name; $('#fq').value = cur.name; }
   sug(); res();
 }
