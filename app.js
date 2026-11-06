@@ -114,8 +114,8 @@ const ROUTES = [
   [/^#\/traits$/, 'itens', () => viewTraits()],
   [/^#\/glossario$/, 'ferramentas', () => viewGlossary()],
   [/^#\/item\/(\d+)$/, 'itens', id => viewItem(+id)],
-  [/^#\/mapas$/, 'inicio', () => viewMaps()],
-  [/^#\/mapa\/(\d+)$/, 'inicio', id => viewMap(+id)],
+  [/^#\/mapas$/, 'mapas', () => viewMaps()],
+  [/^#\/mapa\/(\d+)$/, 'mapas', id => viewMap(+id)],
   [/^#\/ferramentas$/, 'ferramentas', () => viewTools()],
   [/^#\/upar$/, 'ferramentas', () => viewLeveling()],
   [/^#\/exp$/, 'ferramentas', () => viewExp()],
@@ -126,14 +126,15 @@ const ROUTES = [
   [/^#\/pet$/, 'ferramentas', () => viewPetGuide()],
   [/^#\/creditos$/, 'inicio', () => viewCredits()],
   [/^#\/comida$/, 'ferramentas', () => viewFood()],
-  [/^#\/eventos$/, 'inicio', () => viewEvents()],
-  [/^#\/evento\/([a-z-]+)$/, 'inicio', k => viewEvent(k)],
+  [/^#\/eventos$/, 'eventos', () => viewEvents()],
+  [/^#\/evento\/([a-z-]+)$/, 'eventos', k => viewEvent(k)],
   [/^#\/build(?:\/([A-Za-z0-9_-]+))?$/, 'personagem', code => viewChar('equipamento', code)],
   [/^#\/personagem(?:\/([a-z]+))?$/, 'personagem', tab => viewChar(tab)],
   [/^#\/p\/([A-Za-z0-9_-]+)$/, 'personagem', code => importChar(code)],
   [/^#\/dano$/, 'ferramentas', () => viewDamage()],
   [/^#\/skills(?:\/([A-Za-z0-9_-]+))?$/, 'personagem', code => viewChar('skills', code)],
   [/^#\/statting(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewStatting(code)],
+  [/^#\/screenshots$/, 'screenshots', () => viewShots()],
   [/^#\/noticias$/, 'inicio', () => viewNews()],
   [/^#\/farmar(?:\/(\d+))?$/, 'ferramentas', id => viewFarm(id ? +id : 0)],
   [/^#\/favoritos$/, 'inicio', () => viewFavs()],
@@ -166,34 +167,68 @@ document.addEventListener('click', e => {
 function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bestiário de Toram'; }
 
 // ---------- início ----------
+// Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
+const SITE_NEWS = [
+  ['2026-11-06', ['Entrada nova, com abas no topo', 'Itens, mapas e eventos com a lista completa dos monstros', 'Títulos das listas ordenam ao clicar']],
+  ['2026-11-05', ['Personagem numa página só, com painel igual ao do jogo', 'Guia de pet', 'Item personalizado e buffs do pet', 'Página de créditos']]
+];
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const dayTxt = d => { const [, m, n] = d.split('-'); return +n + ' de ' + MESES[+m - 1]; };
+const infoBox = (id, title, groups, foot) => '<section class="ibox"' + (id ? ' id="' + id + '"' : '') + '><h2>' + title + '</h2>' + groups.map(([h, lis]) => '<h3>' + h + '</h3><ul>' + lis.map(l => '<li>' + l + '</li>').join('') + '</ul>').join('') + (foot || '') + '</section>';
+// Evento em andamento logo abaixo do logo; sem nenhum, mostra o próximo pelo mês de costume.
+function homeEvent() {
+  const evs = eventData().filter(e => e.key !== 'outros'), now = evs.filter(e => e.now), mes = new Date().getMonth();
+  const mi = e => MESES.indexOf(e.when.split(' ')[0]);
+  const next = evs.filter(e => mi(e) >= 0 && !e.now).sort((a, b) => (mi(a) - mes + 11) % 12 - (mi(b) - mes + 11) % 12)[0];
+  const until = e => e.end ? 'até ' + e.end.getDate() + '/' + (e.end.getMonth() + 1) : e.when;
+  const head = (e, k, w) => '<div class="evh"><div><span class="evk">' + k + '</span><h2>' + esc(e.name) + ' <small>' + esc(w) + '</small></h2></div><a class="btn" href="#/evento/' + e.key + '">Ver monstros e itens</a></div>';
+  const candies = candyOn() ? '<div class="evc">' + CANDIES.map(([n, el]) => '<a class="evd" href="#/monstros" data-el="' + el + '"><span class="dot" style="background:var(' + EL[el][1] + ')"></span>' + n + '<small>' + EL[el][0] + '</small></a>').join('') + '</div><p class="evn">Doces caem dos monstros do elemento: ASPD e CSPD +100 e +5% de dano contra ele por 10 min.</p>' : '';
+  return '<section class="evbar">' + (now.length ? now.map(e => head(e, 'Evento agora', until(e))).join('') + (now.some(e => e.key === 'halloween') ? candies : '') : next ? head(next, 'Próximo evento', next.when) : '') + '<div id="evboost"></div></section>';
+}
 function viewHome() {
   setTitle('');
-  const cnt = t => DB.MONS.filter(g => g.t === t).length;
-  const newest = DB.MONS.filter(g => g.t !== 'N').sort((a, b) => b.maxId - a.maxId).slice(0, 8);
-  const newItems = DB.ITEMS.slice().sort((a, b) => b.id - a.id).filter(i => i.stats.length).slice(0, 8);
-  const candies = candyOn() ? '<section class="card"><h2>Doces do evento de Halloween <small>até 12/11/2026</small></h2><div class="candies">'
-    + CANDIES.map(([n, el]) => '<a class="cd" style="--c:var(' + EL[el][1] + ')" href="#/monstros" data-el="' + el + '"><b>' + n + '</b><span><span class="dot" style="background:var(' + EL[el][1] + ')"></span>monstros de ' + EL[el][0] + '</span></a>').join('')
-    + '</div><p class="note">Cada doce cai como drop extra dos monstros do elemento e dá ASPD e CSPD +100 e +5% de dano contra esse elemento por 10 minutos. Toque num doce para ver os monstros desse elemento.</p></section>' : '';
-  view.innerHTML = '<div class="hero"><img src="img/logo.webp" alt="Bestiário de Toram" width="840" height="768"><div class="tagline">Monstros · Drops · Itens · Mapas</div>'
-    + '</div>'
-    + '<div class="tiles hometiles">'
-    + '<a class="tile" href="#/monstros/B"><b>Bosses</b><span>' + fmt(cnt('B')) + ' bosses</span></a>'
-    + '<a class="tile" href="#/monstros/M"><b>Mini Bosses</b><span>' + fmt(cnt('M')) + ' mini bosses</span></a>'
-    + '<a class="tile" href="#/monstros/N"><b>Monstros</b><span>' + fmt(cnt('N')) + ' normais</span></a>'
-    + '<a class="tile" href="#/itens"><b>Itens</b><span>' + fmt(DB.ITEMS.length) + ' itens</span></a>'
-    + '<a class="tile" href="#/upar"><b>Onde upar</b><span>Pelo seu nível</span></a>'
-    + '<a class="tile" href="#/farmar"><b>Onde farmar</b><span>Material perto do seu nível</span></a>'
-    + '<a class="tile" href="#/eventos"><b>Eventos</b><span>Do ano inteiro</span></a>'
-    + '<a class="tile" href="#/exp"><b>Calculadora de EXP</b><span>Quanto falta</span></a>'
-    + '<a class="tile" href="#/mapas"><b>Mapas</b><span>' + fmt(DB.MAPLIST.length) + ' mapas</span></a>'
-    + '</div><div id="homeme"></div><section class="card" id="homenews"><h2>Notícias do jogo</h2><p class="muted" style="margin:0">Carregando…</p></section>' + candies
-    + '<div class="grid2"><section class="card"><h2>Bosses mais novos</h2><div class="newl">' + newest.map(g => '<a class="lk" href="' + monUrl(g) + '">' + esc(g.name) + '</a>').join('') + '</div></section>'
-    + '<section class="card"><h2>Itens mais novos</h2><div class="newl">' + newItems.map(i => '<a class="lk" href="' + itemUrl(i) + '">' + esc(i.name) + '</a>').join('') + '</div></section></div>';
-  view.querySelectorAll('.cd[data-el]').forEach(a => a.addEventListener('click', () => { MS.els = new Set([+a.dataset.el]); MS.t = 'B'; }));
+  const lk = (u, n) => '<a href="' + u + '">' + esc(n) + '</a>';
+  const newest = DB.MONS.filter(g => g.t !== 'N').sort((a, b) => b.maxId - a.maxId).slice(0, 4);
+  const newItems = DB.ITEMS.slice().sort((a, b) => b.id - a.id).filter(i => i.stats.length).slice(0, 4);
+  const hn = (u, l, cls) => '<a href="' + u + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + l + '</a>';
+  view.innerHTML = '<div class="hero"><img src="img/logo.webp" alt="Bestiário de Toram" width="840" height="768"></div>'
+    + homeEvent()
+    + '<nav class="hnav" aria-label="Atalhos">' + hn('#/monstros/B', 'Bosses') + hn('#/upar', 'Onde upar') + hn('#/farmar', 'Onde farmar') + hn('#/mapas', 'Mapas', 'mx') + hn('#/eventos', 'Eventos', 'mx') + hn('#/screenshots', 'Screenshots', 'mx') + '</nav>'
+    + '<div class="igrid">'
+    + infoBox('', 'Novidades do site', SITE_NEWS.map(([d, l]) => [dayTxt(d), l.map(esc)]))
+    + infoBox('homeev', 'Eventos do jogo', [['Carregando…', []]])
+    + infoBox('homeup', 'Atualizações e avisos', [['Carregando…', []]])
+    + infoBox('', 'Novos no bestiário', [['Bosses', newest.map(g => lk(monUrl(g), g.name))], ['Itens', newItems.map(i => lk(itemUrl(i), i.name))]])
+    + '</div><div id="homeshots"></div><div id="homeme"></div>';
+  view.querySelectorAll('[data-el]').forEach(a => a.addEventListener('click', () => { MS.els = new Set([+a.dataset.el]); MS.t = 'B'; }));
   const fav = FAV.map(refOf).filter(Boolean), rec = RECENT.map(refOf).filter(Boolean).slice(0, 8);
   const row = (h, arr, more) => '<section class="card"><h2>' + h + (more ? ' <a class="tl" href="' + more + '" style="margin-left:auto;font-size:13px;font-family:var(--font-body)">ver todos</a>' : '') + '</h2><div class="hscroll">' + arr.map(([u, n, s]) => '<a class="lk" href="' + u + '">' + esc(n) + ' <small>' + esc(s) + '</small></a>').join('') + '</div></section>';
   $('#homeme').innerHTML = (fav.length ? row('★ Seus favoritos', fav.slice(0, 12), '#/favoritos') : '') + (rec.length ? row('Vistos recentemente', rec) : '');
   homeNews();
+  loadShots().then(s => { const b = $('#homeshots'); if (!b || !s.length) return; b.innerHTML = '<section class="card"><h2>Screenshots <a class="tl" href="#/screenshots" style="margin-left:auto;font-size:13px;font-family:var(--font-body)">ver todas</a></h2><div class="shots">' + s.slice(0, 4).map(shotHtml).join('') + '</div></section>'; bindShots(b); });
+}
+
+// ---------- screenshots (data/screenshots.json: arquivo em img/screenshots, título e autor) ----------
+let SHOTS = null;
+const loadShots = () => SHOTS ? Promise.resolve(SHOTS) : load('screenshots').catch(() => []).then(r => (SHOTS = r));
+const shotHtml = s => '<button type="button" class="shot" data-src="img/screenshots/' + esc(s.arquivo) + '" data-cap="' + esc(s.titulo + (s.autor ? ' — por ' + s.autor : '')) + '"><img loading="lazy" src="img/screenshots/' + esc(s.arquivo) + '" alt="' + esc(s.titulo) + '"><span>' + esc(s.titulo) + (s.autor ? '<small>por ' + esc(s.autor) + '</small>' : '') + '</span></button>';
+function bindShots(el) {
+  el.addEventListener('click', e => {
+    const b = e.target.closest('.shot'); if (!b) return;
+    const d = document.createElement('dialog'); d.className = 'shotdlg';
+    d.innerHTML = '<img alt=""><p></p>'; d.querySelector('img').src = b.dataset.src; d.querySelector('p').textContent = b.dataset.cap;
+    d.addEventListener('click', () => d.close()); d.addEventListener('close', () => d.remove());
+    document.body.appendChild(d); d.showModal();
+  });
+}
+function viewShots() {
+  setTitle('Screenshots');
+  view.innerHTML = '<div class="ph"><div><h1>Screenshots</h1><p>Imagens do jogo enviadas pela comunidade.</p></div></div><div id="shotbox"><p class="loading">Carregando…</p></div>';
+  loadShots().then(s => {
+    const b = $('#shotbox'); if (!b) return;
+    b.innerHTML = s.length ? '<div class="shots">' + s.map(shotHtml).join('') + '</div>' : '<section class="card"><p class="muted" style="margin:0">As primeiras screenshots entram aqui em breve.</p></section>';
+    bindShots(b);
+  });
 }
 
 // ---------- onde farmar: monstros que dropam um item, do mais perto ao mais longe do seu nível ----------
@@ -1840,9 +1875,16 @@ const newsDate = d => d ? d.split('-').reverse().join('/') : '';
 const newsRow = n => '<a class="row nrow" href="#/noticia/' + n.id + '"><span class="rn">' + esc(n.titulo) + '</span><span class="rsub"><span class="ncat c-' + esc(n.cat) + '">' + esc(newsCat(n.cat)) + '</span> ' + newsDate(n.data) + '</span></a>';
 function homeNews() {
   loadNews().then(() => {
-    const box = $('#homenews'); if (!box) return;
-    const it = NEWS.itens.slice(0, 5);
-    box.innerHTML = '<h2>Notícias do jogo <small>site oficial</small></h2>' + (it.length ? '<div class="list">' + it.map(newsRow).join('') + '</div><p style="margin:10px 0 0"><a class="tl" href="#/noticias">Ver todas as notícias</a></p>' : '<p class="muted" style="margin:0">As notícias aparecem aqui assim que a busca automática rodar.</p>');
+    const fill = (id, title, cats, max) => {
+      const box = $('#' + id); if (!box) return;
+      const days = new Map();
+      NEWS.itens.filter(n => cats.includes(n.cat)).slice(0, max).forEach(n => { if (!days.has(n.data)) days.set(n.data, []); days.get(n.data).push('<a href="#/noticia/' + n.id + '">' + esc(n.titulo) + '</a>'); });
+      box.outerHTML = infoBox(id, title, [...days].map(([d, l]) => [dayTxt(d), l]), '<a class="imore" href="#/noticias">Ver todas as notícias</a>');
+    };
+    fill('homeev', 'Eventos do jogo', ['event'], 5);
+    fill('homeup', 'Atualizações e avisos', ['update', 'maintenance', 'defect', 'important'], 5);
+    const bo = NEWS.itens.find(n => /boost/i.test(n.titulo) && (Date.now() - new Date(n.data + 'T00:00:00')) < 3 * 864e5), box = $('#evboost');
+    if (bo && box) box.innerHTML = '<a class="evb" href="#/noticia/' + bo.id + '"><b>Boost</b> ' + esc(bo.titulo) + '</a>';
   });
 }
 function viewNews() {
