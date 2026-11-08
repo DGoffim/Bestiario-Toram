@@ -169,6 +169,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
+  ['2026-11-08', ['Screenshots da 2ª e da 3ª Raid Tartaros BR', 'Guia de batalha dos bosses cabe na tela do celular']],
   ['2026-11-06', ['Entrada nova, com abas no topo', 'Itens, mapas e eventos com a lista completa dos monstros', 'Títulos das listas ordenam ao clicar', 'Onde farmar com filtros de tipo, elemento e distância', 'Screenshots: 1ª Raid Tartaros BR, com ampliar e baixar']],
   ['2026-11-05', ['Personagem numa página só, com painel igual ao do jogo', 'Guia de pet', 'Item personalizado e buffs do pet', 'Página de créditos']]
 ];
@@ -654,8 +655,10 @@ const fnum = s => String(s).replace(/-?\d+(?:\.\d+)?/g, m => Number(m).toLocaleS
 // Nomes das linhas das fichas RAID em português (os guias vêm em inglês).
 const FICHA_PT = [['Physical Defense', 'DEF'], ['Magical Defense', 'MDEF'], ['Physical Resistance', 'Resistência física'], ['Magical Resistance', 'Resistência mágica'], ['Neutral Prorate', 'Proration neutra'], ['Physical Prorate', 'Proration física'], ['Magical Prorate', 'Proration mágica'], ['Critical Resistance', 'Resistência crítica'], ['Flee', 'Esquiva (Flee)'], ['Guard', 'Guarda'], ['Evasion', 'Evasão'], ['Flinch', 'Flinch (recuo)'], ['Tumble', 'Tumble (derrubar)'], ['Stun', 'Stun (atordoar)'], ['Nightmare', 'Pesadelo'], ['Ultimate', 'Ultimate'], ['Easy', 'Fácil'], ['Hard', 'Difícil'], ['Normal', 'Normal']];
 const trFicha = s => { for (const [en, pt] of FICHA_PT) if (s.startsWith(en)) return pt + s.slice(en.length); return s; };
-function fichaHtml(f) {  const row = (a, num) => '<tr>' + a.map((c, i) => '<' + (i ? 'td' : 'th scope="row"') + '>' + esc(i ? (num ? fnum(c) : (c === '' ? '—' : String(c))) : trFicha(String(c))) + '</' + (i ? 'td' : 'th') + '>').join('') + '</tr>';
-  const head = c => '<thead><tr>' + c.map(x => '<th scope="col">' + esc(trFicha(x)) + '</th>').join('') + '</tr></thead>';
+// No celular, as colunas de dificuldade viram sigla para a tabela caber na tela.
+const FDIF_AB = { Easy: 'E', Normal: 'N', Hard: 'H', Nightmare: 'NM', Ultimate: 'U' };
+function fichaHtml(f) {  const row = (a, num) => '<tr>' + a.map((c, i) => '<' + (i ? 'td' : 'th scope="row"') + '>' + esc(i ? (num ? fnum(c) : (c === '' ? '—' : String(c))) : trFicha(String(c))).replace(/\//g, '/<wbr>') + '</' + (i ? 'td' : 'th') + '>').join('') + '</tr>';
+  const head = c => '<thead><tr>' + c.map(x => '<th scope="col">' + (FDIF_AB[x] ? '<span class="dl">' + esc(trFicha(x)) + '</span><span class="ds">' + FDIF_AB[x] + '</span>' : esc(trFicha(x))) + '</th>').join('') + '</tr></thead>';
   const sec = (t, h) => '<div><h4>' + t + '</h4>' + h + '</div>';
   const tbl = (h, rows, num) => '<div class="ftab"><table>' + head(h) + '<tbody>' + rows.map(r => row(r.map(x => x === '' ? '—' : x), num)).join('') + '</tbody></table></div>';
   let h = f.lo ? '<div class="fmeta"><span><b>Local:</b> ' + esc(f.lo) + '</span></div>' : '';
