@@ -693,3 +693,45 @@ details.pmore { margin: 8px 0; } details.pmore summary { cursor: pointer; font-w
   .ftab .ds { display: inline; }
 }
 @media (max-width: 400px) { .ftab table { font-size: 11.5px; } .ftab td, .ftab th { padding-left: 2px; padding-right: 2px; } }
+/* skills: painel com − e +, árvore que cabe na tela, página sem arrastar para o lado */
+body { overflow-x: hidden; }
+@supports (overflow: clip) { body { overflow-x: clip; } }
+.skact { display: flex; gap: 8px; }
+.skact .btn { padding: 7px 12px; font-size: 13px; min-height: 0; }
+.sktool .btn.ghost { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.3); }
+.skmsg { flex-basis: 100%; margin: 0; font-size: 12.5px; color: #bfe8d0; }
+.sksel { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 10px; }
+.sksel:empty { display: none; }
+.sksel .lbl { color: var(--muted); margin-right: 4px; }
+#skbox .sect { color: var(--fg); text-shadow: none; }
+#skbox > .note { color: var(--muted) !important; }
+.sksel .chip small { opacity: .75; font-family: var(--font-mono); }
+.skcanvas.sm .sknode i { width: 30px; height: 30px; font-size: 12px; }
+.skcanvas.sm .sknode i.ic { width: 36px; height: 36px; }
+.skcanvas.sm .sknode:has(i.ic) { transform: translate(-50%, -18px); }
+.skcanvas.sm .sknode span { font-size: 9.5px; line-height: 1.1; max-width: 100%; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.skcanvas.sm .sknode i.ic b { min-width: 18px; height: 18px; font-size: 10.5px; right: -7px; bottom: -5px; }
+.sknode span { max-width: 100%; }
+.skihead { row-gap: 10px; }
+.skctl { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.skstep { display: inline-flex; align-items: center; gap: 6px; }
+.skstep span { font-size: 12.5px; font-weight: 600; color: var(--muted); margin-right: 2px; }
+.skstep b { min-width: 26px; text-align: center; font: 600 18px var(--font-mono); }
+.skstep button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: 700 20px var(--font-body); cursor: pointer; }
+.skstep button.sm { width: auto; padding: 0 10px; font-size: 13px; }
+.skstep button:not(:disabled):hover { border-color: var(--gold-d); }
+.skstep button:disabled { opacity: .35; cursor: default; }
+.skstep.gem button { width: 34px; height: 34px; font-size: 17px; }
+.skstep.gem b { font-size: 15px; }
+.skbonus { padding: 9px 11px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--teal-d) 45%, var(--line)); background: color-mix(in srgb, var(--teal-d) 10%, var(--surface)); font-size: 14px; margin-bottom: 6px; }
+.skbonus b { color: var(--teal-d); margin-right: 4px; }
+.skbonus small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.skbonus.off { border-color: color-mix(in srgb, var(--event) 40%, var(--line)); background: color-mix(in srgb, var(--event) 7%, var(--surface)); }
+.skbonus.off b { color: var(--event); }
+.pgrid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.pgrid button { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .pgrid button { font-size: 10px; } }
+.xstep > div { min-width: 0; }
+.xchain .st { display: flex; flex-wrap: wrap; gap: 4px; }
+.xchain .sp { white-space: normal; overflow-wrap: anywhere; }
+.sktree, .skbody, .blkb { min-width: 0; }
