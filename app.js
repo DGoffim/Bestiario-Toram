@@ -169,7 +169,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
-  ['2026-11-09', ['Novo bloco Dano no Personagem: muda junto com a build', 'Buffs ativos com ligar e desligar (Berserk, Quick Aura, Brave Aura e outros)', 'Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
+  ['2026-11-09', ['Novo bloco Dano no Personagem: muda junto com a build', 'Buffs ativos com ligar e desligar: todas as skills que dão status', 'Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
   ['2026-11-08', ['Screenshots da 2ª e da 3ª Raid Tartaros BR', 'Guia de batalha dos bosses cabe na tela do celular']],
   ['2026-11-06', ['Entrada nova, com abas no topo', 'Itens, mapas e eventos com a lista completa dos monstros', 'Títulos das listas ordenam ao clicar', 'Onde farmar com filtros de tipo, elemento e distância', 'Screenshots: 1ª Raid Tartaros BR, com ampliar e baixar']],
   ['2026-11-05', ['Personagem numa página só, com painel igual ao do jogo', 'Guia de pet', 'Item personalizado e buffs do pet', 'Página de créditos']]
@@ -1655,27 +1655,74 @@ const ACTB = [
   ['Support/7', 'High Cycle', 'CSPD (para a party)', l => [['CSPD %', 25 * l], ['CSPD', 50 + 50 * l]]],
   ['Support/9', 'Mana Recharge', 'só em quem usa: o dano cai', () => [], l => -50 + 2.5 * l]
 ];
+// Demais buffs ativos, montados direto das fórmulas da planilha do Cy (valor padrão, sem variação por arma).
+// BD.ab[chave] = nível; BD.abs[chave] = cargas (para skills que dependem delas).
+const GB_MAP = { atk: ['ATK', 'ATK %'], matk: ['MATK', 'MATK %'], aspd: ['ASPD', 'ASPD %'], cspd: ['CSPD', 'CSPD %'], critical_rate: ['Critical Rate', 'Critical Rate %'], critical_damage: ['Critical Damage', 'Critical Damage %'], accuracy: ['Accuracy', 'Accuracy %'], dodge: ['Dodge', 'Dodge %'], max_hp: ['MaxHP', 'MaxHP %'], max_mp: ['MaxMP', 'MaxMP %'], def: ['DEF', 'DEF %'], mdef: ['MDEF', 'MDEF %'], physical_resistance: ['Physical Resistance %', 'Physical Resistance %'], magic_resistance: ['Magic Resistance %', 'Magic Resistance %'], stability: ['Stability %', 'Stability %'], physical_pierce: ['Physical Pierce %', 'Physical Pierce %'], magic_pierce: ['Magic Pierce %', 'Magic Pierce %'], weapon_atk: ['Weapon ATK', 'Weapon ATK %'], attack_mp_recovery: ['Attack MP Recovery', 'Attack MP Recovery %'], motion_speed: ['Motion Speed %', 'Motion Speed %'], long_range_damage: ['Long Range Damage %', 'Long Range Damage %'], short_range_damage: ['Short Range Damage %', 'Short Range Damage %'], ailment_resistance: ['Ailment Resistance %', 'Ailment Resistance %'], physical_barrier: ['Physical Barrier', 'Physical Barrier'], magical_barrier: ['Magic Barrier', 'Magic Barrier'] };
+const GB_COND = { hit: 'ao acertar', none: '' };
+let GBUF = null;
+function gbList() {
+  if (GBUF) return GBUF;
+  if (!SKI || !SKT) return [];
+  const own = new Set(ACTB.map(b => b[0])), out = [];
+  SKT.forEach(t => t.s.forEach(s => {
+    const key = t.k + '/' + s[0], info = SKI[key];
+    if (!info || own.has(key) || info.skill_type === 'passive') return;
+    const effs = [], conds = [];
+    (info.e || []).filter(e => e.g === 'effect').forEach(e => {
+      const st = (e.st || []).filter(x => GB_MAP[x[0]] || x[0] === 'total_damage_B'); if (!st.length) return;
+      effs.push(...st); const c = GB_COND[e.condition] != null ? GB_COND[e.condition] : (e.condition || ''); if (c && !conds.includes(c)) conds.push(c);
+    });
+    if (!effs.length) return;
+    const stack = effs.some(x => /stack/.test(x[1]));
+    out.push({ key, name: s[1], tree: skTreeName(t), conds, effs, stack, sk: info.sk || (stack ? [['Cargas', 1, 0]] : []) });
+  }));
+  return (GBUF = out);
+}
+// Contexto das fórmulas sem passar pelo painel (o painel depende dos buffs; evita conta em círculo).
+function gbCtx(l, stk) {
+  const base = Object.assign({ STR: 1, INT: 1, VIT: 1, AGI: 1, DEX: 1 }, BD.st);
+  return { SLv: l, stack: stk, base, tot: base, lv: BD.lv || 1, pers: BD.ps ? { [BD.ps]: BD.pv || 0 } : {}, shield: (BD.sl && BD.sl.sub && BD.sl.sub.r) || 0 };
+}
+const gbStacks = b => { const v = (BD.abs || {})[b.key]; return b.sk.map((x, i) => v && v[i] != null ? +v[i] : +(x[1] != null ? x[1] : x[2]) || 0); };
+function gbVals(b, l) {
+  const c = gbCtx(l, gbStacks(b)), pairs = []; let dmg = 0;
+  b.effs.forEach(([k, f, u]) => {
+    const v = skiEval(f, c); if (v == null || !v) return;
+    if (k === 'total_damage_B') { dmg += v; return; }
+    const n = GB_MAP[k][u === '%' ? 1 : 0]; if (SI(n) < 0) return;
+    const r = Math.round(v * 100) / 100, p = pairs.find(x => x[0] === n); if (p) p[1] += r; else pairs.push([n, r]);
+  });
+  return { pairs, dmg: Math.round(dmg * 100) / 100 };
+}
 function activeBuffs() {
   const w = skWctx(), ab = BD.ab || {};
-  return ACTB.filter(b => ab[b[0]]).map(([key, name, , fn, dmg]) => { const l = ab[key]; return { key, name, l, pairs: fn(l, w).filter(p => p[1]), dmg: dmg ? dmg(l) : 0 }; });
+  const main = ACTB.filter(b => ab[b[0]]).map(([key, name, , fn, dmg]) => { const l = ab[key]; return { key, name, l, pairs: fn(l, w).filter(p => p[1]), dmg: dmg ? dmg(l) : 0 }; });
+  const rest = gbList().filter(b => ab[b.key]).map(b => Object.assign({ key: b.key, name: b.name, l: ab[b.key] }, gbVals(b, ab[b.key])));
+  return main.concat(rest);
 }
+let BF_ALL = false;
 function renderBuffs() {
   const box = $('#bfbox'); if (!box) return;
   const ab = BD.ab || {}, act = activeBuffs();
-  box.innerHTML = ACTB.map(([key, name, what]) => {
-    const [k, id] = key.split('/'), mine = skEff(k, +id), on = ab[key] || 0, a = act.find(x => x.key === key);
-    const sum = a ? psvTxt(a.pairs) + (a.dmg ? (a.pairs.length ? ' · ' : '') + 'dano ' + (a.dmg > 0 ? '+' : '') + fmt(a.dmg) + '%' : '') : '';
-    return '<div class="petrow"><div><b>' + name + '</b><small>' + esc(what) + (mine ? ' · sua skill: Lv ' + mine : '') + '</small></div>'
-      + '<select data-ab="' + key + '" aria-label="' + name + '"><option value="0">Desligado</option>' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => '<option value="' + n + '"' + (on === n ? ' selected' : '') + '>Ligado · Lv ' + n + '</option>').join('') + '</select>'
-      + (sum ? '<span class="petsum">' + sum + '</span>' : '') + '</div>';
-  }).join('');
+  const sumOf = key => { const a = act.find(x => x.key === key); return a ? psvTxt(a.pairs) + (a.dmg ? (a.pairs.length ? ' · ' : '') + 'dano ' + (a.dmg > 0 ? '+' : '') + fmt(a.dmg) + '%' : '') : ''; };
+  const sel = (key, name) => { const on = ab[key] || 0; return '<select data-ab="' + key + '" aria-label="' + esc(name) + '"><option value="0">Desligado</option>' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => '<option value="' + n + '"' + (on === n ? ' selected' : '') + '>Ligado · Lv ' + n + '</option>').join('') + '</select>'; };
+  const row = (key, name, what, extra) => { const [k, id] = key.split('/'), mine = skEff(k, +id), s = sumOf(key); return '<div class="petrow"><div><b>' + esc(name) + '</b><small>' + what + (mine ? ' · sua skill: Lv ' + mine : '') + '</small></div>' + sel(key, name) + (extra || '') + (s ? '<span class="petsum">' + s + '</span>' : '') + '</div>'; };
+  const gRow = b => row(b.key, b.name, esc(b.tree) + (b.conds.length ? ' · ' + esc(b.conds.join('; ')) : ''), b.stack && ab[b.key] ? '<span class="bfstk">' + b.sk.map((x, i) => '<label>' + esc(x[0]) + (x[4] ? ' (' + esc(x[4]) + ')' : '') + '<input type="number" inputmode="numeric" data-abs="' + b.key + '" data-i="' + i + '" value="' + gbStacks(b)[i] + '"' + (x[2] != null ? ' min="' + (+x[2] || 0) + '"' : '') + '></label>').join('') + '</span>' : '');
+  const list = gbList(), mineL = list.filter(b => { const [k, id] = b.key.split('/'); return skEff(k, +id) || ab[b.key]; }), others = list.filter(b => !mineL.includes(b));
+  box.innerHTML = '<h4 class="sub4">Mais usados</h4>' + ACTB.map(([key, name, what]) => row(key, name, esc(what))).join('')
+    + (!SKI || !SKT ? '<p class="muted" style="margin:10px 0 0">Carregando os outros buffs…</p>'
+      : (mineL.length ? '<h4 class="sub4">Das suas skills</h4>' + mineL.map(gRow).join('') : '')
+        + '<details class="bfall"' + (BF_ALL ? ' open' : '') + '><summary>Todos os outros buffs (' + others.length + ')</summary>' + others.map(gRow).join('') + '<p class="note">Valores da planilha do Cy\'s Grimoire, no valor padrão de cada skill (algumas mudam um pouco conforme a arma). Os que valem “ao acertar” ou “até a próxima skill” você liga quando quiser simular esse momento.</p></details>');
+  if (!SKI || !SKT) dmReady().then(() => { if ($('#bfbox')) { renderBuffs(); renderBuild(); } });
   box.onchange = e => {
-    const s = e.target.closest('[data-ab]'); if (!s) return;
-    BD.ab = BD.ab || {}; const v = +s.value;
-    if (v) BD.ab[s.dataset.ab] = v; else delete BD.ab[s.dataset.ab];
+    const s = e.target.closest('[data-ab]'), st = e.target.closest('[data-abs]');
+    if (s) { BD.ab = BD.ab || {}; const v = +s.value; if (v) BD.ab[s.dataset.ab] = v; else delete BD.ab[s.dataset.ab]; }
+    else if (st) { BD.abs = BD.abs || {}; const k = st.dataset.abs, b = gbList().find(x => x.key === k); const cur = gbStacks(b); cur[+st.dataset.i] = +st.value || 0; BD.abs[k] = cur; }
+    else return;
     saveBuild(); renderBuffs(); renderBuild();
   };
-  box.onfocusin = e => { const s = e.target.closest('[data-ab]'); if (!s || +s.value) return; const [k, id] = s.dataset.ab.split('/'); const m = skEff(k, +id); if (m) s.querySelector('option[value="' + m + '"]').textContent = 'Ligado · Lv ' + m + ' (sua)'; };
+  box.ontoggle = null;
+  const det = box.querySelector('details.bfall'); if (det) det.addEventListener('toggle', () => { BF_ALL = det.open; });
 }
 // Dano total das passivas (grupo A, somam entre si) e dos buffs (grupo B); os dois grupos se multiplicam.
 function dmgBonus(range) {

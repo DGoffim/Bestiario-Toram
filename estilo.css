@@ -740,3 +740,9 @@ body { overflow-x: hidden; }
 #dnbox .dmgrid > div:last-child { order: -1; }
 #dnbox .card { box-shadow: none; }
 .calc input[readonly] { background: color-mix(in srgb, var(--bg) 60%, var(--surface)); color: var(--muted); }
+.bfall { margin-top: 12px; }
+.bfall > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.bfstk { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.bfstk label { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.bfstk input { width: 70px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
+#bfbox .sub4:first-child { margin-top: 0; }
