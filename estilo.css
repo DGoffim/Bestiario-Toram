@@ -735,3 +735,8 @@ body { overflow-x: hidden; }
 .xchain .st { display: flex; flex-wrap: wrap; gap: 4px; }
 .xchain .sp { white-space: normal; overflow-wrap: anywhere; }
 .sktree, .skbody, .blkb { min-width: 0; }
+/* bloco Dano dentro do Personagem: uma coluna, resultado primeiro */
+#dnbox .dmgrid { grid-template-columns: minmax(0, 1fr); }
+#dnbox .dmgrid > div:last-child { order: -1; }
+#dnbox .card { box-shadow: none; }
+.calc input[readonly] { background: color-mix(in srgb, var(--bg) 60%, var(--surface)); color: var(--muted); }

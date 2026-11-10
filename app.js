@@ -169,7 +169,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
-  ['2026-11-09', ['Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
+  ['2026-11-09', ['Novo bloco Dano no Personagem: muda junto com a build', 'Buffs ativos com ligar e desligar (Berserk, Quick Aura, Brave Aura e outros)', 'Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
   ['2026-11-08', ['Screenshots da 2ª e da 3ª Raid Tartaros BR', 'Guia de batalha dos bosses cabe na tela do celular']],
   ['2026-11-06', ['Entrada nova, com abas no topo', 'Itens, mapas e eventos com a lista completa dos monstros', 'Títulos das listas ordenam ao clicar', 'Onde farmar com filtros de tipo, elemento e distância', 'Screenshots: 1ª Raid Tartaros BR, com ampliar e baixar']],
   ['2026-11-05', ['Personagem numa página só, com painel igual ao do jogo', 'Guia de pet', 'Item personalizado e buffs do pet', 'Página de créditos']]
@@ -1600,7 +1600,7 @@ const PSV = {
   'Martial/19': ['knuckle', l => [['Attack MP Recovery', Math.floor((l + 1) / 2)]]], 'Martial/20': ['knuckle', l => [['Accuracy %', 2 * l]]],
   'DualSword/0': ['dual', l => [['Critical Rate %', 3 * l], ['Accuracy %', 3 * l]]],
   'DualSword/14': ['dual', l => [['ASPD', 50 * l], ['Accuracy %', 5 + 3 * l], ['Critical Rate %', 5 + 3 * l]]],
-  'DualSword/15': ['any', (l, c, w) => [['AGI', l + Math.max(l - 5, 0)], ['Unsheathe Attack %', (w.mt ? 15 : 5) + l]]],
+  'DualSword/15': ['any', (l, c, w) => [['AGI', l + Math.max(l - 5, 0)], ['Unsheathe Attack %', (w.dual ? 15 : 5) + l]]],
   'Halberd/14': ['halberd', PSV_MAST()], 'Halberd/15': ['halberd', l => [['Critical Rate', Math.floor(0.5 * l)], ['Critical Rate %', Math.floor(0.5 * l)]]],
   'Mononofu/11': ['katana', l => [['MaxHP', 10 * l], ['MaxMP', 10 * l], ['ATK %', Math.floor((l - 3) / 5) + 2], ['Weapon ATK %', 3 * l], ['Accuracy', l]]],
   'Mononofu/14': ['twohand', (l, c, w) => w.mt === 'Katana' ? [['Accuracy %', l], ['Stability %', l], ['Critical Rate', l], ['Weapon ATK %', l]] : [['Accuracy %', l], ['Stability %', Math.floor(l / 2)], ['Critical Rate', Math.floor(l / 2)], ['Weapon ATK %', l]]],
@@ -1639,6 +1639,53 @@ function skillBonus() {
   return out;
 }
 const psvTxt = pairs => pairs.map(([n, v]) => esc(n.replace(/ %$/, '')) + ' ' + (v > 0 ? '+' : '') + fmt(v) + (/ %$/.test(n) ? '%' : '')).join(' · ');
+// Buffs ativos: skills que você liga (ou que alguém da party usa) e que duram um tempo. BD.ab = { chave: nível } (sem chave = desligado).
+// Valores da planilha do Cy's Grimoire. Cada um: [chave, nome, o que dá, status por nível e arma, dano total % (entra só no bloco Dano)].
+const ACTB = [
+  ['Blade/20', 'War Cry', 'ATK', (l, w) => [['ATK %', w.mt === '2 Handed Sword' ? 5 + l : l]]],
+  ['Blade/21', 'Berserk', 'ASPD e crítico; perde DEF, MDEF e estabilidade', (l, w) => {
+    const two = w.mt === '2 Handed Sword', one = w.mt === '1 Handed Sword' && !w.dual, low = two || w.dual || !one;
+    return [['ASPD', 100 * l], ['ASPD %', 10 * l], ['Critical Rate', Math.floor((two ? 5 : 2.5) * l)], ['Stability %', one || two || w.dual ? Math.floor(-50 + 2.5 * l) : -100 + 5 * l], ['DEF %', low ? -100 + l : Math.floor(-50 + l / 2)], ['MDEF %', low ? -100 + l : Math.floor(-50 + l / 2)]];
+  }],
+  ['Halberd/17', 'Quick Aura', 'ASPD', l => [['ASPD', 50 * l], ['ASPD %', Math.floor(2.5 * l)]]],
+  ['Mononofu/16', 'Kairiki Ranshin', 'ATK e MP por ataque', l => [['ATK', 10 * l], ['Attack MP Recovery', 5 + l + Math.floor(l / 5) * 5]]],
+  ['Priest/8', 'Prayer', 'MATK', (l, w) => [['MATK %', w.mt === 'Magic Device' ? 5 + l : l]]],
+  ['Support/6', 'Brave Aura', 'ATK da arma e dano (para a party)', l => [['Weapon ATK %', 10 + 2 * l]], l => 2 * l],
+  ['Support/8', 'Quick Motion', 'ASPD (para a party)', l => [['ASPD %', 25 * l], ['ASPD', 100 + 100 * l]]],
+  ['Support/7', 'High Cycle', 'CSPD (para a party)', l => [['CSPD %', 25 * l], ['CSPD', 50 + 50 * l]]],
+  ['Support/9', 'Mana Recharge', 'só em quem usa: o dano cai', () => [], l => -50 + 2.5 * l]
+];
+function activeBuffs() {
+  const w = skWctx(), ab = BD.ab || {};
+  return ACTB.filter(b => ab[b[0]]).map(([key, name, , fn, dmg]) => { const l = ab[key]; return { key, name, l, pairs: fn(l, w).filter(p => p[1]), dmg: dmg ? dmg(l) : 0 }; });
+}
+function renderBuffs() {
+  const box = $('#bfbox'); if (!box) return;
+  const ab = BD.ab || {}, act = activeBuffs();
+  box.innerHTML = ACTB.map(([key, name, what]) => {
+    const [k, id] = key.split('/'), mine = skEff(k, +id), on = ab[key] || 0, a = act.find(x => x.key === key);
+    const sum = a ? psvTxt(a.pairs) + (a.dmg ? (a.pairs.length ? ' · ' : '') + 'dano ' + (a.dmg > 0 ? '+' : '') + fmt(a.dmg) + '%' : '') : '';
+    return '<div class="petrow"><div><b>' + name + '</b><small>' + esc(what) + (mine ? ' · sua skill: Lv ' + mine : '') + '</small></div>'
+      + '<select data-ab="' + key + '" aria-label="' + name + '"><option value="0">Desligado</option>' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => '<option value="' + n + '"' + (on === n ? ' selected' : '') + '>Ligado · Lv ' + n + '</option>').join('') + '</select>'
+      + (sum ? '<span class="petsum">' + sum + '</span>' : '') + '</div>';
+  }).join('');
+  box.onchange = e => {
+    const s = e.target.closest('[data-ab]'); if (!s) return;
+    BD.ab = BD.ab || {}; const v = +s.value;
+    if (v) BD.ab[s.dataset.ab] = v; else delete BD.ab[s.dataset.ab];
+    saveBuild(); renderBuffs(); renderBuild();
+  };
+  box.onfocusin = e => { const s = e.target.closest('[data-ab]'); if (!s || +s.value) return; const [k, id] = s.dataset.ab.split('/'); const m = skEff(k, +id); if (m) s.querySelector('option[value="' + m + '"]').textContent = 'Ligado · Lv ' + m + ' (sua)'; };
+}
+// Dano total das passivas (grupo A, somam entre si) e dos buffs (grupo B); os dois grupos se multiplicam.
+function dmgBonus(range) {
+  const w = skWctx(), out = [];
+  [['Blade/19', 'Sword Techniques', l => 2 * l, PSV_COND.sword[0](w)], ['Shot/17', 'Long Range', l => l, range === 'longa'],
+   ['Martial/16', 'Martial Discipline', l => l, w.mt === 'Knuckles'], ['Halberd/20', 'Almighty Wield', l => l, w.mt === 'Halberd']]
+    .forEach(([key, n, f, ok]) => { const [k, id] = key.split('/'), l = skEff(k, +id); if (l && ok) out.push([n, f(l), 'A']); });
+  activeBuffs().forEach(b => { if (b.dmg) out.push([b.name, b.dmg, 'B']); });
+  return out;
+}
 function buildTotals() {
   const bits = buildBits(), tot = new Map(), off = [];
   const add = (si, v) => tot.set(si, (tot.get(si) || 0) + v);
@@ -1651,6 +1698,7 @@ function buildTotals() {
   (BD.rg || []).forEach(([n, lv]) => { const m = REG_STAT[n]; if (m) { const i = SI(m[0]); if (i >= 0) add(i, m[1] * lv); } });
   petBonus().forEach(([n, v]) => { const i = SI(n); if (i >= 0) add(i, v); });
   skillBonus().forEach(b => b.ok && b.pairs.forEach(([n, v]) => { const i = SI(n); if (i >= 0) add(i, v); }));
+  activeBuffs().forEach(b => b.pairs.forEach(([n, v]) => { const i = SI(n); if (i >= 0) add(i, v); }));
   return { tot, off, bits };
 }
 // Todos os status do personagem, na conta do jogo: valor base × (100 + soma dos %) ÷ 100 + soma dos valores fixos.
@@ -1702,7 +1750,7 @@ function buildDerived(tot) {
 }
 function saveBuild() { store.set('build', BD); syncChar(); }
 // Página única de montar o personagem: blocos que abrem e fecham à esquerda, painel de status do jogo à direita.
-const BLK_OPEN = Object.assign({ st: 1, eq: 1, bn: 1, rg: 1, pt: 1, sk: 0 }, store.get('blk', {}));
+const BLK_OPEN = Object.assign({ st: 1, eq: 1, bn: 1, rg: 1, pt: 1, bf: 1, sk: 0, dn: 1 }, store.get('blk', {}));
 const blk = (id, title, inner) => '<section class="blk' + (BLK_OPEN[id] ? ' open' : '') + '" id="blk-' + id + '"><button type="button" class="blkh" data-blk="' + id + '" aria-expanded="' + !!BLK_OPEN[id] + '"><h2>' + title + '</h2><small id="blks-' + id + '"></small><span class="blkarrow" aria-hidden="true">▾</span></button><div class="blkb" id="blkb-' + id + '"' + (BLK_OPEN[id] ? '' : ' hidden') + '>' + inner + '</div></section>';
 function viewCharBuild(focus) {
   if (focus) BLK_OPEN[focus] = 1;
@@ -1716,12 +1764,14 @@ function viewCharBuild(focus) {
     + blk('bn', 'Comida, avatar e outros bônus', '<nav class="seg2 bntabs" id="bntabs" role="group" aria-label="Tipo de bônus"></nav><p class="muted" id="bnhint" style="margin:10px 0 8px;font-size:13.5px"></p><div id="bdex"></div><div class="range" style="margin-top:8px"><select id="bdexs" aria-label="Status"></select><input id="bdexv" type="number" step="any" placeholder="valor" style="width:90px;flex:none" aria-label="Valor"><button id="bdexa" class="btn" type="button">+</button></div>')
     + blk('rg', 'Registlets', '<div id="rgbox"></div>')
     + blk('pt', 'Pet', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Skills do pet que dão buff para a party (duram 10 s cada vez que o pet usa). Escolha o nível de cada uma que o seu pet tem. O “↑ vermelho” é a taxa de ação do pet com a seta vermelha, na tela de status dele.</p><div id="petbox"></div>')
+    + blk('bf', 'Buffs ativos', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Skills que você liga, ou que alguém da party usa em você, e que duram um tempo. Escolha o nível de quem usou. O que estiver ligado entra no painel de status e no bloco Dano.</p><div id="bfbox"></div>')
     + blk('sk', 'Skills', '<div id="skbox"></div>')
+    + blk('dn', 'Dano', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Quanto esta build bate num monstro. Muda sozinho quando você troca equipamento, skill, buff ou comida.</p><div id="dnbox"></div>')
     + '<section class="card"><div class="chips"><button class="btn" id="bdshare" type="button">Copiar link da build</button><a class="btn ghost" href="#/dano">Calcular dano num boss</a><button class="btn ghost" id="bdclear" type="button">Começar do zero</button></div><p class="note" id="bdmsg">Tudo é salvo sozinho neste aparelho.</p></section>'
     + '</div><aside class="pgright" id="gstatw" aria-label="Status do personagem"><div class="gstat" id="gstat"></div></aside></div>'
     + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar item" aria-label="Buscar item"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>'
     + '<div class="picker" id="cipick" hidden><div class="pbox"><div class="phead"><b style="flex:1;align-self:center">Item personalizado</b><button class="btn ghost" id="ciclose" type="button">Fechar</button></div><div class="plist cif"></div></div></div>';
-  renderSlots(); renderBuild(); renderBnAdd(); renderPet();
+  renderSlots(); renderBuild(); renderBnAdd(); renderPet(); renderBuffs();
   const upd = () => {
     BD.lv = Math.max(1, +$('#bdlv').value || 1);
     ['STR', 'INT', 'VIT', 'AGI', 'DEX'].forEach(s => { BD.st[s] = Math.max(1, +$('#bd' + s).value || 1); });
@@ -1758,8 +1808,8 @@ function viewCharBuild(focus) {
   $('#pclose').addEventListener('click', () => { $('#pick').hidden = true; });
   $('#pick').addEventListener('click', e => { if (e.target.id === 'pick') $('#pick').hidden = true; });
   // Registlets e skills só montam quando o bloco está aberto (as skills são pesadas).
-  const fill = id => { if (id === 'rg') viewCharRegs($('#rgbox')); else if (id === 'sk' && !$('#sktool')) viewSkills(null, $('#skbox')); };
-  ['rg', 'sk'].forEach(id => { if (BLK_OPEN[id]) fill(id); });
+  const fill = id => { if (id === 'rg') viewCharRegs($('#rgbox')); else if (id === 'sk' && !$('#sktool')) viewSkills(null, $('#skbox')); else if (id === 'dn') dmBlock(); };
+  ['rg', 'sk', 'dn'].forEach(id => { if (BLK_OPEN[id]) fill(id); });
   view.querySelector('.pgleft').addEventListener('click', e => {
     const h = e.target.closest('[data-blk]'); if (!h) return;
     const id = h.dataset.blk, on = !BLK_OPEN[id]; BLK_OPEN[id] = on ? 1 : 0; store.set('blk', BLK_OPEN);
@@ -1897,8 +1947,9 @@ function renderBuild() {
   $('#gstat').innerHTML = '<h2>Status detalhado <small>Lv ' + BD.lv + '</small></h2>'
     + gstatRows(d).map(grp => '<dl>' + grp.map(([l, v, f]) => '<div' + (typeof v === 'number' && v < 0 ? ' class="neg"' : '') + '><dt>' + l + '</dt><dd>' + f(v) + '</dd></div>').join('') + '</dl>').join('')
     + (off.length ? '<p class="gnote">Não contam com a arma e armadura atuais: ' + off.map(([it, s]) => { const [nm, vv, c] = sparts(s); return esc(nm + ' ' + vv + ' (' + c + ', ' + it.name + ')'); }).join('; ') + '.</p>' : '')
-    + '<p class="gnote">Fórmulas do Cy\'s Grimoire. As passivas que dão status já entram (bloco Skills); buffs ativos ainda não: some no bloco “outros bônus” se quiser. Como no jogo, efeitos de skills com cálculo especial podem não aparecer.</p>';
+    + '<p class="gnote">Fórmulas do Cy\'s Grimoire. As passivas que dão status e os buffs ligados já entram; o que o site ainda não soma vai no bloco “outros bônus”. Como no jogo, efeitos de skills com cálculo especial podem não aparecer.</p>';
   blkSubs();
+  if ($('#dmres')) damageCalc();
 }
 // Bônus que não vêm dos equipamentos, separados por tipo. Cada um é [status, valor, tipo, nome da comida].
 const BN_CATS = [['com', 'Comida'], ['ava', 'Avatar'], ['pot', 'Poções e buffs'], ['out', 'Outros']];
@@ -1938,7 +1989,7 @@ function renderPet() {
     BD.pet = BD.pet || {};
     if (lv) { const k = lv.dataset.petlv, v = +lv.value; if (v) BD.pet[k] = [v, (BD.pet[k] || [0, 0])[1]]; else delete BD.pet[k]; }
     if (red) { const k = red.dataset.petred; if (BD.pet[k]) BD.pet[k][1] = red.checked ? 1 : 0; }
-    saveBuild(); renderPet(); renderBuild();
+    saveBuild(); renderPet(); renderBuffs(); renderBuild();
   };
 }
 // Resumo de cada bloco no cabeçalho dele.
@@ -1951,6 +2002,7 @@ function blkSubs() {
   set('rg', (BD.rg || []).length + ' de ' + REG_MAX_SLOTS);
   const pn = PET_BUFFS.filter(([k]) => (BD.pet || {})[k]).length;
   set('pt', pn ? pn + (pn === 1 ? ' buff ativo' : ' buffs ativos') : 'nenhum buff');
+  const bn2 = Object.keys(BD.ab || {}).length; set('bf', bn2 ? bn2 + (bn2 === 1 ? ' ligado' : ' ligados') : 'nenhum ligado');
   const sp = Object.values(SKS.lv).reduce((a, o) => a + Object.values(o).reduce((x, y) => x + y, 0), 0);
   set('sk', sp + ' de ' + skillPts(BD.lv) + ' pontos');
 }
@@ -2599,6 +2651,7 @@ const EL_EN = ['Fire', 'Earth', 'Water', 'Dark', 'Wind', '', 'Neutral', 'Light']
 const EL_BEATS = { Water: 'Fire', Fire: 'Earth', Earth: 'Wind', Wind: 'Water', Light: 'Dark', Dark: 'Light' };
 const MIN_HIT = { '': 50, 'Staff': 30, 'Katana': 30, '1 Handed Sword': 25, 'Halberd': 20, '2 Handed Sword': 15, 'Magic Device': 10, 'Knuckles': 10, 'Bow': 10, 'Bowgun': 5 };
 const DM = Object.assign({ gid: 0, mode: '', type: 'f', range: 'curta', cst: 0, mult: 100, pror: 100, buff: 0, uns: false, lv: 1, def: 0, mdef: 0, pres: 0, mres: 0, cres: 0, flee: 0, hp: 0, critd: '', combo: 100, other: 100, cst2: 0, mp: 0, mcr: 0, mcd: 50, autoEl: true }, store.get('dano', {}));
+if (!DM.sk) DM.sk = DM.cst || DM.mp || (DM.mult && DM.mult !== 100) ? 'manual' : 'normal';
 function fichaVals(f, mode) {
   if (!f || !f.df.length) return null;
   const col = f.m ? 1 : Math.max(1, f.d.findIndex(r => r[0] === mode) + 1);
@@ -2613,26 +2666,62 @@ function setTarget(g, mode) {
   Object.assign(DM, v || { def: 0, mdef: 0, pres: 0, mres: 0, cres: 0, flee: 0 });
   DM.auto = !!v;
 }
-function viewDamage() {
-  setTitle('Calculadora de dano');
+// Golpe: ataque normal, uma skill de ataque da build (valores do Cy no nível dela) ou valores digitados.
+const TREE_W = { Blade: '1 Handed Sword', Shot: 'Bow', Magic: 'Staff', Martial: 'Knuckles', Halberd: 'Halberd', Mononofu: 'Katana', DualSword: 'dual' };
+const VW = { 'One-Handed Sword': '1 Handed Sword', 'Two-Handed Sword': '2 Handed Sword' };
+function dmSkillList() {
+  if (!SKT || !SKI) return [];
+  return SKT.flatMap(t => t.s.filter(s => skEff(t.k, s[0]) && SKI[t.k + '/' + s[0]] && (SKI[t.k + '/' + s[0]].d || []).some(d => d.multiplier != null)).map(s => [t.k + '/' + s[0], s[1] + ' · Lv ' + skEff(t.k, s[0]), skTreeName(t)]));
+}
+// A lista de golpes acompanha as skills da build (nível e skills novas).
+function dmSkSync() {
+  const s = $('#dmsk'); if (!s) return;
+  const list = dmSkillList(), sig = list.map(x => x[0] + x[1]).join('|');
+  if (s.dataset.sig === sig && s.options.length) return;
+  s.dataset.sig = sig;
+  if (DM.sk !== 'normal' && DM.sk !== 'manual' && !list.some(x => x[0] === DM.sk)) DM.sk = 'normal';
+  s.innerHTML = '<option value="normal">Ataque normal</option>' + (list.length ? '<optgroup label="Skills da build">' + list.map(([v, l, tr]) => '<option value="' + v + '">' + esc(l) + ' (' + esc(tr) + ')</option>').join('') + '</optgroup>' : '') + '<option value="manual">Digitar os valores</option>';
+  s.value = DM.sk;
+}
+function dmSkillVals() {
+  if (DM.sk === 'normal') return { cst: 0, mult: 100, mp: 0, magic: null, hits: 1, name: 'Ataque normal' };
+  if (!DM.sk || DM.sk === 'manual' || !SKI || !SKT) return null;
+  const [k, id] = DM.sk.split('/'), info = SKI[DM.sk], t = SKT.find(x => x.k === k), s = t && t.s.find(x => x[0] === +id);
+  const d0 = info && (info.d || []).find(d => d.multiplier != null); if (!s || !d0) return null;
+  const l = skEff(k, +id) || 1, c = skiCtx(l, info.sk ? info.sk.map(x => +(x[1] != null ? x[1] : x[2]) || 0) : []);
+  let cst = d0.constant, mult = d0.multiplier, mp = info.mp_cost, hit = false;
+  const w = skWctx(), wt = w.dual ? 'dual' : w.mt;
+  const apply = v => v.ch.forEach(([i, key, f]) => { if (key === 'multiplier' && i === '1') mult = f; else if (key === 'constant' && i === '1') cst = f; else if (key === 'mp_cost') mp = f; });
+  // Variantes por arma: a da arma atual; "outras armas" vale quando a arma não é a da árvore.
+  (info.v || []).forEach(v => { const [vm, vs] = v.w.split('|'); if (!vm && !vs) return; const okM = !vm || (vm === 'Dual Swords' ? w.dual : (VW[vm] || vm) === w.mt); const okS = !vs || (vs === 'Nada' ? !w.st : vs === w.st); if (okM && okS) { apply(v); hit = true; } });
+  const other = (info.v || []).find(v => v.w === '||');
+  if (!hit && other && TREE_W[k] && TREE_W[k] !== wt) apply(other);
+  const ev = f => f == null || f === '' ? 0 : skiEval(f, c);
+  const kind = d0.damage_type || (d0.k === 'magic' ? 'magic' : d0.k === 'physical' ? 'physical' : '');
+  return { cst: ev(cst), mult: ev(mult), mp: ev(mp), magic: kind ? kind === 'magic' : null, hits: d0.frequency ? ev(d0.frequency) || 1 : 1, perHit: d0.title === 'each', name: s[1] + ' Lv ' + l };
+}
+function dmHtml() {
   const n = (id, lab, v, extra) => '<div class="field"><label class="lbl" for="' + id + '">' + lab + '</label><input id="' + id + '" type="number" inputmode="decimal" step="any" value="' + v + '"' + (extra || '') + '></div>';
-  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Calculadora de dano</h1><p>Quanto a build que está em uso bate num monstro do bestiário, com acerto, crítico, Graze e elemento. Para mudar a build, use o <a class="tl" href="#/personagem/equipamento" style="color:#9fe3e6">Personagem</a>.</p></div></div>'
-    + '<button type="button" class="bdsum" id="dmsum" aria-label="Ver resultado completo"></button>'
-    + '<div class="grid2"><div>'
+
+  return '<div class="grid2 dmgrid"><div>'
     + '<section class="card"><h2>Alvo</h2><div class="slotrow"><button type="button" class="slotbtn" id="dmpick"></button></div>'
     + '<div class="calc" style="margin-top:10px"><div class="field"><label class="lbl" for="dmmode">Dificuldade</label><select id="dmmode"></select></div>'
     + n('dmlv', 'Nível do monstro', DM.lv) + n('dmhp', 'HP', DM.hp) + n('dmdef', 'DEF', DM.def) + n('dmmdef', 'MDEF', DM.mdef) + n('dmpres', 'Resistência física %', DM.pres) + n('dmmres', 'Resistência mágica %', DM.mres) + n('dmcres', 'Resistência crítica', DM.cres) + n('dmflee', 'Esquiva (Flee)', DM.flee)
     + '</div><p class="note" id="dmsrc"></p></section>'
     + '<section class="card"><h2>Ataque</h2><div class="calc">'
+    + '<div class="field full"><label class="lbl" for="dmsk">Golpe</label><select id="dmsk"></select></div>'
+
     + '<div class="field"><label class="lbl" for="dmtype">Tipo</label><select id="dmtype"><option value="f"' + (DM.type === 'f' ? ' selected' : '') + '>Físico</option><option value="m"' + (DM.type === 'm' ? ' selected' : '') + '>Mágico</option></select></div>'
     + '<div class="field"><label class="lbl" for="dmrange">Distância</label><select id="dmrange"><option value="curta"' + (DM.range === 'curta' ? ' selected' : '') + '>Curta (até 7 m)</option><option value="longa"' + (DM.range === 'longa' ? ' selected' : '') + '>Longa (8 m ou mais)</option><option value="nenhuma"' + (DM.range === 'nenhuma' ? ' selected' : '') + '>Nenhuma</option></select></div>'
     + n('dmcst', 'Constante da skill', DM.cst) + n('dmmult', 'Multiplicador da skill %', DM.mult) + n('dmmp', 'MP da skill (para o acerto)', DM.mp) + n('dmpror', 'Proration %', DM.pror)
     + n('dmcombo', 'Multiplicador de combo %', DM.combo) + n('dmbuff', 'Buffs extras %', DM.buff) + n('dmother', 'Outros multiplicadores %', DM.other) + n('dmcst2', 'Outra constante', DM.cst2)
     + n('dmcritd', 'Dano crítico % (vazio = estimar)', DM.critd, ' placeholder="estimar"') + n('dmmcr', 'Conversão de crítico mágico %', DM.mcr) + n('dmmcd', 'Conversão de dano crítico mágico %', DM.mcd)
     + '<div class="field"><span class="lbl">Opções</span><label class="check"><input id="dmuns" type="checkbox"' + (DM.uns ? ' checked' : '') + '> Golpe de desembainhar</label><label class="check"><input id="dmauto" type="checkbox"' + (DM.autoEl ? ' checked' : '') + '> Vantagem de elemento automática</label></div>'
-    + '</div><p class="note">Ataque normal: constante 0, multiplicador 100% e MP 0. Os valores de cada skill aparecem na descrição dela no jogo. No combo, a 2ª skill costuma ter 90%, a 3ª 80% (veja o glossário).</p></section>'
+    + '</div><p class="note" id="dmsknote">Escolha uma skill da build e os valores dela entram sozinhos, no nível em que ela está. "Buffs extras" é para o que o site ainda não soma; os buffs ativos e as passivas de dano já entram.</p></section>'
     + '</div><div><section class="card" id="dmres"></section></div></div>'
-    + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar monstro" aria-label="Buscar monstro"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>';
+    + '<div class="picker" id="dmpk" hidden><div class="pbox"><div class="phead"><input id="dmpq" type="search" placeholder="Buscar monstro" aria-label="Buscar monstro"><button class="btn ghost" id="dmpc" type="button">Fechar</button></div><div id="dmpl" class="plist"></div></div></div>';
+}
+function dmBind(root) {
   const fillTarget = () => {
     const g = DB.GBYID.get(DM.gid);
     $('#dmpick').innerHTML = g ? '<b>' + esc(g.name) + '</b><small>' + TLAB[g.t] + ' · ' + g.els.map(e => EL[e][0]).join(', ') + (fichaFor(g) ? ' · com guia de batalha' : '') + '</small>' : '<span class="muted">Escolher monstro (ou digite os valores abaixo)</span>';
@@ -2643,26 +2732,46 @@ function viewDamage() {
   fillTarget(); damageCalc();
   const read = () => {
     const v = id => +$('#' + id).value || 0;
-    Object.assign(DM, { lv: v('dmlv'), hp: v('dmhp'), def: v('dmdef'), mdef: v('dmmdef'), pres: v('dmpres'), mres: v('dmmres'), cres: v('dmcres'), flee: v('dmflee'), type: $('#dmtype').value, range: $('#dmrange').value, cst: v('dmcst'), mult: v('dmmult'), mp: v('dmmp'), pror: v('dmpror'), combo: v('dmcombo'), buff: v('dmbuff'), other: v('dmother'), cst2: v('dmcst2'), critd: $('#dmcritd').value, mcr: v('dmmcr'), mcd: v('dmmcd'), uns: $('#dmuns').checked, autoEl: $('#dmauto').checked });
+    Object.assign(DM, { lv: v('dmlv'), hp: v('dmhp'), def: v('dmdef'), mdef: v('dmmdef'), pres: v('dmpres'), mres: v('dmmres'), cres: v('dmcres'), flee: v('dmflee'), type: $('#dmtype').value, range: $('#dmrange').value, pror: v('dmpror'), combo: v('dmcombo'), buff: v('dmbuff'), other: v('dmother'), cst2: v('dmcst2'), critd: $('#dmcritd').value, mcr: v('dmmcr'), mcd: v('dmmcd'), uns: $('#dmuns').checked, autoEl: $('#dmauto').checked });
+    if (DM.sk === 'manual' || !DM.sk) Object.assign(DM, { cst: v('dmcst'), mult: v('dmmult'), mp: v('dmmp') });
     store.set('dano', DM); damageCalc();
   };
-  view.querySelectorAll('.calc input, #dmtype, #dmrange').forEach(i => i.addEventListener('input', read));
+  root.querySelectorAll('.calc input, #dmtype, #dmrange').forEach(i => i.addEventListener('input', read));
+  $('#dmsk').addEventListener('change', e => { DM.sk = e.target.value; store.set('dano', DM); damageCalc(); });
   $('#dmmode').addEventListener('change', e => { const g = DB.GBYID.get(DM.gid); if (g) { setTarget(g, e.target.value); store.set('dano', DM); fillTarget(); damageCalc(); } });
   $('#dmpick').addEventListener('click', () => {
-    $('#pq').value = ''; $('#pick').hidden = false; $('#pq').focus();
-    const list = () => { const q = $('#pq').value.trim().toLowerCase(); const rows = DB.MONS.filter(g => g.entries.some(e => e.hp > 0) && (!q || g.name.toLowerCase().includes(q))).sort((a, b) => (fichaFor(b) ? 1 : 0) - (fichaFor(a) ? 1 : 0) || 'BMN'.indexOf(a.t) - 'BMN'.indexOf(b.t) || b.hi - a.hi).slice(0, 80);
-      $('#plist2').innerHTML = rows.map(g => '<button type="button" class="prow2" data-g="' + g.id + '"><b>' + esc(g.name) + '</b> <small>' + TLAB[g.t] + ' · Lv ' + lvTxt(g) + (fichaFor(g) ? ' · guia de batalha' : '') + '</small></button>').join('') || '<p class="empty">Nenhum monstro.</p>'; };
-    $('#pq').oninput = list; list();
-    $('#plist2').onclick = e => { const b = e.target.closest('[data-g]'); if (!b) return; const g = DB.GBYID.get(+b.dataset.g); setTarget(g, (g.entries.find(x => x.mode === 'Ultimate') || g.entries[g.entries.length - 1]).mode); store.set('dano', DM); $('#pick').hidden = true; fillTarget(); damageCalc(); };
+    $('#dmpq').value = ''; $('#dmpk').hidden = false; $('#dmpq').focus();
+    const list = () => { const q = $('#dmpq').value.trim().toLowerCase(); const rows = DB.MONS.filter(g => g.entries.some(e => e.hp > 0) && (!q || g.name.toLowerCase().includes(q))).sort((a, b) => (fichaFor(b) ? 1 : 0) - (fichaFor(a) ? 1 : 0) || 'BMN'.indexOf(a.t) - 'BMN'.indexOf(b.t) || b.hi - a.hi).slice(0, 80);
+      $('#dmpl').innerHTML = rows.map(g => '<button type="button" class="prow2" data-g="' + g.id + '"><b>' + esc(g.name) + '</b> <small>' + TLAB[g.t] + ' · Lv ' + lvTxt(g) + (fichaFor(g) ? ' · guia de batalha' : '') + '</small></button>').join('') || '<p class="empty">Nenhum monstro.</p>'; };
+    $('#dmpq').oninput = list; list();
+    $('#dmpl').onclick = e => { const b = e.target.closest('[data-g]'); if (!b) return; const g = DB.GBYID.get(+b.dataset.g); setTarget(g, (g.entries.find(x => x.mode === 'Ultimate') || g.entries[g.entries.length - 1]).mode); store.set('dano', DM); $('#dmpk').hidden = true; fillTarget(); damageCalc(); };
   });
-  $('#dmsum').addEventListener('click', () => $('#dmres').scrollIntoView({ behavior: 'smooth', block: 'start' }));
-  $('#pclose').addEventListener('click', () => { $('#pick').hidden = true; });
-  $('#pick').addEventListener('click', e => { if (e.target.id === 'pick') $('#pick').hidden = true; });
+  $('#dmpc').addEventListener('click', () => { $('#dmpk').hidden = true; });
+  $('#dmpk').addEventListener('click', e => { if (e.target.id === 'dmpk') $('#dmpk').hidden = true; });
+}
+// Precisa das árvores e dos efeitos das skills para listar os golpes da build.
+const dmReady = () => Promise.all([SKT ? 0 : load('skills').then(d => { SKT = d.trees; }), SKI ? 0 : load('skillinfo').then(d => { SKI = d; })]).catch(() => {});
+function viewDamage() {
+  setTitle('Calculadora de dano');
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Calculadora de dano</h1><p>Quanto a build que está em uso bate num monstro do bestiário, com acerto, crítico, Graze e elemento. O mesmo cálculo está no <a class="tl" href="#/personagem" style="color:#9fe3e6">Personagem</a>, no bloco Dano, e muda junto com a build.</p></div></div>'
+    + '<button type="button" class="bdsum" id="dmsum" aria-label="Ver resultado completo"></button><div id="dmroot"><p class="loading">Carregando…</p></div>';
+  const v0 = view;
+  dmReady().then(() => { if (view !== v0 || !$('#dmroot')) return; $('#dmroot').innerHTML = dmHtml(); dmBind($('#dmroot')); $('#dmsum').addEventListener('click', () => $('#dmres').scrollIntoView({ behavior: 'smooth', block: 'start' })); });
+}
+function dmBlock() {
+  const box = $('#dnbox'); if (!box || box.dataset.on) return;
+  box.dataset.on = 1; box.innerHTML = '<p class="loading">Carregando…</p>';
+  dmReady().then(() => { if (!box.isConnected) return; box.innerHTML = dmHtml(); dmBind(box); });
 }
 function damageCalc() {
+  if (!$('#dmres')) return;
+  dmSkSync();
   const { tot } = buildTotals(), d = buildDerived(tot);
   const g = n => { const i = SI(n); return i < 0 ? 0 : tot.get(i) || 0; };
-  const mon = DB.GBYID.get(DM.gid), magic = DM.type === 'm';
+  const sv = dmSkillVals(), SK = sv ? { cst: sv.cst, mult: sv.mult, mp: sv.mp } : { cst: DM.cst, mult: DM.mult, mp: DM.mp };
+  [['dmcst', 'cst'], ['dmmult', 'mult'], ['dmmp', 'mp']].forEach(([id, k]) => { const el = $('#' + id); if (el) { el.readOnly = !!sv; if (sv) el.value = Math.round(SK[k] * 100) / 100; } });
+  const ty = $('#dmtype'); if (ty) { ty.disabled = !!(sv && sv.magic != null); if (sv && sv.magic != null) ty.value = sv.magic ? 'm' : 'f'; }
+  const mon = DB.GBYID.get(DM.gid), magic = sv && sv.magic != null ? sv.magic : DM.type === 'm';
   const main = slotItem(BD.sl.arma), wt = main ? main.tl : '';
   const physStab = d.STAB; // estabilidade pela fórmula da arma (DEX/STR + base da arma + flecha)
   // estabilidade mágica: 50 + base ÷ 2; acima de 90% o piso trava em 90 e o teto sobe (até 110)
@@ -2671,7 +2780,7 @@ function damageCalc() {
   const atk = magic ? d.MATK : d.ATK, pierce = Math.min(100, g(magic ? 'Magic Pierce %' : 'Physical Pierce %'));
   const def = magic ? DM.mdef : DM.def, res = magic ? DM.mres : DM.pres;
   const effAtk = (atk + (BD.lv - DM.lv)) * (1 - res / 100) - def * (1 - pierce / 100);
-  const base = Math.max(0, effAtk + DM.cst + DM.cst2);
+  const base = Math.max(0, effAtk + SK.cst + DM.cst2);
   // elemento: o da arma principal; vantagem dá +25%; dano mágico com elemento ganha INT base ÷ 10 % (com staff/MD vale contra qualquer elemento)
   const wEl = main ? (main.stats.map(s => DB.STATN[s[0]]).find(n => /^(Fire|Water|Wind|Earth|Light|Dark) Element$/.test(n)) || '').replace(' Element', '') : '';
   const mEl = mon ? mon.els.map(e => EL_EN[e]).filter(Boolean)[0] : '';
@@ -2681,7 +2790,8 @@ function damageCalc() {
   const elemMult = (1 + (adv ? 25 : 0) / 100 + (dte + intBonus) / 100);
   const rng = DM.range === 'curta' ? g('Short Range Damage %') : DM.range === 'longa' ? g('Long Range Damage %') : 0;
   const uns = DM.uns ? g('Unsheathe Attack %') : 0;
-  const mods = elemMult * (DM.mult / 100) * (1 + uns / 100) * (DM.pror / 100) * (DM.combo / 100) * (1 + rng / 100) * (1 + DM.buff / 100) * (DM.other / 100);
+  const db = dmgBonus(DM.range), dA = db.filter(x => x[2] === 'A').reduce((a, x) => a + x[1], 0), dB = db.filter(x => x[2] === 'B').reduce((a, x) => a + x[1], 0), dmgM = (1 + dA / 100) * (1 + dB / 100);
+  const mods = elemMult * (SK.mult / 100) * (1 + uns / 100) * (DM.pror / 100) * (DM.combo / 100) * (1 + rng / 100) * (1 + DM.buff / 100) * (DM.other / 100) * dmgM;
   const hi = Math.floor(base * mods * stHi / 100), lo = Math.floor(base * mods * stLo / 100), avg = (hi + lo) / 2;
   // crítico (mágico usa a conversão)
   const physCD = DM.critd !== '' ? +DM.critd : d.CDMG;
@@ -2690,26 +2800,26 @@ function damageCalc() {
   const cr = Math.max(0, Math.min(100, critRaw - DM.cres)) / 100;
   const critAvg = avg * critD / 100;
   // acerto (dano mágico sempre acerta)
-  const H = magic ? 1 : Math.max(0, Math.min(100, (d.HIT - DM.flee) / 3 + DM.mp / 10)) / 100;
+  const H = magic ? 1 : Math.max(0, Math.min(100, (d.HIT - DM.flee) / 3 + SK.mp / 10)) / 100;
   const minHit = (MIN_HIT[wt] != null ? MIN_HIT[wt] : 10) / 100;
   const missWhite = magic ? 0 : (1 - H) * (1 - cr) * (H < 1 ? Math.max(0, minHit - H) / (1 - H) : 0);
   const grazeAvg = base * mods * ((stLo / 2 + stHi) / 2) / 100; // Graze: estabilidade final ÷ 2
   const exp = H * ((1 - cr) * avg + cr * critAvg) + (1 - H) * cr * grazeAvg * critD / 100 + missWhite * grazeAvg;
   const pMiss = magic ? 0 : (1 - H) * (1 - cr) - missWhite;
-  const hits = DM.hp > 0 && exp > 0 ? Math.ceil(DM.hp / exp) : 0;
+  const nh = sv && sv.perHit && sv.hits > 1 ? sv.hits : 1, use = exp * nh, hits = DM.hp > 0 && use > 0 ? Math.ceil(DM.hp / use) : 0;
   const pct = x => Math.round(x * 1000) / 10 + '%';
   const box = (l, v, s) => '<div><span class="lbl">' + l + '</span><div class="big">' + v + '</div>' + (s ? '<small class="muted">' + s + '</small>' : '') + '</div>';
-  $('#dmsum').innerHTML = '<span><small>Por golpe</small>' + fmt(Math.floor(exp)) + '</span><span><small>Acerto</small>' + pct(H) + '</span><span><small>Crítico</small>' + pct(cr) + '</span>' + (hits ? '<span><small>Golpes</small>' + fmt(hits) + '</span>' : '') + '<em>ver tudo ↓</em>';
-  $('#dmres').innerHTML = '<h2>Resultado <small>' + (mon ? esc(mon.name) : 'alvo manual') + '</small></h2>'
+  const sumEl = $('#dmsum'); if (sumEl) sumEl.innerHTML = '<span><small>Por golpe</small>' + fmt(Math.floor(use)) + '</span><span><small>Acerto</small>' + pct(H) + '</span><span><small>Crítico</small>' + pct(cr) + '</span>' + (hits ? '<span><small>Golpes</small>' + fmt(hits) + '</span>' : '') + '<em>ver tudo ↓</em>';
+  $('#dmres').innerHTML = '<h2>Resultado <small>' + (sv ? esc(sv.name) + ' · ' : '') + (mon ? esc(mon.name) : 'alvo manual') + '</small></h2>'
     + (!main ? '<p class="inote" style="margin:0 0 10px">A build em uso não tem arma. Escolha uma no <a class="tl" href="#/personagem/equipamento">Personagem</a>; por enquanto o cálculo usa só o nível e os status.</p>' : '')
     + (hi <= 0 ? '<p class="inote" style="margin:0 0 10px">A ' + (magic ? 'MDEF' : 'DEF') + ' do alvo é maior que o seu ' + (magic ? 'MATK' : 'ATK') + ' efetivo, então o golpe quase não passa. Aumente o pierce, use uma skill com constante alta ou escolha uma dificuldade menor.</p>' : '')
     + '<div class="res">' + box('Sem crítico', fmt(lo) + ' – ' + fmt(hi), 'média ' + fmt(Math.floor(avg))) + box('Crítico (média)', fmt(Math.floor(critAvg)), 'dano crítico ' + Math.floor(critD) + '%')
-    + box('Dano esperado por golpe', fmt(Math.floor(exp)), 'já contando acerto, crítico e Graze') + (hits ? box('Golpes para derrubar', fmt(hits), 'HP ' + fmt(DM.hp)) : '') + '</div>'
+    + box('Dano esperado por golpe', fmt(Math.floor(use)), (nh > 1 ? nh + ' hits de ' + fmt(Math.floor(exp)) + '; ' : '') + 'já contando acerto, crítico e Graze') + (hits ? box('Golpes para derrubar', fmt(hits), 'HP ' + fmt(DM.hp)) : '') + '</div>'
     + '<h4 class="sub4">Chances por golpe</h4><div class="res">' + box('Acerto (HIT)', pct(H), magic ? 'dano mágico sempre acerta' : 'precisão ' + fmt(d.HIT) + ' × esquiva ' + fmt(DM.flee)) + box('Crítico', pct(cr), 'taxa ' + Math.floor(critRaw) + ' − resistência ' + DM.cres) + (magic ? '' : box('Graze', pct(missWhite + (1 - H) * cr), 'acerto mínimo da arma ' + Math.round(minHit * 100) + '%') + box('MISS', pct(Math.max(0, pMiss)), 'não causa dano')) + '</div>'
     + '<h4 class="sub4">O que entrou na conta</h4><div class="slist">'
     + [[magic ? 'MATK' : 'ATK', fmt(atk)], ['ATK efetivo', fmt(Math.floor(effAtk))], ['Diferença de nível', fmt(BD.lv - DM.lv)], [magic ? 'MDEF do alvo' : 'DEF do alvo', fmt(def)], ['Pierce', pierce + '%'], ['Resistência do alvo', res + '%'], ['Estabilidade', magic ? 'mágica ' + Math.floor(magStab) + '% (' + Math.floor(stLo) + '–' + Math.floor(stHi) + '%)' : physStab + '%'],
-      ['Elemento', (wEl ? EL[EL_EN.indexOf(wEl)][0] : 'neutro') + ' contra ' + (mEl ? EL[EL_EN.indexOf(mEl)][0] : '?') + (adv ? ' (+25%)' : '')], ['Dano contra o elemento', '+' + (dte + intBonus) + '%' + (intBonus ? ' (com INT)' : '')], ['Distância', '+' + rng + '%'], ['Desembainhar', '+' + uns + '%'], ['Skill × proration × combo', DM.mult + '% × ' + DM.pror + '% × ' + DM.combo + '%'], ['Buffs × outros', '+' + DM.buff + '% × ' + DM.other + '%']].map(([k, v]) => '<div><span>' + k + '</span><b>' + v + '</b></div>').join('') + '</div>'
-    + '<p class="note">Fórmulas do glossário (Cy\'s Grimoire e testes da comunidade). Não inclui skills passivas nem guarda/esquiva especial do boss; a parte de Graze é uma estimativa. Bom para comparar builds e skills.</p>';
+      ['Elemento', (wEl ? EL[EL_EN.indexOf(wEl)][0] : 'neutro') + ' contra ' + (mEl ? EL[EL_EN.indexOf(mEl)][0] : '?') + (adv ? ' (+25%)' : '')], ['Dano contra o elemento', '+' + (dte + intBonus) + '%' + (intBonus ? ' (com INT)' : '')], ['Distância', '+' + rng + '%'], ['Desembainhar', '+' + uns + '%'], ['Skill × proration × combo', Math.round(SK.mult * 100) / 100 + '% × ' + DM.pror + '% × ' + DM.combo + '%'], ['Passivas e buffs de dano', db.length ? db.map(x => x[0] + ' ' + (x[1] > 0 ? '+' : '') + x[1] + '%').join(', ') : 'nenhum'], ['Buffs × outros', '+' + DM.buff + '% × ' + DM.other + '%']].map(([k, v]) => '<div><span>' + k + '</span><b>' + v + '</b></div>').join('') + '</div>'
+    + '<p class="note">Fórmulas do glossário (Cy\'s Grimoire e testes da comunidade). Já inclui as passivas e os buffs ativos do Personagem; não inclui guarda/esquiva especial do boss; a parte de Graze é uma estimativa. Bom para comparar builds e skills.</p>';
 }
 
 // ---------- busca única ----------
