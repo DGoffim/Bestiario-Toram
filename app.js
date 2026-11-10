@@ -132,6 +132,7 @@ const ROUTES = [
   [/^#\/personagem(?:\/([a-z]+))?$/, 'personagem', tab => viewChar(tab)],
   [/^#\/p\/([A-Za-z0-9_-]+)$/, 'personagem', code => importChar(code)],
   [/^#\/dano$/, 'ferramentas', () => viewDamage()],
+  [/^#\/canhao$/, 'ferramentas', () => viewCannon()],
   [/^#\/skills(?:\/([A-Za-z0-9_-]+))?$/, 'personagem', code => viewChar('skills', code)],
   [/^#\/statting(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewStatting(code)],
   [/^#\/screenshots$/, 'screenshots', () => viewShots()],
@@ -169,6 +170,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
+  ['2026-11-10', ['Personagem: blocos Traits e Combo, e atalhos para cada bloco no topo', 'Tabela de poder e resistência por elemento no painel de status', 'Calculadora do Magic: Cannon', 'Todos os ícones de skill completos']],
   ['2026-11-09', ['Novo bloco Dano no Personagem: muda junto com a build', 'Buffs ativos com ligar e desligar: todas as skills que dão status', 'Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
   ['2026-11-08', ['Screenshots da 2ª e da 3ª Raid Tartaros BR', 'Guia de batalha dos bosses cabe na tela do celular']],
   ['2026-11-06', ['Entrada nova, com abas no topo', 'Itens, mapas e eventos com a lista completa dos monstros', 'Títulos das listas ordenam ao clicar', 'Onde farmar com filtros de tipo, elemento e distância', 'Screenshots: 1ª Raid Tartaros BR, com ampliar e baixar']],
@@ -930,6 +932,8 @@ function viewTools() {
     + '</div><h2 class="sect">Smith e equipamentos</h2><div class="tiles">'
     + t('#/personagem/equipamento', 'Status do personagem', 'Monte arma, armadura, adicional, anel e crystas e veja os status somados')
     + t('#/dano', 'Calculadora de dano', 'Quanto a sua build bate num boss e quantos golpes para derrubar')
+    + t('#/personagem/combo', 'Simulador de combo', 'MP, força e dano de cada skill do combo, com os efeitos de combo')
+    + t('#/canhao', 'Magic: Cannon', 'Quanto a carga sobe com cada skill e o dano do disparo')
     + t('#/personagem/skills', 'Simulador de skills', 'As 33 árvores de skill, com pré-requisitos e contagem de pontos')
     + t('#/glossario', 'Glossário', 'Fórmulas de dano, acerto e crítico, status negativos e combos, em português')
     + t('#/smithing', 'Guia de smithing', 'Criação, status (statting), refino e materiais, em português')
@@ -1746,6 +1750,7 @@ function buildTotals() {
   petBonus().forEach(([n, v]) => { const i = SI(n); if (i >= 0) add(i, v); });
   skillBonus().forEach(b => b.ok && b.pairs.forEach(([n, v]) => { const i = SI(n); if (i >= 0) add(i, v); }));
   activeBuffs().forEach(b => b.pairs.forEach(([n, v]) => { const i = SI(n); if (i >= 0) add(i, v); }));
+  traitBonus().forEach(([n, v]) => { const i = SI(n); if (i >= 0) add(i, v); });
   return { tot, off, bits };
 }
 // Todos os status do personagem, na conta do jogo: valor base × (100 + soma dos %) ÷ 100 + soma dos valores fixos.
@@ -1797,13 +1802,14 @@ function buildDerived(tot) {
 }
 function saveBuild() { store.set('build', BD); syncChar(); }
 // Página única de montar o personagem: blocos que abrem e fecham à esquerda, painel de status do jogo à direita.
-const BLK_OPEN = Object.assign({ st: 1, eq: 1, bn: 1, rg: 1, pt: 1, bf: 1, sk: 0, dn: 1 }, store.get('blk', {}));
+const BLK_OPEN = Object.assign({ st: 1, eq: 1, bn: 1, rg: 1, pt: 1, bf: 1, tr: 0, sk: 0, dn: 1, cb: 0 }, store.get('blk', {}));
 const blk = (id, title, inner) => '<section class="blk' + (BLK_OPEN[id] ? ' open' : '') + '" id="blk-' + id + '"><button type="button" class="blkh" data-blk="' + id + '" aria-expanded="' + !!BLK_OPEN[id] + '"><h2>' + title + '</h2><small id="blks-' + id + '"></small><span class="blkarrow" aria-hidden="true">▾</span></button><div class="blkb" id="blkb-' + id + '"' + (BLK_OPEN[id] ? '' : ' hidden') + '>' + inner + '</div></section>';
 function viewCharBuild(focus) {
   if (focus) BLK_OPEN[focus] = 1;
   const n = (id, lab, v) => '<div class="field"><label class="lbl" for="' + id + '">' + lab + '</label><input id="' + id + '" type="number" inputmode="numeric" min="0" value="' + v + '"></div>';
   view.innerHTML = '<button type="button" class="bdsum" id="bdsum" aria-label="Ver status completo"></button>'
     + '<div class="pgbuild"><div class="pgleft">'
+    + '<nav class="pgnav" id="pgnav" aria-label="Ir para o bloco">' + [['st', 'Personagem'], ['eq', 'Equipamento'], ['bn', 'Bônus'], ['rg', 'Registlets'], ['pt', 'Pet'], ['bf', 'Buffs'], ['tr', 'Traits'], ['sk', 'Skills'], ['dn', 'Dano'], ['cb', 'Combo']].map(([k, l]) => '<button type="button" data-goblk="' + k + '">' + l + '</button>').join('') + '</nav>'
     + blk('st', 'Personagem', '<div class="calc">' + n('bdlv', 'Nível', BD.lv) + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => n('bd' + s, s, BD.st[s])).join('')
       + '<div class="field"><label class="lbl" for="bdps">Status pessoal</label><select id="bdps">' + ['CRT', 'LUK', 'MTL', 'TEC'].map(p => '<option' + (BD.ps === p ? ' selected' : '') + '>' + p + '</option>').join('') + '</select></div>' + n('bdpv', 'Valor', BD.pv)
       + '</div><p class="note" id="bdpts"></p>')
@@ -1812,13 +1818,15 @@ function viewCharBuild(focus) {
     + blk('rg', 'Registlets', '<div id="rgbox"></div>')
     + blk('pt', 'Pet', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Skills do pet que dão buff para a party (duram 10 s cada vez que o pet usa). Escolha o nível de cada uma que o seu pet tem. O “↑ vermelho” é a taxa de ação do pet com a seta vermelha, na tela de status dele.</p><div id="petbox"></div>')
     + blk('bf', 'Buffs ativos', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Skills que você liga, ou que alguém da party usa em você, e que duram um tempo. Escolha o nível de quem usou. O que estiver ligado entra no painel de status e no bloco Dano.</p><div id="bfbox"></div>')
+    + blk('tr', 'Traits', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Os traits da sua arma e armadura. Os fixos (STR, ATK, ASPD...) somam direto; os de gatilho entram com as cargas que você marcar.</p><div id="trbox"></div>')
     + blk('sk', 'Skills', '<div id="skbox"></div>')
     + blk('dn', 'Dano', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Quanto esta build bate num monstro. Muda sozinho quando você troca equipamento, skill, buff ou comida.</p><div id="dnbox"></div>')
+    + blk('cb', 'Combo', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Monte a sequência de skills do combo e veja o MP de cada uma, a força com os efeitos de combo e o dano no alvo do bloco Dano.</p><div id="cbbox"></div>')
     + '<section class="card"><div class="chips"><button class="btn" id="bdshare" type="button">Copiar link da build</button><a class="btn ghost" href="#/dano">Calcular dano num boss</a><button class="btn ghost" id="bdclear" type="button">Começar do zero</button></div><p class="note" id="bdmsg">Tudo é salvo sozinho neste aparelho.</p></section>'
     + '</div><aside class="pgright" id="gstatw" aria-label="Status do personagem"><div class="gstat" id="gstat"></div></aside></div>'
     + '<div class="picker" id="pick" hidden><div class="pbox"><div class="phead"><input id="pq" type="search" placeholder="Buscar item" aria-label="Buscar item"><button class="btn ghost" id="pclose" type="button">Fechar</button></div><div id="plist2" class="plist"></div></div></div>'
     + '<div class="picker" id="cipick" hidden><div class="pbox"><div class="phead"><b style="flex:1;align-self:center">Item personalizado</b><button class="btn ghost" id="ciclose" type="button">Fechar</button></div><div class="plist cif"></div></div></div>';
-  renderSlots(); renderBuild(); renderBnAdd(); renderPet(); renderBuffs();
+  renderSlots(); renderBuild(); renderBnAdd(); renderPet(); renderBuffs(); renderTraits();
   const upd = () => {
     BD.lv = Math.max(1, +$('#bdlv').value || 1);
     ['STR', 'INT', 'VIT', 'AGI', 'DEX'].forEach(s => { BD.st[s] = Math.max(1, +$('#bd' + s).value || 1); });
@@ -1855,8 +1863,9 @@ function viewCharBuild(focus) {
   $('#pclose').addEventListener('click', () => { $('#pick').hidden = true; });
   $('#pick').addEventListener('click', e => { if (e.target.id === 'pick') $('#pick').hidden = true; });
   // Registlets e skills só montam quando o bloco está aberto (as skills são pesadas).
-  const fill = id => { if (id === 'rg') viewCharRegs($('#rgbox')); else if (id === 'sk' && !$('#sktool')) viewSkills(null, $('#skbox')); else if (id === 'dn') dmBlock(); };
-  ['rg', 'sk', 'dn'].forEach(id => { if (BLK_OPEN[id]) fill(id); });
+  const fill = id => { if (id === 'rg') viewCharRegs($('#rgbox')); else if (id === 'sk' && !$('#sktool')) viewSkills(null, $('#skbox')); else if (id === 'dn') dmBlock(); else if (id === 'cb') cbRender(); };
+  ['rg', 'sk', 'dn', 'cb'].forEach(id => { if (BLK_OPEN[id]) fill(id); });
+  $('#pgnav').addEventListener('click', e => { const b = e.target.closest('[data-goblk]'); if (!b) return; const id = b.dataset.goblk, h = view.querySelector('[data-blk="' + id + '"]'); if (h && !BLK_OPEN[id]) h.click(); const el = $('#blk-' + id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   view.querySelector('.pgleft').addEventListener('click', e => {
     const h = e.target.closest('[data-blk]'); if (!h) return;
     const id = h.dataset.blk, on = !BLK_OPEN[id]; BLK_OPEN[id] = on ? 1 : 0; store.set('blk', BLK_OPEN);
@@ -1971,8 +1980,7 @@ function gstatRows(d) {
     [['Short Range Damage (within 7m)', 100 + g('Short Range Damage %'), pc], ['Long Range Damage (8m or more)', 100 + g('Long Range Damage %'), pc], ['Unsheathe Attack Power Boost', g('Unsheathe Attack'), pl], ['Unsheathe Attack Damage Rate', 100 + g('Unsheathe Attack %'), pc]],
     [['Aggro', 100 + g('Aggro %'), pc], ['EXP Gain', 100 + g('EXP Gain %'), pc], ['Pet EXP Gain', 100 + g('Pet EXP %'), pc], ['Drop Rate', d.DROP, pc], ['Evasion Recharge', 100 + g('Evasion Recharge %'), pc], ['Evasion Count', d.EVA, pl],
       ['Guard Recharge', 100 + g('Guard Recharge %'), pc], ['Guard Power', 100 + g('Guard Power %'), pc], ['Revive Time Reduction', -g('Revive Time %') || 0, pc]],
-    ELS.map(e => ['Advantage against ' + e, g('% stronger against ' + e), pc]),
-    ELS.map(e => [e + ' Resistance', e === 'Neutral' ? g('Neutral Resistance %') : g(e + ' resistance %') + (e === 'Light' ? g('Light Resistance') : 0), pc]),
+
     [['Foe Epicenter', 'Foe Epicenter'], ['Player Epicenter', 'Player Epicenter'], ['Straight Line', 'Straight Line'], ['Charge', 'Charge'], ['Meteor', 'Meteor'], ['Bullet', 'Bullet'], ['Bowling', 'Bowling'], ['Floor', 'Floor']].map(([l, k]) => ['Reduce Dmg (' + l + ')', g('Reduce Dmg (' + k + ') %'), pc])
       .concat([['Reduce Emission', 0, pc], ['Reduce Explosion', g('Reduce Explosion %'), pc], ['Reduce Vortex', g('Reduce Vortex %'), pc]]),
     [['Physical Barrier', g('Physical Barrier'), pl], ['Magic Barrier', g('Magic Barrier'), pl], ['Fractional Barrier', g('Fractional Barrier %'), pc], ['Barrier Recovery Speed', g('Barrier Cooldown %'), pc]],
@@ -1992,11 +2000,12 @@ function renderBuild() {
   const mag = d.MATK > d.ATK;
   $('#bdsum').innerHTML = [[mag ? 'MATK' : 'ATK', mag ? d.MATK : d.ATK], ['Crít.', d.CRIT], ['ASPD', d.ASPD], ['CSPD', d.CSPD], ['HP', d.MaxHP]].map(([l, v]) => '<span><small>' + l + '</small>' + fmt(Math.floor(v)) + '</span>').join('') + '<em>status ↓</em>';
   $('#gstat').innerHTML = '<h2>Status detalhado <small>Lv ' + BD.lv + '</small></h2>'
-    + gstatRows(d).map(grp => '<dl>' + grp.map(([l, v, f]) => '<div' + (typeof v === 'number' && v < 0 ? ' class="neg"' : '') + '><dt>' + l + '</dt><dd>' + f(v) + '</dd></div>').join('') + '</dl>').join('')
+    + gstatRows(d).map(grp => '<dl>' + grp.map(([l, v, f]) => '<div' + (typeof v === 'number' && v < 0 ? ' class="neg"' : '') + '><dt>' + l + '</dt><dd>' + f(v) + '</dd></div>').join('') + '</dl>').join('') + elemTable(d)
     + (off.length ? '<p class="gnote">Não contam com a arma e armadura atuais: ' + off.map(([it, s]) => { const [nm, vv, c] = sparts(s); return esc(nm + ' ' + vv + ' (' + c + ', ' + it.name + ')'); }).join('; ') + '.</p>' : '')
     + '<p class="gnote">Fórmulas do Cy\'s Grimoire. As passivas que dão status e os buffs ligados já entram; o que o site ainda não soma vai no bloco “outros bônus”. Como no jogo, efeitos de skills com cálculo especial podem não aparecer.</p>';
   blkSubs();
   if ($('#dmres')) damageCalc();
+  if ($('#cbbox') && SKI && !$('#blkb-cb').hidden) cbRender();
 }
 // Bônus que não vêm dos equipamentos, separados por tipo. Cada um é [status, valor, tipo, nome da comida].
 const BN_CATS = [['com', 'Comida'], ['ava', 'Avatar'], ['pot', 'Poções e buffs'], ['out', 'Outros']];
@@ -2036,7 +2045,7 @@ function renderPet() {
     BD.pet = BD.pet || {};
     if (lv) { const k = lv.dataset.petlv, v = +lv.value; if (v) BD.pet[k] = [v, (BD.pet[k] || [0, 0])[1]]; else delete BD.pet[k]; }
     if (red) { const k = red.dataset.petred; if (BD.pet[k]) BD.pet[k][1] = red.checked ? 1 : 0; }
-    saveBuild(); renderPet(); renderBuffs(); renderBuild();
+    saveBuild(); renderPet(); renderBuffs(); renderTraits(); renderBuild();
   };
 }
 // Resumo de cada bloco no cabeçalho dele.
@@ -2050,6 +2059,8 @@ function blkSubs() {
   const pn = PET_BUFFS.filter(([k]) => (BD.pet || {})[k]).length;
   set('pt', pn ? pn + (pn === 1 ? ' buff ativo' : ' buffs ativos') : 'nenhum buff');
   const bn2 = Object.keys(BD.ab || {}).length; set('bf', bn2 ? bn2 + (bn2 === 1 ? ' ligado' : ' ligados') : 'nenhum ligado');
+  const tn = (BD.tr || []).length; set('tr', tn ? tn + (tn === 1 ? ' trait' : ' traits') : 'nenhum');
+  const cn = ((BD.cb || {}).s || []).length; set('cb', cn ? cn + (cn === 1 ? ' skill' : ' skills') : 'vazio');
   const sp = Object.values(SKS.lv).reduce((a, o) => a + Object.values(o).reduce((x, y) => x + y, 0), 0);
   set('sk', sp + ' de ' + skillPts(BD.lv) + ' pontos');
 }
@@ -2115,7 +2126,7 @@ function viewNewsItem(id) {
 // Cada personagem guarda a build (equipamento e status) e as skills. Fica tudo salvo neste aparelho.
 const PG_TABS = [['montar', 'Montar'], ['comparar', 'Comparar'], ['salvar', 'Salvar']];
 // Abas antigas viram blocos da página Montar (links velhos continuam funcionando).
-const PG_OLD = { geral: '', equipamento: 'eq', skills: 'sk', registlets: 'rg', comida: 'bn' };
+const PG_OLD = { geral: '', equipamento: 'eq', skills: 'sk', registlets: 'rg', comida: 'bn', traits: 'tr', buffs: 'bf', dano: 'dn', combo: 'cb' };
 let CHARS = store.get('chars', null) || { cur: 0, list: [{ name: 'Build 1', bd: store.get('build', null), sk: store.get('skills', {}) }] };
 const clone = o => JSON.parse(JSON.stringify(o));
 function syncChar() { const c = CHARS.list[CHARS.cur]; if (!c) return; c.bd = clone(BD); c.sk = clone(SKS.lv); c.sg = clone(SKS.gem); store.set('chars', CHARS); }
@@ -2732,20 +2743,8 @@ function dmSkSync() {
 }
 function dmSkillVals() {
   if (DM.sk === 'normal') return { cst: 0, mult: 100, mp: 0, magic: null, hits: 1, name: 'Ataque normal' };
-  if (!DM.sk || DM.sk === 'manual' || !SKI || !SKT) return null;
-  const [k, id] = DM.sk.split('/'), info = SKI[DM.sk], t = SKT.find(x => x.k === k), s = t && t.s.find(x => x[0] === +id);
-  const d0 = info && (info.d || []).find(d => d.multiplier != null); if (!s || !d0) return null;
-  const l = skEff(k, +id) || 1, c = skiCtx(l, info.sk ? info.sk.map(x => +(x[1] != null ? x[1] : x[2]) || 0) : []);
-  let cst = d0.constant, mult = d0.multiplier, mp = info.mp_cost, hit = false;
-  const w = skWctx(), wt = w.dual ? 'dual' : w.mt;
-  const apply = v => v.ch.forEach(([i, key, f]) => { if (key === 'multiplier' && i === '1') mult = f; else if (key === 'constant' && i === '1') cst = f; else if (key === 'mp_cost') mp = f; });
-  // Variantes por arma: a da arma atual; "outras armas" vale quando a arma não é a da árvore.
-  (info.v || []).forEach(v => { const [vm, vs] = v.w.split('|'); if (!vm && !vs) return; const okM = !vm || (vm === 'Dual Swords' ? w.dual : (VW[vm] || vm) === w.mt); const okS = !vs || (vs === 'Nada' ? !w.st : vs === w.st); if (okM && okS) { apply(v); hit = true; } });
-  const other = (info.v || []).find(v => v.w === '||');
-  if (!hit && other && TREE_W[k] && TREE_W[k] !== wt) apply(other);
-  const ev = f => f == null || f === '' ? 0 : skiEval(f, c);
-  const kind = d0.damage_type || (d0.k === 'magic' ? 'magic' : d0.k === 'physical' ? 'physical' : '');
-  return { cst: ev(cst), mult: ev(mult), mp: ev(mp), magic: kind ? kind === 'magic' : null, hits: d0.frequency ? ev(d0.frequency) || 1 : 1, perHit: d0.title === 'each', name: s[1] + ' Lv ' + l };
+  if (!DM.sk || DM.sk === 'manual') return null;
+  const v = skVals(DM.sk); return v && v.attack ? v : null;
 }
 function dmHtml() {
   const n = (id, lab, v, extra) => '<div class="field"><label class="lbl" for="' + id + '">' + lab + '</label><input id="' + id + '" type="number" inputmode="decimal" step="any" value="' + v + '"' + (extra || '') + '></div>';
@@ -2867,6 +2866,263 @@ function damageCalc() {
     + [[magic ? 'MATK' : 'ATK', fmt(atk)], ['ATK efetivo', fmt(Math.floor(effAtk))], ['Diferença de nível', fmt(BD.lv - DM.lv)], [magic ? 'MDEF do alvo' : 'DEF do alvo', fmt(def)], ['Pierce', pierce + '%'], ['Resistência do alvo', res + '%'], ['Estabilidade', magic ? 'mágica ' + Math.floor(magStab) + '% (' + Math.floor(stLo) + '–' + Math.floor(stHi) + '%)' : physStab + '%'],
       ['Elemento', (wEl ? EL[EL_EN.indexOf(wEl)][0] : 'neutro') + ' contra ' + (mEl ? EL[EL_EN.indexOf(mEl)][0] : '?') + (adv ? ' (+25%)' : '')], ['Dano contra o elemento', '+' + (dte + intBonus) + '%' + (intBonus ? ' (com INT)' : '')], ['Distância', '+' + rng + '%'], ['Desembainhar', '+' + uns + '%'], ['Skill × proration × combo', Math.round(SK.mult * 100) / 100 + '% × ' + DM.pror + '% × ' + DM.combo + '%'], ['Passivas e buffs de dano', db.length ? db.map(x => x[0] + ' ' + (x[1] > 0 ? '+' : '') + x[1] + '%').join(', ') : 'nenhum'], ['Buffs × outros', '+' + DM.buff + '% × ' + DM.other + '%']].map(([k, v]) => '<div><span>' + k + '</span><b>' + v + '</b></div>').join('') + '</div>'
     + '<p class="note">Fórmulas do glossário (Cy\'s Grimoire e testes da comunidade). Já inclui as passivas e os buffs ativos do Personagem; não inclui guarda/esquiva especial do boss; a parte de Graze é uma estimativa. Bom para comparar builds e skills.</p>';
+}
+
+// ---------- valores de qualquer skill da build (MP, dano, conjuração), com a variante da arma atual ----------
+function skVals(key, stk) {
+  if (!SKI || !SKT || !key) return null;
+  const [k, id] = key.split('/'), info = SKI[key], t = SKT.find(x => x.k === k), s = t && t.s.find(x => x[0] === +id);
+  if (!info || !s) return null;
+  const d0 = (info.d || []).find(d => d.multiplier != null);
+  const l = skEff(k, +id) || 1, c = skiCtx(l, stk || (info.sk ? info.sk.map(x => +(x[1] != null ? x[1] : x[2]) || 0) : []));
+  let cst = d0 ? d0.constant : null, mult = d0 ? d0.multiplier : null, mp = info.mp_cost, hit = false;
+  const w = skWctx(), wt = w.dual ? 'dual' : w.mt;
+  const apply = v => v.ch.forEach(([i, key2, f]) => { if (key2 === 'multiplier' && i === '1') mult = f; else if (key2 === 'constant' && i === '1') cst = f; else if (key2 === 'mp_cost') mp = f; });
+  (info.v || []).forEach(v => { const [vm, vs] = v.w.split('|'); if (!vm && !vs) return; const okM = !vm || (vm === 'Dual Swords' ? w.dual : (VW[vm] || vm) === w.mt); const okS = !vs || (vs === 'Nada' ? !w.st : vs === w.st); if (okM && okS) { apply(v); hit = true; } });
+  const other = (info.v || []).find(v => v.w === '||');
+  if (!hit && other && TREE_W[k] && TREE_W[k] !== wt) apply(other);
+  const ev = f => f == null || f === '' ? 0 : skiEval(f, c) || 0;
+  const kind = d0 ? d0.damage_type || (d0.k === 'magic' ? 'magic' : d0.k === 'physical' ? 'physical' : '') : '';
+  return { key, attack: !!d0, cst: ev(cst), mult: ev(mult), mp: ev(mp), cast: ev(info.casting_time), magic: kind ? kind === 'magic' : null, hits: d0 && d0.frequency ? ev(d0.frequency) || 1 : 1, perHit: !!(d0 && d0.title === 'each'), name: s[1] + ' Lv ' + l, short: s[1], lv: l };
+}
+// Dano esperado por uso, com a mesma conta do bloco Dano (alvo do bloco Dano), num multiplicador de combo.
+function dmCore(sv, combo) {
+  const { tot } = buildTotals(), d = buildDerived(tot);
+  const g = n => { const i = SI(n); return i < 0 ? 0 : tot.get(i) || 0; };
+  const mon = DB.GBYID.get(DM.gid), magic = sv.magic != null ? sv.magic : DM.type === 'm';
+  const main = slotItem(BD.sl.arma), wt = main ? main.tl : '';
+  const magStab = 50 + d.STAB / 2;
+  const [stLo, stHi] = magic ? (magStab <= 90 ? [magStab, 100] : [90, Math.min(110, 100 + (magStab - 90))]) : [d.STAB, 100];
+  const atk = magic ? d.MATK : d.ATK, pierce = Math.min(100, g(magic ? 'Magic Pierce %' : 'Physical Pierce %'));
+  const def = magic ? DM.mdef : DM.def, res = magic ? DM.mres : DM.pres;
+  const base = Math.max(0, (atk + (BD.lv - DM.lv)) * (1 - res / 100) - def * (1 - pierce / 100) + sv.cst + DM.cst2);
+  const wEl = main ? (main.stats.map(s => DB.STATN[s[0]]).find(n => /^(Fire|Water|Wind|Earth|Light|Dark) Element$/.test(n)) || '').replace(' Element', '') : '';
+  const mEl = mon ? mon.els.map(e => EL_EN[e]).filter(Boolean)[0] : '';
+  const adv = DM.autoEl && wEl && mEl && EL_BEATS[wEl] === mEl;
+  const intBonus = magic && wEl && (adv || wt === 'Staff' || wt === 'Magic Device') ? Math.floor(BD.st.INT / 10) : 0;
+  const dte = mEl ? g('% stronger against ' + mEl) : 0;
+  const rng = DM.range === 'curta' ? g('Short Range Damage %') : DM.range === 'longa' ? g('Long Range Damage %') : 0;
+  const db = dmgBonus(DM.range), dA = db.filter(x => x[2] === 'A').reduce((a, x) => a + x[1], 0), dB = db.filter(x => x[2] === 'B').reduce((a, x) => a + x[1], 0);
+  const mods = (1 + (adv ? 25 : 0) / 100 + (dte + intBonus) / 100) * (sv.mult / 100) * (DM.pror / 100) * (combo / 100) * (1 + rng / 100) * (1 + DM.buff / 100) * (DM.other / 100) * (1 + dA / 100) * (1 + dB / 100);
+  const avg = (Math.floor(base * mods * stHi / 100) + Math.floor(base * mods * stLo / 100)) / 2;
+  const critD = magic ? 100 + ((DM.critd !== '' ? +DM.critd : d.CDMG) - 100) * Math.min(100, DM.mcd) / 100 : (DM.critd !== '' ? +DM.critd : d.CDMG);
+  const critRaw = magic ? d.CRIT * Math.min(100, DM.mcr + (wt === 'Staff' && !wEl ? 25 : 0)) / 100 : d.CRIT;
+  const cr = Math.max(0, Math.min(100, critRaw - DM.cres)) / 100;
+  const H = magic ? 1 : Math.max(0, Math.min(100, (d.HIT - DM.flee) / 3 + sv.mp / 10)) / 100;
+  const minHit = (MIN_HIT[wt] != null ? MIN_HIT[wt] : 10) / 100;
+  const missWhite = magic ? 0 : (1 - H) * (1 - cr) * (H < 1 ? Math.max(0, minHit - H) / (1 - H) : 0);
+  const grazeAvg = base * mods * ((stLo / 2 + stHi) / 2) / 100;
+  const exp = H * ((1 - cr) * avg + cr * avg * critD / 100) + (1 - H) * cr * grazeAvg * critD / 100 + missWhite * grazeAvg;
+  const nh = sv.perHit && sv.hits > 1 ? sv.hits : 1;
+  return { exp, use: exp * nh, nh, mon };
+}
+
+// ---------- tabela por elemento (painel de status) ----------
+function elemTable(d) {
+  const g = d.g, main = slotItem(BD.sl.arma), wt = main ? main.tl : '';
+  const wEl = main ? (main.stats.map(s => DB.STATN[s[0]]).find(n => /^(Fire|Water|Wind|Earth|Light|Dark) Element$/.test(n)) || '').replace(' Element', '') : '';
+  const rows = ['Neutral', 'Fire', 'Water', 'Wind', 'Earth', 'Light', 'Dark'].map(e => {
+    const adv = wEl && EL_BEATS[wEl] === e ? 25 : 0, dte = g('% stronger against ' + e);
+    const intB = wEl && (adv || wt === 'Staff' || wt === 'Magic Device') ? Math.floor(BD.st.INT / 10) : 0;
+    const resv = e === 'Neutral' ? g('Neutral Resistance %') : g(e + ' resistance %') + (e === 'Light' ? g('Light Resistance') : 0);
+    const pc = v => '<td' + (v > 100 ? ' class="up"' : v < 0 ? ' class="neg"' : '') + '>' + fmt(v) + '%</td>';
+    return '<tr><th scope="row">' + e + '</th>' + pc(100 + adv + dte) + pc(100 + adv + dte + intB) + '<td' + (resv < 0 ? ' class="neg"' : resv > 0 ? ' class="up"' : '') + '>' + fmt(resv) + '%</td></tr>';
+  }).join('');
+  return '<table class="gel"><thead><tr><th scope="col">Element</th><th scope="col">Phy. Power</th><th scope="col">Mag. Power</th><th scope="col">Resistance</th></tr></thead><tbody>' + rows + '</tbody></table>'
+    + '<p class="gnote">Poder contra cada elemento: 100% + “dano contra o elemento” + 25% quando o elemento da arma vence o do alvo' + (wEl ? ' (sua arma: ' + wEl + ')' : ' (sua arma não tem elemento)') + '; o mágico ganha ainda INT base ÷ 10.</p>';
+}
+
+// ---------- traits no personagem ----------
+// BD.tr = [[nome, tier, cargas]]. Efeitos do coryn.club; os que valem por gatilho usam "cargas" (quantas vezes está ativo).
+const TRF = {
+  STR: t => [['STR', t]], INT: t => [['INT', t]], VIT: t => [['VIT', t]], AGI: t => [['AGI', t]], DEX: t => [['DEX', t]],
+  MaxHP: t => [['MaxHP', 200 * t]], MaxMP: t => [['MaxMP', 10 * t]], ATK: t => [['ATK', 5 * t]], MATK: t => [['MATK', 5 * t]], DEF: t => [['DEF', 10 * t]], MDEF: t => [['MDEF', 10 * t]],
+  Accuracy: t => [['Accuracy', 3 * t]], Dodge: t => [['Dodge', 3 * t]], ASPD: t => [['ASPD', 50 * t]], CSPD: t => [['CSPD', 50 * t]],
+  'Natural HP Regen': t => [['Natural HP Regen', 15 * t]], 'Natural MP Regen': t => [['Natural MP Regen', 5 * t]], 'Critical Rate': t => [['Critical Rate', t]], 'Critical Damage': t => [['Critical Damage', t]],
+  'Exp Gain': t => [['EXP Gain %', 3 * t]], 'Pet EXP Gain': t => [['Pet EXP %', 6 * t]],
+  Battlecast: [20, (t, s) => [['CSPD', 20 * t * s]]], 'Bunker Edge': [10, (t, s) => [['Physical Pierce %', s]]], 'Bunker Magica': [10, (t, s) => [['Magic Pierce %', s]]],
+  Critical: [t => 10 * t, (t, s) => [['Critical Rate', s]]], 'Critical Rebound': [5, (t, s) => [['Critical Rate', 4 * t * s]]],
+  'Cursed Weapon': [99, (t, s) => [['MaxHP %', -s], ['ATK', t * s], ['MATK', t * s]]], 'Dash Defence': [3, (t, s) => [['Physical Resistance %', 2 * t * s], ['Magic Resistance %', 2 * t * s]]],
+  'Dash Power': [3, (t, s) => [['ATK', 10 * t * s], ['ASPD', (50 + 50 * t) * s]]], 'Fighting Magica': [t => Math.floor(300 / t), (t, s) => [['MATK', t * s]]], 'Fighting Power': [t => Math.floor(300 / t), (t, s) => [['ATK', t * s]]],
+  Gearshift: [20, (t, s) => [['ASPD', 20 * t * s]]], 'Graze Precision': [5, (t, s) => [['Accuracy', 20 * t * s]]],
+  'Graze Mana Boost': [3, (t, s) => [['MaxMP', -(350 - 50 * t) * s], ['Short Range Damage %', s], ['Long Range Damage %', s], ['Accuracy', 60 * t * s]]],
+  'Life Purge': [5, (t, s) => [['MaxHP %', -Math.pow(2, t - 1) * s], ['ASPD', 50 * Math.pow(2, t - 1) * s]]], 'Magica Rebound': [10, (t, s) => [['MATK', 10 * t * s]]], 'Power Rebound': [10, (t, s) => [['ATK', 10 * t * s]]],
+  'Mega Power Rebound': [1, (t, s) => s ? [['ATK', 100 * t], ['Critical Rate', 25 + 25 * t], ['Accuracy', -9999]] : []], Nimble: [30, (t, s) => [['Dodge', t * s]]], Precision: [30, (t, s) => [['Accuracy', t * s]]],
+  'Vengeful Life': [t => 140 - 20 * t, (t, s) => [['MaxHP', 50 * Math.pow(2, t - 1) * s]]], 'Vengeful Mana': [t => 35 - 5 * t, (t, s) => [['MaxMP', 5 * Math.pow(2, t - 1) * s]]],
+  'Vengeful Power': [t => [90, 60, 30, 15, 10][t - 1], (t, s) => [['ATK', [10, 15, 30, 60, 90][t - 1] * s]]], 'Vengeful Magica': [t => [90, 60, 30, 15, 10][t - 1], (t, s) => [['MATK', [10, 15, 30, 60, 90][t - 1] * s]]],
+  'Counter Speed': [1, (t, s) => s ? [['ASPD %', 2 * t], ['CSPD %', 2 * t], ['Motion Speed %', 2 * t]] : []], 'Counter Rage': [1, (t, s) => s ? [['Aggro %', 10 * t]] : []],
+  'Counter Evasion Power': [1, (t, s) => s ? [['ATK', 100 + Math.floor(BD.st.DEX / 5)]] : []], 'Guarded Magica': [1, (t, s) => s ? [['MATK', 50 + Math.floor(BD.st.DEX / 10)]] : []],
+  Engineer: [1, (t, s) => { const tec = BD.ps === 'TEC' ? BD.pv || 0 : 0; return s ? [['ATK', 5 + 5 * t + Math.floor(tec / (6 - t))], ['MATK', 5 + 5 * t + Math.floor(tec / (6 - t))], ['CSPD', 10 + Math.floor(tec * 5 / (6 - t))]] : []; }],
+  'Foreseen Evasion': [1, (t, s) => s ? [['Anticipate %', 5 * t]] : []], 'Guarded Advantage': [1, (t, s) => s ? [['Guard Break %', 5 * t]] : []],
+  'Health Barrier': [100, (t, s) => { const mtl = BD.ps === 'MTL' ? BD.pv || 0 : 0, v = Math.floor((2 * t + mtl / (6 - t)) * s); return [['Physical Barrier', v], ['Magic Barrier', v]]; }],
+  'Lucky Experience': [10, (t, s) => [['EXP Gain %', t * s]]], 'Vengeful Samurai': [t => t, (t, s) => [['Unsheathe Attack', 100 * s]]],
+  'Flinch Unavailable': t => [['Flinch Unavailable', 1]], 'Stun Unavailable': t => [['Stun Unavailable', 1]], 'Tumble Unavailable': t => [['Tumble Unavailable', 1]]
+};
+const trMax = (f, t) => typeof f[0] === 'function' ? f[0](t) : f[0];
+function traitPairs([n, t, s]) {
+  const f = TRF[n]; if (!f) return [];
+  const pairs = typeof f === 'function' ? f(t) : f[1](t, Math.min(Math.max(0, +s || 0), trMax(f, t)));
+  return pairs.filter(p => p[1] && SI(p[0]) >= 0);
+}
+const traitBonus = () => (BD.tr || []).flatMap(traitPairs);
+function renderTraits() {
+  const box = $('#trbox'); if (!box) return;
+  if (!TRT) { box.innerHTML = '<p class="loading">Carregando traits…</p>'; load('traits').then(d => { TRT = d; renderTraits(); }); return; }
+  const tr = BD.tr || [], byName = new Map(TRT.traits.map(x => [x[0], x])), cats = [...new Set(TRT.traits.map(x => x[1]))];
+  box.innerHTML = (tr.length ? tr.map((x, i) => {
+    const [n, t] = x, f = TRF[n], info = byName.get(n), st = f && typeof f !== 'function';
+    const pairs = traitPairs(x);
+    return '<div class="petrow trrow"><div><b>' + esc(n) + '</b><small>' + esc(info ? info[2] : '') + '</small></div>'
+      + '<select data-trt="' + i + '" aria-label="Tier de ' + esc(n) + '">' + [1, 2, 3, 4, 5].map(v => '<option value="' + v + '"' + (t === v ? ' selected' : '') + '>Tier ' + v + '</option>').join('') + '</select>'
+      + (st ? (trMax(f, t) === 1 ? '<label class="check"><input type="checkbox" data-trs="' + i + '"' + (+x[2] ? ' checked' : '') + '> Ativo agora</label>' : '<label class="trstk">Cargas<input type="number" inputmode="numeric" min="0" max="' + trMax(f, t) + '" data-trs="' + i + '" value="' + (+x[2] || 0) + '"><small>até ' + trMax(f, t) + '</small></label>') : '')
+      + '<button type="button" class="slotx" data-trx="' + i + '" aria-label="Tirar ' + esc(n) + '">×</button>'
+      + '<span class="petsum">' + (pairs.length ? psvTxt(pairs) : f ? (st ? 'marque quantas cargas tem agora' : '') : 'efeito de recuperação: não muda status') + '</span></div>';
+  }).join('') : '<p class="muted" style="margin:0 0 10px">Nenhum trait. Adicione os que estão na sua arma e armadura.</p>')
+    + '<div class="range" style="margin-top:10px"><select id="trsel" aria-label="Trait">' + cats.map(c => '<optgroup label="' + esc(TRAIT_CAT[c] || c) + '">' + TRT.traits.filter(x => x[1] === c).map(x => '<option>' + esc(x[0]) + '</option>').join('') + '</optgroup>').join('') + '</select><button type="button" class="btn" id="tradd">Adicionar</button></div>'
+    + '<p class="note">Os de gatilho (ao acertar, ao esquivar, ao levar dano) entram com as cargas que você colocar. Lista e efeitos na página <a class="tl" href="#/traits">Traits</a>.</p>';
+  box.onclick = e => {
+    if (e.target.id === 'tradd') { BD.tr = (BD.tr || []).concat([[$('#trsel').value, 1, 0]]); }
+    else { const x = e.target.closest('[data-trx]'); if (!x) return; BD.tr.splice(+x.dataset.trx, 1); }
+    saveBuild(); renderTraits(); renderBuild();
+  };
+  box.onchange = e => {
+    const t = e.target.closest('[data-trt]'), s = e.target.closest('[data-trs]');
+    if (t) BD.tr[+t.dataset.trt][1] = +t.value;
+    else if (s) BD.tr[+s.dataset.trs][2] = s.type === 'checkbox' ? (s.checked ? 1 : 0) : Math.max(0, +s.value || 0);
+    else return;
+    saveBuild(); renderTraits(); renderBuild();
+  };
+}
+
+// ---------- simulador de combo (regras do glossário do Cy's Grimoire) ----------
+// BD.cb = { mp: MP inicial ('' = MP máximo), s: [[skill, efeito de combo]] }.
+const CB_TAGS = [['', 'Sem efeito'], ['emp', 'Empower'], ['rep', 'Reposição (Filler)'], ['ten', 'Tenacity'], ['inv', 'Invencível'], ['bld', 'Bloodsucker'], ['frm', 'Firmeza'], ['rfl', 'Reflection'], ['swf', 'Swift'], ['eye', 'Olho da Mente']];
+const CB_MAX = 10;
+function cbSkills() {
+  if (!SKI || !SKT) return [];
+  return SKT.flatMap(t => t.s.filter(s => skEff(t.k, s[0]) && SKI[t.k + '/' + s[0]] && SKI[t.k + '/' + s[0]].mp_cost != null && SKI[t.k + '/' + s[0]].skill_type !== 'passive' && SKI[t.k + '/' + s[0]].in_combo !== '0').map(s => [t.k + '/' + s[0], s[1] + ' · Lv ' + skEff(t.k, s[0]), skTreeName(t)]));
+}
+function cbCalc() {
+  const cb = BD.cb || { mp: '', s: [] }, d = buildDerived(buildTotals().tot);
+  const start = cb.mp !== '' && cb.mp != null ? +cb.mp : d.MaxMP;
+  let mp = start, reserved = 0, repPen = [], empNext = false, rflNext = false, hot = false, invUsed = false, stop = false, hp = 0, total = 0;
+  const seen = {}, rows = [];
+  cb.s.forEach(([key, tag], i) => {
+    const v = skVals(key); if (!v) { rows.push({ name: 'Skill fora da build', off: true }); return; }
+    if (stop) { rows.push({ v, off: true, notes: ['não sai: o combo parou antes'] }); return; }
+    const pos = i + 1, last = i === cb.s.length - 1, uses = seen[key] || 0, notes = [];
+    seen[key] = uses + 1;
+    let force = 100 - 10 * uses, cost = Math.max(0, Math.round(v.mp) - 100 * (pos - 1)), hpc = 0;
+    if (uses) notes.push('repetida: −' + 10 * uses + '%');
+    if (rflNext) { cost = Math.max(0, cost - 100); notes.push('−100 MP pelo Reflection (sem levar dano)'); rflNext = false; }
+    if (empNext) { force -= 50; notes.push('−50% pelo Empower anterior'); empNext = false; }
+    if (repPen.length) { const p = repPen.shift(); force -= p; notes.push('−' + p + '% pela Reposição'); }
+    if (tag === 'emp') { force += 50; if (last) { cost *= 2; notes.push('última do combo: MP em dobro'); } else empNext = true; }
+    if (tag === 'rep') { reserved = cost; cost = 0; force -= 80; repPen = [60, 40, 20]; notes.push('MP fica reservado e é descontado no fim'); }
+    if (tag === 'rfl' && !last) notes.push('se não levar dano, a próxima custa −100 MP'), rflNext = true;
+    if (tag === 'inv') { notes.push(invUsed ? 'Invencível repetido: 0%' : 20 * (pos - 1) + '% de chance de ficar invencível'); invUsed = true; }
+    if (tag === 'frm') notes.push('dano recebido −50% nesta e na próxima');
+    if (tag === 'swf') notes.push('velocidade de ação no máximo (50%)');
+    if (tag === 'eye') notes.push('garante Graze e ' + pos * 10 + '% de acerto absoluto');
+    if (tag === 'bld') { if (hot) { force += 10 + pos; hpc += Math.floor(d.MaxHP * (10 - pos) / 100); notes.push('Sangue Quente: dano +' + (10 + pos) + '%'); } else notes.push('cura ' + (10 + pos) + '% do dano em HP'); hot = true; }
+    if (cost > mp) {
+      if (tag === 'ten') { const pct = Math.ceil((cost - mp) / 100) * 10; hpc += Math.floor(d.MaxHP * pct / 100); notes.push('faltou MP: paga ' + pct + '% do HP'); cost = mp; }
+      else { rows.push({ v, pos, tag, cost, mpLeft: mp, force, notes: ['MP insuficiente: o combo para aqui'], err: true }); stop = true; return; }
+    }
+    mp -= cost; hp += hpc; force = Math.max(0, force);
+    const dmg = v.attack ? dmCore(v, force) : null; if (dmg) total += dmg.use;
+    rows.push({ v, pos, tag, cost, mpLeft: mp, force, dmg, hpc, notes });
+  });
+  if (!stop && reserved) mp -= reserved;
+  return { start, rows, mp, reserved, hp, total, stop };
+}
+function cbRender() {
+  const box = $('#cbbox'); if (!box) return;
+  if (!SKI || !SKT) { box.innerHTML = '<p class="loading">Carregando…</p>'; dmReady().then(() => { if ($('#cbbox')) cbRender(); }); return; }
+  BD.cb = BD.cb || { mp: '', s: [] };
+  const sks = cbSkills(), d = buildDerived(buildTotals().tot), r = cbCalc(), mon = DB.GBYID.get(DM.gid);
+  const opt = (v, l, on) => '<option value="' + v + '"' + (on ? ' selected' : '') + '>' + esc(l) + '</option>';
+  box.innerHTML = '<div class="calc"><div class="field"><label class="lbl" for="cbmp">MP no início</label><input id="cbmp" type="number" inputmode="numeric" min="0" placeholder="' + d.MaxMP + ' (máximo)" value="' + esc(BD.cb.mp) + '"></div>'
+    + '<div class="field"><span class="lbl">Alvo do dano</span><p style="margin:6px 0 0;font-size:14px">' + (mon ? esc(mon.name) : 'o mesmo do bloco Dano') + '</p></div></div>'
+    + '<ol class="cblist">' + BD.cb.s.map(([k, tag], i) => {
+      const row = r.rows[i] || {};
+      return '<li class="cbrow' + (row.err || row.off ? ' bad' : '') + '"><div class="cbsel"><span class="cbn">' + (i + 1) + '</span><select data-cbk="' + i + '" aria-label="Skill ' + (i + 1) + '">' + (sks.some(x => x[0] === k) ? '' : opt(k, 'Skill fora da build', true)) + sks.map(([v, l]) => opt(v, l, v === k)).join('') + '</select><select data-cbt="' + i + '" aria-label="Efeito de combo">' + CB_TAGS.map(([v, l]) => opt(v, l, v === tag)).join('') + '</select><button type="button" class="slotx" data-cbx="' + i + '" aria-label="Tirar do combo">×</button></div>'
+        + (row.v ? '<div class="cbinfo"><span><small>MP</small>' + (row.cost != null ? '−' + fmt(row.cost) : '—') + '</span><span><small>Sobra</small>' + (row.mpLeft != null ? fmt(row.mpLeft) : '—') + '</span><span><small>Força</small>' + (row.force != null ? row.force + '%' : '—') + '</span><span><small>Dano</small>' + (row.dmg ? fmt(Math.floor(row.dmg.use)) : row.v.attack ? '—' : 'não ataca') + '</span></div>' : '')
+        + (row.notes && row.notes.length ? '<p class="cbnote">' + row.notes.map(esc).join(' · ') + '</p>' : '') + '</li>';
+    }).join('') + '</ol>'
+    + (sks.length ? (BD.cb.s.length < CB_MAX ? '<button type="button" class="btn ghost" id="cbadd">+ Skill no combo</button>' : '') : '<p class="muted">Coloque skills na build (bloco Skills) para montar o combo.</p>')
+    + (BD.cb.s.length ? '<div class="res" style="margin-top:12px"><div><span class="lbl">MP gasto</span><div class="big">' + fmt(r.start - r.mp) + '</div><small class="muted">' + (r.reserved && !r.stop ? 'inclui ' + fmt(r.reserved) + ' reservados pela Reposição' : 'de ' + fmt(r.start)) + '</small></div><div><span class="lbl">MP no fim</span><div class="big' + (r.mp < 0 ? ' neg' : '') + '">' + fmt(r.mp) + '</div></div>'
+      + '<div><span class="lbl">Dano do combo</span><div class="big">' + fmt(Math.floor(r.total)) + '</div><small class="muted">esperado, com acerto e crítico</small></div>' + (r.hp ? '<div><span class="lbl">HP gasto</span><div class="big">' + fmt(r.hp) + '</div></div>' : '') + '</div>' : '')
+    + '<p class="note">Regras do glossário: cada skill custa 100 × (posição − 1) de MP a menos e perde 10% de força por vez que já apareceu no combo. Não conta MP recuperado entre as skills. O dano usa o alvo e as opções do bloco Dano.</p>';
+  box.onclick = e => {
+    if (e.target.id === 'cbadd') { BD.cb.s.push([sks[0][0], '']); }
+    else { const x = e.target.closest('[data-cbx]'); if (!x) return; BD.cb.s.splice(+x.dataset.cbx, 1); }
+    saveBuild(); cbRender();
+  };
+  box.onchange = e => {
+    const k = e.target.closest('[data-cbk]'), t = e.target.closest('[data-cbt]');
+    if (k) BD.cb.s[+k.dataset.cbk][0] = k.value; else if (t) BD.cb.s[+t.dataset.cbt][1] = t.value;
+    else if (e.target.id === 'cbmp') BD.cb.mp = e.target.value === '' ? '' : +e.target.value; else return;
+    saveBuild(); cbRender();
+  };
+}
+
+// ---------- calculadora do Magic: Cannon (carga %, dano) ----------
+const CN = Object.assign({ cspd: '', lv: 0, sec: 0, n: {} }, store.get('canhao', {}));
+const CN_F = ['Magic/0', 'Magic/1', 'Magic/2', 'Magic/8', 'Magic/7', 'Magic/9', 'Magic/12', 'Magic/4', 'Magic/10', 'Priest/8', 'Priest/6', 'Priest/7', 'Magic/22', 'MagicBlade/5', 'Sprite/3', 'Sprite/8', 'Sprite/9'];
+const CN_40 = ['Magic/3', 'MagicBlade/7', 'Magic/20'];
+const cnAccel = c => (c <= 1000 ? c / 20 : 50 + (c - 1000) / 180) / 100;
+function cnSkLv(key) { const [k, id] = key.split('/'); return skEff(k, +id) || 10; }
+function cnGain(key, acc, lv) {
+  if (CN_40.includes(key)) return 40 * acc;
+  const info = SKI[key]; if (!info) return 0;
+  const [k, id] = key.split('/'), c = skiCtx(cnSkLv(key), []), base = skiEval(info.casting_time, c) || 0;
+  return base * (1 - acc) * lv + 80 * acc;
+}
+function viewCannon() {
+  setTitle('Magic: Cannon');
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Calculadora do Magic: Cannon</h1><p>Quanto a carga sobe com as skills que você usa enquanto carrega, e o dano do disparo na build em uso.</p></div></div><div id="cnbox"><p class="loading">Carregando…</p></div>';
+  const v0 = view;
+  dmReady().then(() => { if (view !== v0) return; cnDraw(); });
+}
+function cnDraw() {
+  const box = $('#cnbox'); if (!box) return;
+  const d = buildDerived(buildTotals().tot), cspd = CN.cspd !== '' ? +CN.cspd : d.CSPD, acc = cnAccel(cspd);
+  const lv = CN.lv || skEff('Magic', 11) || 10, name = key => { const [k, id] = key.split('/'), t = SKT.find(x => x.k === k), s = t && t.s.find(x => x[0] === +id); return s ? s[1] : key; };
+  let ch = 0;
+  CN_F.concat(CN_40).forEach(key => { const n = +CN.n[key] || 0, g = cnGain(key, acc, lv); for (let i = 0; i < n; i++) ch += ch >= 100 ? g / 2 : g; });
+  let s = +CN.sec || 0; while (s > 0 && ch < 200) { ch += ch < 100 ? 1 : 0.5; s--; }
+  ch = Math.min(200, Math.floor(ch));
+  const sv = skVals('Magic/11', [ch]);
+  const dmg = sv ? dmCore(Object.assign({}, sv, { magic: true, mp: 0 }), 100) : null, mon = DB.GBYID.get(DM.gid);
+  const row = key => '<tr><td>' + esc(name(key)) + ' <small class="muted">Lv ' + cnSkLv(key) + '</small></td><td class="n">+' + (Math.round(cnGain(key, acc, lv) * 10) / 10) + '%</td><td><input type="number" inputmode="numeric" min="0" data-cn="' + key + '" value="' + (+CN.n[key] || 0) + '" aria-label="Vezes que usou ' + esc(name(key)) + '"></td></tr>';
+  box.innerHTML = '<div class="grid2"><div><section class="card"><h2>Carga</h2><div class="calc">'
+    + '<div class="field"><label class="lbl" for="cncs">CSPD</label><input id="cncs" type="number" inputmode="numeric" min="0" placeholder="' + d.CSPD + ' (da build)" value="' + esc(CN.cspd) + '"></div>'
+    + '<div class="field"><label class="lbl" for="cnlv">Nível do Magic: Cannon</label><select id="cnlv">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => '<option' + (n === lv ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div>'
+    + '<div class="field full"><label class="lbl" for="cnsec">Segundos carregando (sobe 1% por s até 100%, depois 0,5%)</label><input id="cnsec" type="number" inputmode="numeric" min="0" value="' + (+CN.sec || 0) + '"></div></div>'
+    + '<p class="note">Aceleração de conjuração com ' + fmt(cspd) + ' de CSPD: ' + Math.round(acc * 100) + '%.</p>'
+    + '<h4 class="sub4">Skills usadas durante a carga</h4><div class="tblw"><table class="tbl cntbl"><thead><tr><th>Skill</th><th class="n">Sobe</th><th>Vezes</th></tr></thead><tbody>' + CN_F.concat(CN_40).map(row).join('') + '</tbody></table></div>'
+    + '<p class="note">Fórmula do Cy: tempo real de conjuração × nível do Cannon + 80 × aceleração (Impact, Enchant Sword e Maximizer depois do MP Charge: 40 × aceleração). Com a carga acima de 100%, o que as skills dão cai pela metade. Só há dados testados com o Cannon no Lv 10.</p></section></div>'
+    + '<div><section class="card"><h2>Disparo <small>' + (mon ? esc(mon.name) : 'alvo do bloco Dano') + '</small></h2><div class="res">'
+    + '<div><span class="lbl">Carga</span><div class="big">' + ch + '%</div></div>'
+    + (sv ? '<div><span class="lbl">Constante</span><div class="big">' + fmt(Math.floor(sv.cst)) + '</div></div><div><span class="lbl">Multiplicador</span><div class="big">' + fmt(Math.floor(sv.mult)) + '%</div><small class="muted">em ' + sv.hits + (sv.hits === 1 ? ' dano' : ' danos') + '</small></div>' : '')
+    + (dmg ? '<div><span class="lbl">Dano esperado</span><div class="big">' + fmt(Math.floor(dmg.use)) + '</div><small class="muted">com a build e o alvo atuais</small></div>' : '') + '</div>'
+    + '<p class="chips" style="margin:12px 0 0"><button type="button" class="btn" id="cnuse">Usar no bloco Dano</button><a class="btn ghost" href="#/personagem">Abrir o Personagem</a></p><p class="note" id="cnmsg">O alvo, a DEF e as resistências vêm do bloco Dano do Personagem.</p></section></div></div>';
+  const save = () => { store.set('canhao', CN); cnDraw(); };
+  box.onchange = e => {
+    const n = e.target.closest('[data-cn]');
+    if (n) CN.n[n.dataset.cn] = Math.max(0, +n.value || 0);
+    else if (e.target.id === 'cncs') CN.cspd = e.target.value === '' ? '' : +e.target.value;
+    else if (e.target.id === 'cnlv') CN.lv = +e.target.value;
+    else if (e.target.id === 'cnsec') CN.sec = Math.max(0, +e.target.value || 0);
+    else return;
+    save();
+  };
+  box.onclick = e => {
+    if (e.target.id !== 'cnuse' || !sv) return;
+    Object.assign(DM, { sk: 'manual', type: 'm', cst: Math.floor(sv.cst), mult: Math.floor(sv.mult), mp: 0 }); store.set('dano', DM);
+    $('#cnmsg').textContent = 'Pronto: o bloco Dano agora usa o Magic: Cannon com ' + ch + '% de carga (em "Digitar os valores").';
+  };
 }
 
 // ---------- busca única ----------
