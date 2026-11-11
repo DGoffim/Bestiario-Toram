@@ -777,3 +777,37 @@ body { overflow-x: hidden; }
 .cntbl input { width: 70px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
 .pgbuild > *, .pgleft, .blk, .blkb { min-width: 0; }
 .trrow select { flex: none; }
+/* revisão de design (apple-design): retorno ao toque, títulos legíveis, folhas que surgem de baixo, movimento reduzido */
+/* 1. Resposta imediata: o toque aperta o elemento na hora (no pressionar, não ao soltar) */
+.btn, .chip, .tile, .lk, .pgnav button, .evd, .hnav a, .nav a, .sortb, .shotact .btn, .cbsel .slotx, .slotx { transition: transform 100ms ease-out, background-color .15s, border-color .15s, color .15s; -webkit-tap-highlight-color: transparent; }
+.btn:active, .chip:active, .tile:active, .lk:active, .pgnav button:active, .evd:active, .hnav a:active, .slotx:active { transform: scale(.97); }
+.nav a:active { transform: scale(.94); }
+.row:active { background: color-mix(in srgb, var(--gold-d) 14%, var(--surface)); }
+.tile:hover { transform: translateY(-1px); }
+.tile:active { transform: scale(.98); }
+/* 2. Título das páginas sobre um material translúcido, para não brigar com a arte do fundo */
+.ph { background: rgba(8, 16, 36, .58); -webkit-backdrop-filter: blur(12px) saturate(140%); backdrop-filter: blur(12px) saturate(140%); border: 1px solid rgba(255, 255, 255, .12); border-radius: 12px; padding: 12px 16px; }
+.ph h1 { letter-spacing: .01em; text-shadow: none; }
+.ph p { color: #dbe4f3; text-shadow: none; }
+.sect { display: inline-block; padding: 4px 12px; border-radius: 999px; background: rgba(8, 16, 36, .58); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); text-shadow: none; }
+#skbox .sect { background: none; padding: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* 3. Folhas (escolher item, skill, monstro) surgem de baixo, de onde ficam; no computador, crescem do centro */
+@keyframes btFade { from { opacity: 0; } }
+@keyframes btSheet { from { transform: translateY(28px); opacity: .4; } }
+@keyframes btPop { from { transform: scale(.96); opacity: 0; } }
+.picker:not([hidden]) { animation: btFade .2s ease-out; }
+.picker:not([hidden]) .pbox { animation: btSheet .32s cubic-bezier(.2, .9, .25, 1); }
+@media (min-width: 700px) { .picker:not([hidden]) .pbox { animation-name: btPop; } }
+.shotdlg[open] { animation: btFade .2s ease-out; }
+/* 4. Atalhos e faixas que rolam de lado: sem barra de rolagem aparecendo; no computador, quebram linha */
+.evc { scrollbar-width: none; } .evc::-webkit-scrollbar { display: none; }
+@media (min-width: 900px) { .pgnav, .evc { flex-wrap: wrap; overflow: visible; } }
+/* 5. Movimento reduzido e transparência reduzida, quando o aparelho pede */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  .tile:hover, .btn:active, .chip:active, .tile:active, .lk:active { transform: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .ph, .sect, .top::before, .nav { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .ph, .sect { background: #0d1a33; }
+}

@@ -8,6 +8,8 @@ const fmt = n => Number(n).toLocaleString('pt-BR');
 const nk = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
 const mainView = $('#view');
 let view = mainView; // dentro do Personagem, aponta para a aba aberta
+// Movimento reduzido: rola sem animação quando o aparelho pede.
+const RM = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 const store = {
   get(k, d) { try { const v = localStorage.getItem('bt:' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('bt:' + k, JSON.stringify(v)); } catch (e) {} }
@@ -170,7 +172,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
-  ['2026-11-10', ['Personagem: blocos Traits e Combo, e atalhos para cada bloco no topo', 'Tabela de poder e resistência por elemento no painel de status', 'Calculadora do Magic: Cannon', 'Todos os ícones de skill completos']],
+  ['2026-11-10', ['Visual revisado: toque com resposta imediata, títulos mais legíveis, Ferramentas reorganizadas', 'Personagem: blocos Traits e Combo, e atalhos para cada bloco no topo', 'Tabela de poder e resistência por elemento no painel de status', 'Calculadora do Magic: Cannon', 'Todos os ícones de skill completos']],
   ['2026-11-09', ['Novo bloco Dano no Personagem: muda junto com a build', 'Buffs ativos com ligar e desligar: todas as skills que dão status', 'Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
   ['2026-11-08', ['Screenshots da 2ª e da 3ª Raid Tartaros BR', 'Guia de batalha dos bosses cabe na tela do celular']],
   ['2026-11-06', ['Entrada nova, com abas no topo', 'Itens, mapas e eventos com a lista completa dos monstros', 'Títulos das listas ordenam ao clicar', 'Onde farmar com filtros de tipo, elemento e distância', 'Screenshots: 1ª Raid Tartaros BR, com ampliar e baixar']],
@@ -512,7 +514,7 @@ function monSort(rows, sort, dir, mode) {
   const elN = g => g.els.length ? EL[g.els[0]][0] : '~';
   const mapN = g => g.mapList.length ? g.mapList[0].name : '';
   const by = {
-    name: nm, lv: (a, b) => (ent(a).lv || a.lo) - (ent(b).lv || b.lo) || a.hi - b.hi,
+    name: nm, lv: (a, b) => (!(ent(a).lv || a.hi) - !(ent(b).lv || b.hi)) * dir || (ent(a).lv || a.lo) - (ent(b).lv || b.lo) || a.hi - b.hi,
     el: (a, b) => elN(a).localeCompare(elN(b), 'pt'),
     // Sem mapa fica sempre no fim, nas duas direções.
     map: (a, b) => (!mapN(a) - !mapN(b)) * dir || mapN(a).localeCompare(mapN(b), 'pt'),
@@ -921,35 +923,39 @@ const expNext = L => Math.floor(0.025 * L ** 4 + 2 * L);
 function viewTools() {
   setTitle('Ferramentas');
   const t = (href, b, s) => '<a class="tile" href="' + href + '"><b>' + b + '</b><span>' + s + '</span></a>';
-  view.innerHTML = '<div class="ph"><div><h1>Ferramentas</h1><p>Calculadoras e guias para o dia a dia.</p></div></div>'
-    + '<h2 class="sect">Upar</h2><div class="tiles">'
-    + t('#/upar', 'Onde upar', 'Melhores monstros por EXP para o seu nível, com bônus de emblema e ticket')
-    + t('#/farmar', 'Onde farmar', 'Escolha um material e veja quem dropa perto do seu nível')
-    + t('#/favoritos', 'Favoritos', 'Monstros, itens e mapas que você marcou com estrela')
-    + t('#/exp', 'Calculadora de EXP', 'EXP até o nível desejado, missões principais e Diário do Aventureiro')
-    + t('#/pontos', 'Pontos de status e skill', 'Quantos pontos você tem pelo nível e pelos emblemas')
-    + t('#/comida', 'Códigos de comida', 'Casas com comida de buff: STR, DEX, crítico, ATK, aggro e mais')
-    + '</div><h2 class="sect">Smith e equipamentos</h2><div class="tiles">'
-    + t('#/personagem/equipamento', 'Status do personagem', 'Monte arma, armadura, adicional, anel e crystas e veja os status somados')
-    + t('#/dano', 'Calculadora de dano', 'Quanto a sua build bate num boss e quantos golpes para derrubar')
-    + t('#/personagem/combo', 'Simulador de combo', 'MP, força e dano de cada skill do combo, com os efeitos de combo')
-    + t('#/canhao', 'Magic: Cannon', 'Quanto a carga sobe com cada skill e o dano do disparo')
-    + t('#/personagem/skills', 'Simulador de skills', 'As 33 árvores de skill, com pré-requisitos e contagem de pontos')
-    + t('#/glossario', 'Glossário', 'Fórmulas de dano, acerto e crítico, status negativos e combos, em português')
-    + t('#/smithing', 'Guia de smithing', 'Criação, status (statting), refino e materiais, em português')
-    + t('#/statting', 'Simulador de statting', 'Monte a fórmula passo a passo: potencial, sucesso e materiais')
-    + t('#/blacksmith', 'Calculadora de blacksmith', 'Dificuldade, taxa de sucesso e potencial da criação')
-    + t('#/ninjutsu', 'Ninjutsu Scroll', 'Que armas usar para cada pergaminho, e o que cada combinação dá')
-    + t('#/itens', 'Busca avançada de itens', 'Filtre por qualquer status, arma, categoria e forma de obter')
-    + t('#/crystas', 'Crystas', 'Todas as crystas com a cadeia de evolução')
-    + t('#/registlets', 'Registlets', 'O que cada registlet faz e qual skill ele muda')
-    + t('#/traits', 'Traits', 'Efeitos, regras de transferência e custo no ferreiro')
-    + '</div><h2 class="sect">Monstros</h2><div class="tiles">'
-    + t('#/eventos', 'Eventos', 'Monstros, mapas e itens de cada evento do ano')
-    + t('#/pet', 'Guia de pet', 'Capturar, natureza, skills, treino, upar e fusão, com calculadora')
-    + t('#/monstros/N', 'Capturáveis (pets)', 'Use o filtro "Só capturáveis" na lista de monstros')
-    + t('#/mapas', 'Mapas', 'Todos os mapas com os monstros de cada um')
-    + '</div>';
+  const grp = (title, tiles) => '<h2 class="sect">' + title + '</h2><div class="tiles">' + tiles.join('') + '</div>';
+  view.innerHTML = '<div class="ph"><div><h1>Ferramentas</h1><p>Calculadoras e guias, separados pelo que você quer fazer.</p></div></div>'
+    + grp('Upar e farmar', [
+      t('#/upar', 'Onde upar', 'Melhores monstros por EXP para o seu nível, com bônus de emblema e ticket'),
+      t('#/farmar', 'Onde farmar', 'Escolha um material e veja quem dropa perto do seu nível'),
+      t('#/exp', 'Calculadora de EXP', 'EXP até o nível desejado, missões principais e Diário do Aventureiro'),
+      t('#/pontos', 'Pontos de status e skill', 'Quantos pontos você tem pelo nível e pelos emblemas'),
+      t('#/comida', 'Códigos de comida', 'Casas com comida de buff: STR, DEX, crítico, ATK, aggro e mais'),
+      t('#/favoritos', 'Favoritos', 'Monstros, itens e mapas que você marcou com estrela')])
+    + grp('Personagem e combate', [
+      t('#/personagem', 'Montar personagem', 'Equipamento, skills, buffs e traits, com o painel de status do jogo'),
+      t('#/dano', 'Calculadora de dano', 'Quanto a sua build bate num boss e quantos golpes para derrubar'),
+      t('#/personagem/combo', 'Simulador de combo', 'MP, força e dano de cada skill do combo, com os efeitos de combo'),
+      t('#/canhao', 'Magic: Cannon', 'Quanto a carga sobe com cada skill e o dano do disparo'),
+      t('#/personagem/skills', 'Simulador de skills', 'As 33 árvores de skill, com pré-requisitos e o que cada skill faz'),
+      t('#/glossario', 'Glossário', 'Fórmulas de dano, acerto e crítico, status negativos e combos, em português')])
+    + grp('Smith', [
+      t('#/smithing', 'Guia de smithing', 'Criação, status (statting), refino e materiais, em português'),
+      t('#/statting', 'Simulador de statting', 'Monte a fórmula passo a passo: potencial, sucesso e materiais'),
+      t('#/blacksmith', 'Calculadora de blacksmith', 'Dificuldade, taxa de sucesso e potencial da criação')])
+    + grp('Itens', [
+      t('#/itens', 'Busca avançada de itens', 'Filtre por qualquer status, arma, categoria e forma de obter'),
+      t('#/crystas', 'Crystas', 'Todas as crystas com a cadeia de evolução'),
+      t('#/registlets', 'Registlets', 'O que cada registlet faz e qual skill ele muda'),
+      t('#/traits', 'Traits', 'Efeitos, regras de transferência e custo no ferreiro'),
+      t('#/ninjutsu', 'Ninjutsu Scroll', 'Que armas usar para cada pergaminho, e o que cada combinação dá')])
+    + grp('Monstros e mundo', [
+      t('#/eventos', 'Eventos', 'Monstros, mapas e itens de cada evento do ano'),
+      t('#/mapas', 'Mapas', 'Todos os mapas com os monstros de cada um'),
+      t('#/pet', 'Guia de pet', 'Capturar, natureza, skills, treino, upar e fusão, com calculadora'),
+      t('#/monstros/N', 'Capturáveis (pets)', 'Use o filtro "Só capturáveis" na lista de monstros'),
+      t('#/screenshots', 'Screenshots', 'Imagens e wallpapers da comunidade, para ampliar e baixar'),
+      t('#/creditos', 'Créditos', 'De onde vem cada informação do site')]);
 }
 const LV = { lv: store.get('lv', 100), range: store.get('range', 5), bonus: store.get('bonus', 0), types: new Set(store.get('types', ['B', 'M', 'N'])), modes: new Set(store.get('modes', MODES.map(m => m[0]))), ev: store.get('ev', false) };
 function viewLeveling() {
@@ -1209,7 +1215,7 @@ function viewScroll() {
       : '<p class="muted" style="margin:0">Nenhuma combinação com essas habilidades. Deixe uma como "Qualquer" ou "Aleatória".</p>';
   };
   [0, 1, 2].forEach(k => { $('#nw' + k).addEventListener('change', craft); $('#ns' + k).addEventListener('change', find); });
-  $('#nfind').addEventListener('click', e => { const b = e.target.closest('[data-sc]'); if (!b) return; b.dataset.sc.split('').forEach((v, k) => { $('#nw' + k).value = v; }); craft(); $('#nres').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+  $('#nfind').addEventListener('click', e => { const b = e.target.closest('[data-sc]'); if (!b) return; b.dataset.sc.split('').forEach((v, k) => { $('#nw' + k).value = v; }); craft(); $('#nres').scrollIntoView({ behavior: RM(), block: 'center' }); });
   craft(); find();
 }
 
@@ -1360,7 +1366,7 @@ function viewSmithing() {
     + '<div class="dgroup"><span class="lbl">Minérios (' + ores.length + ')</span>' + lk(ores) + '</div>'
     + '<div class="dgroup"><span class="lbl">Itens de suporte de refino (' + sup.length + ')</span>' + lk(sup) + '</div></div></section>'
     + '<p class="note" style="color:var(--ink-2)">Fórmulas de criação: Toram Tools (Insane23), com base nos testes de DOPR e JosuaK62. Texto do guia escrito para o Bestiário de Toram.</p>';
-  $('#gsnav').addEventListener('click', e => { const b = e.target.closest('[data-to]'); if (b) document.getElementById(b.dataset.to).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  $('#gsnav').addEventListener('click', e => { const b = e.target.closest('[data-to]'); if (b) document.getElementById(b.dataset.to).scrollIntoView({ behavior: RM(), block: 'start' }); });
 }
 
 
@@ -1540,8 +1546,8 @@ function viewPetGuide() {
   };
   calc();
   view.addEventListener('input', e => { const k = e.target.dataset && e.target.dataset.k; if (k && k in PC) { PC[k] = e.target.value; store.set('petcalc', PC); calc(); } });
-  $('#pgnav').addEventListener('click', e => { const b = e.target.closest('[data-to]'); if (b) document.getElementById(b.dataset.to).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-  view.querySelector('a[data-to]').addEventListener('click', e => { e.preventDefault(); $('#pg-calc').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  $('#pgnav').addEventListener('click', e => { const b = e.target.closest('[data-to]'); if (b) document.getElementById(b.dataset.to).scrollIntoView({ behavior: RM(), block: 'start' }); });
+  view.querySelector('a[data-to]').addEventListener('click', e => { e.preventDefault(); $('#pg-calc').scrollIntoView({ behavior: RM(), block: 'start' }); });
 }
 // ---------- calculadora de status do personagem (build) ----------
 // Soma exata dos status dos itens (dados do coryn.club). ATK, MATK, HP etc. são estimativas pelas fórmulas da comunidade.
@@ -1859,13 +1865,13 @@ function viewCharBuild(focus) {
     const r = e.target.closest('[data-ref]'); if (r) { BD.sl[r.dataset.ref].r = +r.value; saveBuild(); renderBuild(); }
     const kk = e.target.closest('#bdkind'); if (kk) { BD.sl.armadura.k = kk.value; saveBuild(); renderBuild(); }
   });
-  $('#bdsum').addEventListener('click', () => $('#gstatw').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  $('#bdsum').addEventListener('click', () => $('#gstatw').scrollIntoView({ behavior: RM(), block: 'start' }));
   $('#pclose').addEventListener('click', () => { $('#pick').hidden = true; });
   $('#pick').addEventListener('click', e => { if (e.target.id === 'pick') $('#pick').hidden = true; });
   // Registlets e skills só montam quando o bloco está aberto (as skills são pesadas).
   const fill = id => { if (id === 'rg') viewCharRegs($('#rgbox')); else if (id === 'sk' && !$('#sktool')) viewSkills(null, $('#skbox')); else if (id === 'dn') dmBlock(); else if (id === 'cb') cbRender(); };
   ['rg', 'sk', 'dn', 'cb'].forEach(id => { if (BLK_OPEN[id]) fill(id); });
-  $('#pgnav').addEventListener('click', e => { const b = e.target.closest('[data-goblk]'); if (!b) return; const id = b.dataset.goblk, h = view.querySelector('[data-blk="' + id + '"]'); if (h && !BLK_OPEN[id]) h.click(); const el = $('#blk-' + id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  $('#pgnav').addEventListener('click', e => { const b = e.target.closest('[data-goblk]'); if (!b) return; const id = b.dataset.goblk, h = view.querySelector('[data-blk="' + id + '"]'); if (h && !BLK_OPEN[id]) h.click(); const el = $('#blk-' + id); if (el) el.scrollIntoView({ behavior: RM(), block: 'start' }); });
   view.querySelector('.pgleft').addEventListener('click', e => {
     const h = e.target.closest('[data-blk]'); if (!h) return;
     const id = h.dataset.blk, on = !BLK_OPEN[id]; BLK_OPEN[id] = on ? 1 : 0; store.set('blk', BLK_OPEN);
@@ -2361,7 +2367,7 @@ function skRefresh(onlyTree) {
 function skClick(e) {
   if (!document.getElementById('sktool')) return;
   const o = e.target.closest('[data-open]'); if (o) { const k = o.dataset.open; openTree(k, !SKS.open.has(k)); return; }
-  const go = e.target.closest('[data-go]'); if (go) { openTree(go.dataset.go, true); const s = document.querySelector('.sktree[data-k="' + go.dataset.go + '"]'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  const go = e.target.closest('[data-go]'); if (go) { openTree(go.dataset.go, true); const s = document.querySelector('.sktree[data-k="' + go.dataset.go + '"]'); if (s) s.scrollIntoView({ behavior: RM(), block: 'start' }); return; }
   const n = e.target.closest('.sknode');
   if (n) { const t = SKT.find(x => x.k === n.dataset.t); skInfo(t, t.s.find(x => x[0] === +n.dataset.id)); return; }
   const r = e.target.closest('[data-reset]'); if (r) { delete SKS.lv[r.dataset.reset]; delete SKS.gem[r.dataset.reset]; skRefresh(r.dataset.reset); return; }
@@ -2802,7 +2808,7 @@ function viewDamage() {
   view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Calculadora de dano</h1><p>Quanto a build que está em uso bate num monstro do bestiário, com acerto, crítico, Graze e elemento. O mesmo cálculo está no <a class="tl" href="#/personagem" style="color:#9fe3e6">Personagem</a>, no bloco Dano, e muda junto com a build.</p></div></div>'
     + '<button type="button" class="bdsum" id="dmsum" aria-label="Ver resultado completo"></button><div id="dmroot"><p class="loading">Carregando…</p></div>';
   const v0 = view;
-  dmReady().then(() => { if (view !== v0 || !$('#dmroot')) return; $('#dmroot').innerHTML = dmHtml(); dmBind($('#dmroot')); $('#dmsum').addEventListener('click', () => $('#dmres').scrollIntoView({ behavior: 'smooth', block: 'start' })); });
+  dmReady().then(() => { if (view !== v0 || !$('#dmroot')) return; $('#dmroot').innerHTML = dmHtml(); dmBind($('#dmroot')); $('#dmsum').addEventListener('click', () => $('#dmres').scrollIntoView({ behavior: RM(), block: 'start' })); });
 }
 function dmBlock() {
   const box = $('#dnbox'); if (!box || box.dataset.on) return;
