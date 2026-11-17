@@ -1,0 +1,41 @@
+name: Receitas e origem dos itens
+
+# Lê no coryn.club de qual NPC ou Smith cada item sai, a receita e a cor dos drops.
+# Toda segunda (depois dos dados do jogo) só lê os itens novos. Para a primeira leitura completa, rode à mão.
+on:
+  schedule:
+    - cron: '20 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      limite:
+        description: 'Quantos itens novos ler nesta rodada (vazio = todos)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: receitas
+  cancel-in-progress: false
+
+jobs:
+  receitas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ler receitas e origem
+        run: python3 scripts/receitas.py ${{ github.event.inputs.limite }}
+      - name: Salvar se mudou
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/receitas.json
+          if git diff --cached --quiet; then
+            echo "Sem receitas novas"
+          else
+            git commit -m "Receitas e origem dos itens atualizadas"
+            git pull --rebase
+            git push
+          fi
