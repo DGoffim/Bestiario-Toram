@@ -174,7 +174,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
-  ['2026-11-17', ['Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Página nova: Como o dano funciona', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
+  ['2026-11-17', ['Site em inglês, espanhol e indonésio: escolha o idioma no rodapé', 'Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Página nova: Como o dano funciona', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
   ['2026-11-10', ['Visual revisado: toque com resposta imediata, títulos mais legíveis, Ferramentas reorganizadas', 'Personagem: blocos Traits e Combo, e atalhos para cada bloco no topo', 'Tabela de poder e resistência por elemento no painel de status', 'Calculadora do Magic: Cannon', 'Todos os ícones de skill completos']],
   ['2026-11-09', ['Novo bloco Dano no Personagem: muda junto com a build', 'Buffs ativos com ligar e desligar: todas as skills que dão status', 'Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
   ['2026-11-08', ['Screenshots da 2ª e da 3ª Raid Tartaros BR', 'Guia de batalha dos bosses cabe na tela do celular']],
@@ -418,7 +418,7 @@ function viewGlossary() {
   setTitle('Glossário');
   if (!GLOS) { view.innerHTML = '<p class="loading">Carregando o glossário…</p>'; load('glossario').then(d => { GLOS = d; if (location.hash.startsWith('#/glossario')) viewGlossary(); }); return; }
   const cats = [...new Set(GLOS.itens.map(x => x[1]))];
-  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Glossário</h1><p>Como o jogo funciona por dentro: fórmulas de dano, acerto e crítico, status negativos, combos e regras das armas.</p></div></div>'
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Glossário</h1><p>Como o jogo funciona por dentro: fórmulas de dano, acerto e crítico, status negativos, combos e regras das armas. <a href="#/como-dano">Como o dano funciona</a>, em versão simples.</p></div></div>'
     + '<div class="tools"><input id="gq2" type="search" placeholder="Buscar (ex: Flinch, crítico, estabilidade, aggro)" value="' + esc(GS.q) + '" aria-label="Buscar no glossário"></div>'
     + '<div class="chips" id="gc" style="margin:0 0 10px">' + [['', 'Todos'], ['*', '★ Importantes']].concat(cats.map(c => [c, c])).map(([v, l]) => '<button type="button" class="chip" data-c="' + esc(v) + '" aria-pressed="' + (GS.c === v) + '">' + esc(l) + '</button>').join('') + '</div>'
     + '<div class="status"><span id="gcount"></span><button class="link" id="gall" type="button">Abrir todos</button></div><div id="glist"></div>'
@@ -1832,7 +1832,7 @@ function viewCharBuild(focus) {
     + blk('bf', 'Buffs ativos', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Skills que você liga, ou que alguém da party usa em você, e que duram um tempo. Escolha o nível de quem usou. O que estiver ligado entra no painel de status e no bloco Dano.</p><div id="bfbox"></div>')
     + blk('tr', 'Traits', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Os traits da sua arma e armadura. Os fixos (STR, ATK, ASPD...) somam direto; os de gatilho entram com as cargas que você marcar.</p><div id="trbox"></div>')
     + blk('sk', 'Skills', '<div id="skbox"></div>')
-    + blk('dn', 'Dano', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Quanto esta build bate num monstro. Muda sozinho quando você troca equipamento, skill, buff ou comida.</p><div id="dnbox"></div>')
+    + blk('dn', 'Dano', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Quanto esta build bate num monstro. Muda sozinho quando você troca equipamento, skill, buff ou comida. <a href="#/como-dano">Como o dano funciona</a></p><div id="dnbox"></div>')
     + blk('cb', 'Combo', '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Monte a sequência de skills do combo e veja o MP de cada uma, a força com os efeitos de combo e o dano no alvo do bloco Dano.</p><div id="cbbox"></div>')
     + '<section class="card"><div class="chips"><button class="btn" id="bdshare" type="button">Copiar link da build</button><a class="btn ghost" href="#/dano">Calcular dano num boss</a><button class="btn ghost" id="bdclear" type="button">Começar do zero</button></div><p class="note" id="bdmsg">Tudo é salvo sozinho neste aparelho.</p></section>'
     + '</div><aside class="pgright" id="gstatw" aria-label="Status do personagem"><div class="gstat" id="gstat"></div></aside></div>'

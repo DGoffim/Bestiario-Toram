@@ -847,3 +847,13 @@ body { overflow-x: hidden; }
 .cd-ex div { display: flex; justify-content: space-between; gap: 10px; padding: 7px 12px; border-top: 1px solid var(--line); font-size: 14px; }
 .cd-ex b { font: 500 14px var(--font-mono); font-variant-numeric: tabular-nums; }
 .cd-ex div:last-child { background: color-mix(in srgb, var(--gold-d) 14%, var(--surface)); font-weight: 600; }
+/* idiomas */
+.tr-wait #view, .tr-wait .nav, .tr-wait .foot { visibility: hidden; }
+.langp { display: flex; justify-content: center; margin: 0 0 10px; }
+.langp label { display: inline-flex; align-items: center; color: var(--muted); }
+.langp svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.langp select { margin-left: 6px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.travis { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 60; max-width: min(560px, calc(100vw - 32px)); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 8px 28px rgba(0,0,0,.18); font-size: 14px; }
+.travis span { flex: 1 1 220px; }
+.travis .linkbtn { background: none; border: 0; color: var(--teal-d); font: 600 14px var(--font-body); cursor: pointer; padding: 4px 6px; }
