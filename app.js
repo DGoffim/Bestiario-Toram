@@ -157,6 +157,8 @@ function route() {
   for (const [re, s, fn] of ROUTES) { const m = h.match(re); if (m) { sec = s; fn(...m.slice(1)); done = true; break; } }
   if (!done) viewHome();
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.sec === sec));
+  const sa = [...document.querySelectorAll('#side a[href]:not(.sbrand)')], exact = sa.filter(a => a.getAttribute('href') === h.replace(/\/\d+$/, '').replace(/\/[BMN]$/, ''));
+  sa.forEach(a => a.classList.toggle('on', exact.length ? exact.includes(a) : a.dataset.sec === sec));
   closeGlobal();
   const y = scrollMem.get(h);
   window.scrollTo(0, y || 0);
@@ -174,7 +176,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
-  ['2026-11-17', ['Site em inglês, espanhol e indonésio: escolha o idioma no rodapé', 'Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Página nova: Como o dano funciona', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
+  ['2026-11-17', ['Visual novo: painéis no estilo do jogo, menu lateral no computador e entrada por objetivo', 'Site em inglês, espanhol e indonésio: toque na bandeira no topo', 'Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Página nova: Como o dano funciona', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
   ['2026-11-10', ['Visual revisado: toque com resposta imediata, títulos mais legíveis, Ferramentas reorganizadas', 'Personagem: blocos Traits e Combo, e atalhos para cada bloco no topo', 'Tabela de poder e resistência por elemento no painel de status', 'Calculadora do Magic: Cannon', 'Todos os ícones de skill completos']],
   ['2026-11-09', ['Novo bloco Dano no Personagem: muda junto com a build', 'Buffs ativos com ligar e desligar: todas as skills que dão status', 'Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
   ['2026-11-08', ['Screenshots da 2ª e da 3ª Raid Tartaros BR', 'Guia de batalha dos bosses cabe na tela do celular']],
@@ -200,19 +202,30 @@ function viewHome() {
   const newest = DB.MONS.filter(g => g.t !== 'N').sort((a, b) => b.maxId - a.maxId).slice(0, 4);
   const newItems = DB.ITEMS.slice().sort((a, b) => b.id - a.id).filter(i => i.stats.length).slice(0, 4);
   const hn = (u, l) => '<a href="' + u + '">' + l + '</a>';
-  view.innerHTML = '<div class="hero"><img src="img/logo.webp" alt="Bestiário de Toram" width="840" height="768"></div>'
+  const GOALS = [
+    ['#/personagem', 'Montar minha build', 'Equipamento, skills, buffs e o dano no boss', '<circle cx="12" cy="7.5" r="3.5"/><path d="M5 21v-1.5A5.5 5.5 0 0 1 10.5 14h3a5.5 5.5 0 0 1 5.5 5.5V21"/>'],
+    ['#/monstros/B', 'Achar boss ou drop', 'HP, rateio, guia de batalha e quem dropa', '<path d="M12 3C7.6 3 4 6.1 4 10c0 2.2 1.1 4.1 2.9 5.4V19a1 1 0 0 0 1 1h8.2a1 1 0 0 0 1-1v-3.6C18.9 14.1 20 12.2 20 10c0-3.9-3.6-7-8-7z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/>'],
+    ['#/upar', 'Onde upar', 'Rota de bosses e melhores monstros para o seu nível', '<path d="M4 20h16"/><path d="m5 16 5-5 3 3 6-7"/><path d="M14 7h5v5"/>'],
+    ['#/farmar', 'Onde farmar', 'Quem dropa o material perto do seu nível', '<path d="M14.5 3H21v6.5L10.5 20 4 13.5z"/><path d="m4 13.5-1 6.5 6.5-1"/>'],
+    ['#/como-dano', 'Aprender', 'Como o dano funciona, prorate, pet e smithing', '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/>'],
+    ['#/ferramentas', 'Ferramentas', 'Statting, EXP, comida, combo e mais', '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>']];
+  const fav = FAV.map(refOf).filter(Boolean), rec = RECENT.map(refOf).filter(Boolean);
+  const cont = [...fav.slice(0, 6), ...rec.filter(r => !fav.some(f => f[0] === r[0]))].slice(0, 10);
+  const news = SITE_NEWS.flatMap(([d, l]) => l.map(t => [d, t])).slice(0, 6);
+  const dm = d => { const [, m, n] = d.split('-'); return n + '/' + m; };
+  view.innerHTML = '<div class="hello"><h1>O que você quer fazer hoje?</h1><p>Monstros, drops, builds e guias de Toram Online num só lugar.</p></div>'
     + homeEvent()
+    + '<div class="goals">' + GOALS.map(([u, t, d, ic]) => '<a class="goal" href="' + u + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + ic + '</svg><span><b>' + t + '</b><small>' + d + '</small></span></a>').join('') + '</div>'
     + '<nav class="hnav" aria-label="Atalhos">' + hn('#/mapas', 'Mapas') + hn('#/eventos', 'Eventos') + hn('#/screenshots', 'Screenshots') + '</nav>'
-    + '<div class="igrid">'
-    + infoBox('', 'Novidades do site', SITE_NEWS.map(([d, l]) => [dayTxt(d), l.map(esc)]))
+    + '<div class="htwo"><section class="card"><h2>Continuar' + (fav.length ? ' <a class="tl" href="#/favoritos" style="margin-left:auto;font-size:13px;font-family:var(--font-body)">favoritos</a>' : '') + '</h2>'
+    + (cont.length ? '<div class="hcont">' + cont.map(([u, n]) => '<a class="chip" href="' + u + '">' + esc(n) + '</a>').join('') + '</div>' : '<p class="muted" style="margin:0">Os bosses, itens e mapas que você abrir aparecem aqui.</p>') + '</section>'
+    + '<section class="card"><h2>Novidades do site</h2><ul class="hnews">' + news.map(([d, t]) => '<li><span>' + esc(t) + '</span><time>' + dm(d) + '</time></li>').join('') + '</ul></section></div>'
+    + '<div class="igrid i3">'
     + infoBox('homeev', 'Eventos do jogo', [['Carregando…', []]])
     + infoBox('homeup', 'Atualizações e avisos', [['Carregando…', []]])
     + infoBox('', 'Novos no bestiário', [['Bosses', newest.map(g => lk(monUrl(g), g.name))], ['Itens', newItems.map(i => lk(itemUrl(i), i.name))]])
-    + '</div><div id="homeshots"></div><div id="homeme"></div>';
+    + '</div><div id="homeshots"></div>';
   view.querySelectorAll('[data-el]').forEach(a => a.addEventListener('click', () => { MS.els = new Set([+a.dataset.el]); MS.t = 'B'; }));
-  const fav = FAV.map(refOf).filter(Boolean), rec = RECENT.map(refOf).filter(Boolean).slice(0, 8);
-  const row = (h, arr, more) => '<section class="card"><h2>' + h + (more ? ' <a class="tl" href="' + more + '" style="margin-left:auto;font-size:13px;font-family:var(--font-body)">ver todos</a>' : '') + '</h2><div class="hscroll">' + arr.map(([u, n, s]) => '<a class="lk" href="' + u + '">' + esc(n) + ' <small>' + esc(s) + '</small></a>').join('') + '</div></section>';
-  $('#homeme').innerHTML = (fav.length ? row('★ Seus favoritos', fav.slice(0, 12), '#/favoritos') : '') + (rec.length ? row('Vistos recentemente', rec) : '');
   homeNews();
   loadShots().then(s => { const b = $('#homeshots'); if (!b || !s.length) return; b.innerHTML = '<section class="card"><h2>Screenshots <a class="tl" href="#/screenshots" style="margin-left:auto;font-size:13px;font-family:var(--font-body)">ver todas</a></h2><div class="shots">' + s.slice(0, 4).map(shotHtml).join('') + '</div></section>'; bindShots(b); });
 }

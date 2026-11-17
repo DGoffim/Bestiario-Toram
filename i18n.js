@@ -10,33 +10,35 @@
     es: 'Traducción en curso: algunas guías siguen en portugués.',
     id: 'Terjemahan sedang berjalan: beberapa panduan masih dalam bahasa Portugis.'
   };
-  const get = () => { try { return localStorage.getItem('bt:lang'); } catch (e) { return null; } };
-  const set = v => { try { localStorage.setItem('bt:lang', v); } catch (e) { } };
+  const ROTULO = { pt: 'Língua', en: 'Language', es: 'Idioma', id: 'Bahasa' };
+  // A escolha fica guardada só quando a pessoa clica numa bandeira. O ?lang= de um link vale só para aquela visita.
+  const KEY = 'bt:idioma';
+  const get = () => { try { return localStorage.getItem(KEY); } catch (e) { return null; } };
+  const set = v => { try { localStorage.setItem(KEY, v); localStorage.removeItem('bt:lang'); } catch (e) { } };
   const detect = () => {
-    for (const l of navigator.languages || [navigator.language || '']) {
-      const p = (l || '').slice(0, 2).toLowerCase();
-      if (LANGS[p]) return p;
-      if (p === 'ms' || p === 'tl' || p === 'fil') return p === 'ms' ? 'id' : 'en';
-    }
+    const ls = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || '']).map(l => (l || '').slice(0, 2).toLowerCase());
+    if (ls.includes('pt')) return 'pt';
+    for (const p of ls) { if (LANGS[p]) return p; if (p === 'ms') return 'id'; }
     return 'en';
   };
   const V = (document.currentScript && document.currentScript.src.split('v=')[1]) || '';
   const q = (location.search.match(/[?&]lang=([a-z]{2})/) || [])[1];
-  if (q && LANGS[q]) set(q);
-  let lang = get() || detect();
+  let lang = (q && LANGS[q]) ? q : (get() || detect());
   if (!LANGS[lang]) lang = 'pt';
   window.btLang = lang;
 
   function seletor() {
-    const foot = document.querySelector('.foot');
-    if (!foot || document.getElementById('langsel')) return;
-    const p = document.createElement('p');
-    p.className = 'langp';
-    p.setAttribute('translate', 'no');
-    p.innerHTML = '<label for="langsel"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="sr">Idioma / Language</span></label><select id="langsel">'
-      + Object.entries(LANGS).map(([k, n]) => '<option value="' + k + '"' + (k === lang ? ' selected' : '') + '>' + n + '</option>').join('') + '</select>';
-    foot.prepend(p);
-    p.querySelector('select').addEventListener('change', e => { set(e.target.value); location.reload(); });
+    const box = document.getElementById('lang');
+    if (!box) return;
+    box.querySelector('.lbl').innerHTML = ROTULO[lang] + ': <b>' + LANGS[lang] + '</b>';
+    box.querySelectorAll('[data-lang]').forEach(b => {
+      b.setAttribute('aria-pressed', String(b.dataset.lang === lang));
+      b.addEventListener('click', () => {
+        if (b.dataset.lang === lang) return;
+        set(b.dataset.lang);
+        location.href = location.pathname + location.hash; // tira o ?lang= do endereço
+      });
+    });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', seletor); else seletor();
   if (lang === 'pt') return;
@@ -109,7 +111,7 @@
     const d = document.createElement('div');
     d.id = 'travis'; d.className = 'travis'; d.setAttribute('translate', 'no');
     d.innerHTML = '<span>' + AVISO[lang] + '</span> <button type="button" class="linkbtn">Português</button><button type="button" class="linkbtn" aria-label="OK">×</button>';
-    d.querySelectorAll('button')[0].onclick = () => { set('pt'); location.reload(); };
+    d.querySelectorAll('button')[0].onclick = () => { set('pt'); location.href = location.pathname + location.hash; };
     d.querySelectorAll('button')[1].onclick = () => { d.remove(); try { sessionStorage.setItem('bt:travis', 1); } catch (e) { } };
     let visto = 0; try { visto = sessionStorage.getItem('bt:travis'); } catch (e) { }
     if (!visto) document.body.appendChild(d);
