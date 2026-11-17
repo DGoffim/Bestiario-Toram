@@ -56,13 +56,13 @@ def ler_item(h):
         r = rec.group(1)
         campos = dict((texto(k), texto(v)) for k, v in re.findall(r'<p class="accent-bold">(.*?)</p>\s*<div>(.*?)</div>', r, re.S))
         num = lambda s: int(re.sub(r'[^\d]', '', s)) if re.search(r'\d', s or '') else None
-        if campos.get('Fee'):
+        if num(campos.get('Fee')) is not None:
             out['f'] = num(campos['Fee'])
-        if campos.get('Set'):
+        if num(campos.get('Set')) is not None:
             out['q'] = num(campos['Set'])
-        if campos.get('Level'):
+        if num(campos.get('Level')) is not None:
             out['l'] = num(campos['Level'])
-        if campos.get('Difficulty'):
+        if num(campos.get('Difficulty')) is not None:
             out['d'] = num(campos['Difficulty'])
         mats = [[int(q), int(i)] for q, i in re.findall(r'(\d+)x\s*<a href=\'item\.php\?id=(\d+)\'', r)]
         if mats:

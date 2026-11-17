@@ -136,6 +136,7 @@ const ROUTES = [
   [/^#\/dano$/, 'ferramentas', () => viewDamage()],
   [/^#\/canhao$/, 'ferramentas', () => viewCannon()],
   [/^#\/prorate(?:\/(\d+))?$/, 'ferramentas', id => viewProrate(id ? +id : 0)],
+  [/^#\/como-dano$/, 'ferramentas', () => viewComoDano()],
   [/^#\/skills(?:\/([A-Za-z0-9_-]+))?$/, 'personagem', code => viewChar('skills', code)],
   [/^#\/statting(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewStatting(code)],
   [/^#\/screenshots$/, 'screenshots', () => viewShots()],
@@ -173,7 +174,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
-  ['2026-11-17', ['Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
+  ['2026-11-17', ['Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Página nova: Como o dano funciona', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
   ['2026-11-10', ['Visual revisado: toque com resposta imediata, títulos mais legíveis, Ferramentas reorganizadas', 'Personagem: blocos Traits e Combo, e atalhos para cada bloco no topo', 'Tabela de poder e resistência por elemento no painel de status', 'Calculadora do Magic: Cannon', 'Todos os ícones de skill completos']],
   ['2026-11-09', ['Novo bloco Dano no Personagem: muda junto com a build', 'Buffs ativos com ligar e desligar: todas as skills que dão status', 'Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
   ['2026-11-08', ['Screenshots da 2ª e da 3ª Raid Tartaros BR', 'Guia de batalha dos bosses cabe na tela do celular']],
@@ -937,6 +938,7 @@ function viewTools() {
     + grp('Personagem e combate', [
       t('#/personagem', 'Montar personagem', 'Equipamento, skills, buffs e traits, com o painel de status do jogo'),
       t('#/dano', 'Calculadora de dano', 'Quanto a sua build bate num boss e quantos golpes para derrubar'),
+      t('#/como-dano', 'Como o dano funciona', 'A conta do dano em três partes, com exemplo e a fonte de cada regra'),
       t('#/prorate', 'Prorate e Rateio', 'Entenda o anti-spam de dano e simule com o rateio de cada boss'),
       t('#/personagem/combo', 'Simulador de combo', 'MP, força e dano de cada skill do combo, com os efeitos de combo'),
       t('#/canhao', 'Magic: Cannon', 'Quanto a carga sobe com cada skill e o dano do disparo'),
@@ -3216,6 +3218,45 @@ const BOSS_NOTES = {
   'Trickster Dragon Mimyugon': ['Em 50% de HP, todo dano que passar disso é anulado: um golpe de 70M com o boss em 52% só tira os 2% que faltam. Guarde o golpe mais forte para depois da metade.', 'Nessa transição ele ganha muita resistência a crítico, então o burst rende menos.', 'Tem golpes em área com Interrupt, que cortam a conjuração (atenção, mago).', 'Depois dos 50%, ataca de longe quem estiver mais distante dele.', 'Rateio muito bom para mago: depois de bastante ataque físico ou neutro da party, as skills mágicas chegam perto de +150%.']
 };
 const bossNotes = g => { const n = BOSS_NOTES[g.name]; return n ? '<section class="card"><h2>Dicas da comunidade</h2><ul class="flist">' + n.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul><p class="note">Da guilda TARTAROS BR (Cristian Viciado).</p></section>' : ''; };
+
+// ---------- Como o dano funciona (explicação simples e com fonte em cada regra) ----------
+// Regras do glossário do Cy's Grimoire (testes da comunidade Phantom Libs) e testes da comunidade BR.
+function viewComoDano() {
+  setTitle('Como o dano funciona');
+  const sel = k => ({ f: '<span class="fonte f">Fórmula do jogo</span>', t: '<span class="fonte t">Testado pela comunidade</span>', e: '<span class="fonte e">Estimativa</span>' })[k];
+  const nf = n => fmt(Math.floor(n));
+  // Exemplo: mago/arqueiro hipotético Lv 300 contra o Rudis Ultimate (Lv 299, res. 10%, DEF 3.882).
+  const ex = { atk: 3000, lv: 300, mlv: 299, res: 10, def: 3882, pierce: 50, cst: 400, mult: 500 };
+  const efetivo = Math.floor((ex.atk + ex.lv - ex.mlv) * (100 - ex.res) / 100 - ex.def * (100 - ex.pierce) / 100);
+  const semPierce = Math.floor((ex.atk + ex.lv - ex.mlv) * (100 - ex.res) / 100 - ex.def);
+  const passos = [['Base: ATK efetivo + constante', efetivo + ex.cst], ['× 500% da skill', (efetivo + ex.cst) * 5], ['× 200% de dano crítico', (efetivo + ex.cst) * 10], ['× 125% de vantagem de elemento', (efetivo + ex.cst) * 12.5], ['× 200% de prorate (+100%)', (efetivo + ex.cst) * 25], ['× 110% de Short Range', (efetivo + ex.cst) * 27.5]];
+  const sec = (id, t, badge, body) => '<section class="card cd-sec" id="' + id + '"><h2>' + t + ' ' + badge + '</h2><div class="prose">' + body + '</div></section>';
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Como o dano funciona</h1><p>O dano no Toram em três partes, do jeito mais simples possível e sem perder a precisão. Cada regra mostra de onde vem.</p></div></div>'
+    + '<section class="card"><div class="cd-flow" role="list"><div role="listitem"><b>1. Base</b><span>quanto do seu ataque passa pela defesa do alvo</span></div><i aria-hidden="true">→</i><div role="listitem"><b>2. Multiplicadores</b><span>skill, crítico, elemento, prorate, distância…</span></div><i aria-hidden="true">→</i><div role="listitem"><b>3. Sorte</b><span>estabilidade, crítico e acerto decidem o valor do golpe</span></div></div>'
+    + '<p class="cd-leg">' + sel('f') + ' regra medida e conferida pela comunidade (Cy\'s Grimoire / Phantom Libs) · ' + sel('t') + ' observado em testes no jogo · ' + sel('e') + ' aproximação</p></section>'
+    + sec('cd-base', '1. A base', sel('f'),
+      '<p>Tudo começa no <b>ATK efetivo</b> (no dano mágico, MATK efetivo): o seu ataque depois de passar pela defesa do alvo.</p>'
+      + '<p class="formula">(ATK + seu nível − nível do alvo) × (100% − resistência do alvo) − DEF do alvo × (100% − pierce)</p>'
+      + '<ul><li><b>Resistência</b> corta uma porcentagem do seu ataque.</li><li><b>DEF</b> é subtraída. O <b>pierce</b> diz quanto da DEF você ignora: com 100% de pierce, a DEF some.</li><li>Depois entra a <b>constante da skill</b>, que é somada e <b>não sofre</b> resistência.</li></ul>'
+      + '<p><b>Por que pierce é obrigatório em boss alto:</b> no exemplo abaixo (ATK 3.000 contra o Rudis Ultimate), com 50% de pierce o ATK efetivo é <b>' + nf(efetivo) + '</b>. Sem pierce, ele fica em <b>' + nf(semPierce) + '</b>: negativo, e o golpe quase não causa dano.</p>')
+    + sec('cd-mult', '2. Os multiplicadores', sel('f'),
+      '<p>A base é multiplicada por vários fatores, nesta ordem (arredondando a cada passo):</p>'
+      + '<ol class="cd-ol"><li><b>Dano crítico</b>, se critar (ex.: 200%).</li><li><b>Elemento</b>: +25% quando o elemento do golpe vence o do alvo, mais o seu "dano contra o elemento".</li><li><b>Multiplicador da skill</b> (o "força %" da skill).</li><li><b>Desembainhar</b> (Unsheathe), nas skills de sacar a arma.</li><li><b>Estabilidade</b> (veja a parte 3).</li><li><b>Prorate</b>: de ×0,5 a ×2,5 conforme o que a party vem usando.</li><li>Por último, juntos: <b>combo</b> × <b>distância</b> (Short ou Long Range, nunca os dois) × <b>dano total</b> (passivas) × <b>dano final</b> (buffs ativos).</li></ol>'
+      + '<p><b>Somar ou multiplicar?</b> Bônus do <b>mesmo grupo somam</b> (dois +10% de Short Range viram +20%). <b>Grupos diferentes multiplicam</b>: +50% de crítico e +50% de prorate dão ×2,25, não ×2. Por isso subir o que está baixo rende mais do que empilhar o que já está alto.</p>'
+      + '<div class="cd-ex"><span class="lbl">Exemplo andando pela conta</span>' + passos.map(([l, v]) => '<div><span>' + l + '</span><b>' + nf(v) + '</b></div>').join('') + '</div>')
+    + sec('cd-sorte', '3. A sorte do golpe', sel('f'),
+      '<ul><li><b>Estabilidade</b>: o dano sai entre <b>estabilidade%</b> e 100% do valor. Com 70%, varia de 70% a 100%.</li>'
+      + '<li><b>Estabilidade mágica</b> = 50 + estabilidade ÷ 2. Até 90% funciona igual; acima disso o mínimo trava em 90% e o máximo sobe, até <b>110%</b>. Nada passa de 110%.</li>'
+      + '<li><b>Crítico</b>: a chance é a sua taxa crítica menos a resistência crítica do alvo. No dano mágico, só uma parte da taxa vira crítico mágico (precisa de conversão, como o Weaken do Element Slash).</li>'
+      + '<li><b>Acerto</b>: dano físico pode dar MISS ou <b>Graze</b> (raspão), que corta a estabilidade pela metade. Dano mágico de skill sempre acerta.</li></ul>')
+    + sec('cd-erros', 'Confusões comuns', sel('t'),
+      '<ul><li><b>Short e Long Range não somam</b>: a skill que acerta até 7 m usa só o Short; a partir de 8 m, só o Long.</li>'
+      + '<li><b>Additional Melee/Magic nunca dá crítico</b>, mesmo com 400 de crítico.</li>'
+      + '<li><b>Prorate não é do jogador</b>: é da luta. Spamar o mesmo tipo derruba o seu dano e o da party.</li>'
+      + '<li><b>Equipamento não resolve tudo</b>: ele sobe o teto do dano. Prorate, distância e combo decidem se você chega nele.</li></ul>')
+    + '<section class="card"><h2>Use na prática</h2><div class="chips"><a class="btn" href="#/personagem/dano">Calcular o dano da minha build</a><a class="btn ghost" href="#/prorate">Simular o prorate</a><a class="btn ghost" href="#/glossario">Glossário completo</a></div></section>'
+    + '<p class="note" style="color:var(--ink-2)">Fórmulas do glossário do Cy\'s Grimoire, com testes da comunidade Phantom Libs; observações da guilda TARTAROS BR. O exemplo usa números redondos e ignora acerto e prorate da party. Achou algo que não bate com o jogo? Avise no grupo do Bestiário no WhatsApp.</p>';
+}
 
 // ---------- busca única ----------
 const gq = $('#gq'), gres = $('#gres');

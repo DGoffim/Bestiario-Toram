@@ -828,3 +828,22 @@ body { overflow-x: hidden; }
 .prl { font: 700 11px var(--font-mono); font-style: normal; width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; color: #fff; }
 .prl.f { background: #a5502a; } .prl.m { background: #6f3fa8; } .prl.n { background: #556; }
 .tbl.rota tr.now td { background: color-mix(in srgb, var(--gold-d) 18%, var(--surface)); font-weight: 600; }
+/* como o dano funciona */
+.cd-flow { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; }
+.cd-flow > div { flex: 1 1 180px; padding: 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); display: grid; gap: 2px; }
+.cd-flow > div b { font: 700 15px var(--font-display); }
+.cd-flow > div span { font-size: 13.5px; color: var(--muted); }
+.cd-flow > i { align-self: center; font-style: normal; color: var(--gold-d); font-weight: 700; }
+@media (max-width: 600px) { .cd-flow > i { display: none; } }
+.cd-leg { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.8; }
+.fonte { display: inline-block; vertical-align: 2px; margin-left: 4px; padding: 1px 7px; border-radius: 4px; font: 600 10.5px var(--font-body); letter-spacing: .05em; text-transform: uppercase; }
+.fonte.f { background: color-mix(in srgb, var(--teal-d) 16%, var(--surface)); color: var(--teal-d); }
+.fonte.t { background: color-mix(in srgb, var(--gold-d) 18%, var(--surface)); color: var(--gold-d); }
+.fonte.e { background: var(--event-bg); color: var(--event); }
+.cd-sec h2 { flex-wrap: wrap; }
+.cd-ol { padding-left: 20px; display: grid; gap: 4px; }
+.cd-ex { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.cd-ex .lbl { display: block; padding: 8px 12px; background: var(--bg); }
+.cd-ex div { display: flex; justify-content: space-between; gap: 10px; padding: 7px 12px; border-top: 1px solid var(--line); font-size: 14px; }
+.cd-ex b { font: 500 14px var(--font-mono); font-variant-numeric: tabular-nums; }
+.cd-ex div:last-child { background: color-mix(in srgb, var(--gold-d) 14%, var(--surface)); font-weight: 600; }
