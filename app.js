@@ -119,7 +119,7 @@ const ROUTES = [
   [/^#\/mapas$/, 'mapas', () => viewMaps()],
   [/^#\/mapa\/(\d+)$/, 'mapas', id => viewMap(+id)],
   [/^#\/ferramentas$/, 'ferramentas', () => viewTools()],
-  [/^#\/upar$/, 'ferramentas', () => viewLeveling()],
+  [/^#\/upar$/, 'ferramentas', () => { viewLeveling(); view.insertAdjacentHTML('beforeend', rotaHtml()); }],
   [/^#\/exp$/, 'ferramentas', () => viewExp()],
   [/^#\/pontos$/, 'ferramentas', () => viewPoints()],
   [/^#\/blacksmith$/, 'ferramentas', () => viewBlacksmith()],
@@ -135,6 +135,7 @@ const ROUTES = [
   [/^#\/p\/([A-Za-z0-9_-]+)$/, 'personagem', code => importChar(code)],
   [/^#\/dano$/, 'ferramentas', () => viewDamage()],
   [/^#\/canhao$/, 'ferramentas', () => viewCannon()],
+  [/^#\/prorate(?:\/(\d+))?$/, 'ferramentas', id => viewProrate(id ? +id : 0)],
   [/^#\/skills(?:\/([A-Za-z0-9_-]+))?$/, 'personagem', code => viewChar('skills', code)],
   [/^#\/statting(?:\/([A-Za-z0-9_-]+))?$/, 'ferramentas', code => viewStatting(code)],
   [/^#\/screenshots$/, 'screenshots', () => viewShots()],
@@ -172,6 +173,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
+  ['2026-11-17', ['Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
   ['2026-11-10', ['Visual revisado: toque com resposta imediata, títulos mais legíveis, Ferramentas reorganizadas', 'Personagem: blocos Traits e Combo, e atalhos para cada bloco no topo', 'Tabela de poder e resistência por elemento no painel de status', 'Calculadora do Magic: Cannon', 'Todos os ícones de skill completos']],
   ['2026-11-09', ['Novo bloco Dano no Personagem: muda junto com a build', 'Buffs ativos com ligar e desligar: todas as skills que dão status', 'Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
   ['2026-11-08', ['Screenshots da 2ª e da 3ª Raid Tartaros BR', 'Guia de batalha dos bosses cabe na tela do celular']],
@@ -641,8 +643,8 @@ function viewMonster(id) {
     + '</tbody></table></div>' + (g.entries.some(e => e.exp > 0) && g.t === 'B' ? '<p class="note">EXP base, sem quebrar partes. Bosses dão mais EXP quando as partes quebráveis são quebradas.</p>' : '') + '</section>';
   const drops = dropsHtml(g);
   const loc = locHtml(g.mapList.map(m => m.name));
-  const raid = f ? '<details class="card" open><summary><h2>Guia de batalha</h2></summary>' + fichaHtml(f) + '</details>' : '';
-  view.innerHTML = backBtn('#/monstros/' + g.t) + head + '<div class="grid2"><div>' + diff + drops + '</div><div>' + raid + loc + '</div></div>';
+  const raid = f ? '<details class="card" open><summary><h2>Guia de batalha</h2></summary>' + fichaHtml(f) + (g.entries.some(e => prorFicha(g, e.mode)) ? '<p style="margin:10px 0 0"><a class="btn ghost" href="#/prorate/' + g.id + '">Simular o prorate deste boss</a></p>' : '') + '</details>' : '';
+  view.innerHTML = backBtn('#/monstros/' + g.t) + head + '<div class="grid2"><div>' + diff + bossNotes(g) + drops + '</div><div>' + raid + loc + '</div></div>';
   const td = $('#todmg');
   if (td) td.addEventListener('click', () => { setTarget(g, (g.entries.find(x => x.mode === 'Ultimate') || g.entries[g.entries.length - 1]).mode); store.set('dano', DM); location.hash = '#/dano'; });
 }
@@ -935,6 +937,7 @@ function viewTools() {
     + grp('Personagem e combate', [
       t('#/personagem', 'Montar personagem', 'Equipamento, skills, buffs e traits, com o painel de status do jogo'),
       t('#/dano', 'Calculadora de dano', 'Quanto a sua build bate num boss e quantos golpes para derrubar'),
+      t('#/prorate', 'Prorate e Rateio', 'Entenda o anti-spam de dano e simule com o rateio de cada boss'),
       t('#/personagem/combo', 'Simulador de combo', 'MP, força e dano de cada skill do combo, com os efeitos de combo'),
       t('#/canhao', 'Magic: Cannon', 'Quanto a carga sobe com cada skill e o dano do disparo'),
       t('#/personagem/skills', 'Simulador de skills', 'As 33 árvores de skill, com pré-requisitos e o que cada skill faz'),
@@ -1383,6 +1386,7 @@ const CREDITS = [
   ['Toram Online Wiki', 'https://toram-online.fandom.com/', 'Mapas-múndi de Iruna e de Toram.'],
   ['Site oficial do Toram Online', 'https://en.toram.jp/', 'Notícias e atualizações do jogo.'],
   ['venenako.app e RaffyDB', 'https://venenako.app/', 'Consultados como referência de organização e de calculadoras.', 'https://raffydb.com/'],
+  ['Guilda TARTAROS BR (Cristian Viciado)', '', 'Explicação de prorate e rateio, rota de upar com bosses, dicas de boss e testes feitos no jogo.'],
   ['Comunidade BR e r/ToramOnline', '', 'Códigos de casas de comida (post “Food Buff Codes 2025”), testes no jogo e sugestões da guild.']
 ];
 function viewCredits() {
@@ -3002,7 +3006,8 @@ function renderTraits() {
 
 // ---------- simulador de combo (regras do glossário do Cy's Grimoire) ----------
 // BD.cb = { mp: MP inicial ('' = MP máximo), s: [[skill, efeito de combo]] }.
-const CB_TAGS = [['', 'Sem efeito'], ['emp', 'Empower'], ['rep', 'Reposição (Filler)'], ['ten', 'Tenacity'], ['inv', 'Invencível'], ['bld', 'Bloodsucker'], ['frm', 'Firmeza'], ['rfl', 'Reflection'], ['swf', 'Swift'], ['eye', 'Olho da Mente']];
+// Nomes como aparecem no jogo (as regras vêm do glossário do Cy, onde alguns têm outro nome: Empower = Smite, Reposição = Save, Firmeza = Tough).
+const CB_TAGS = [['', 'Sem efeito'], ['emp', 'Smite'], ['rep', 'Save'], ['swf', 'Swift'], ['frm', 'Tough'], ['eye', "Mind's Eye"], ['inv', 'Invincible'], ['ten', 'Tenacity'], ['bld', 'Bloodsucker'], ['rfl', 'Reflection']];
 const CB_MAX = 10;
 function cbSkills() {
   if (!SKI || !SKT) return [];
@@ -3021,16 +3026,17 @@ function cbCalc() {
     let force = 100 - 10 * uses, cost = Math.max(0, Math.round(v.mp) - 100 * (pos - 1)), hpc = 0;
     if (uses) notes.push('repetida: −' + 10 * uses + '%');
     if (rflNext) { cost = Math.max(0, cost - 100); notes.push('−100 MP pelo Reflection (sem levar dano)'); rflNext = false; }
-    if (empNext) { force -= 50; notes.push('−50% pelo Empower anterior'); empNext = false; }
-    if (repPen.length) { const p = repPen.shift(); force -= p; notes.push('−' + p + '% pela Reposição'); }
+    if (empNext) { force -= 50; notes.push('−50% pelo Smite anterior'); empNext = false; }
+    if (repPen.length) { const p = repPen.shift(); force -= p; notes.push('−' + p + '% pelo Save'); }
     if (tag === 'emp') { force += 50; if (last) { cost *= 2; notes.push('última do combo: MP em dobro'); } else empNext = true; }
-    if (tag === 'rep') { reserved = cost; cost = 0; force -= 80; repPen = [60, 40, 20]; notes.push('MP fica reservado e é descontado no fim'); }
+    if (tag === 'rep') { reserved = cost; cost = 0; force -= 80; repPen = [60, 40, 20]; notes.push('não gasta MP agora: o custo vira crédito para as próximas; o que sobrar é descontado no fim'); }
     if (tag === 'rfl' && !last) notes.push('se não levar dano, a próxima custa −100 MP'), rflNext = true;
     if (tag === 'inv') { notes.push(invUsed ? 'Invencível repetido: 0%' : 20 * (pos - 1) + '% de chance de ficar invencível'); invUsed = true; }
     if (tag === 'frm') notes.push('dano recebido −50% nesta e na próxima');
     if (tag === 'swf') notes.push('velocidade de ação no máximo (50%)');
     if (tag === 'eye') notes.push('garante Graze e ' + pos * 10 + '% de acerto absoluto');
     if (tag === 'bld') { if (hot) { force += 10 + pos; hpc += Math.floor(d.MaxHP * (10 - pos) / 100); notes.push('Sangue Quente: dano +' + (10 + pos) + '%'); } else notes.push('cura ' + (10 + pos) + '% do dano em HP'); hot = true; }
+    if (reserved && tag !== 'rep' && cost) { const use = Math.min(reserved, cost); reserved -= use; cost -= use; notes.push(fmt(use) + ' MP pagos com o crédito do Save'); }
     if (cost > mp) {
       if (tag === 'ten') { const pct = Math.ceil((cost - mp) / 100) * 10; hpc += Math.floor(d.MaxHP * pct / 100); notes.push('faltou MP: paga ' + pct + '% do HP'); cost = mp; }
       else { rows.push({ v, pos, tag, cost, mpLeft: mp, force, notes: ['MP insuficiente: o combo para aqui'], err: true }); stop = true; return; }
@@ -3057,7 +3063,7 @@ function cbRender() {
         + (row.notes && row.notes.length ? '<p class="cbnote">' + row.notes.map(esc).join(' · ') + '</p>' : '') + '</li>';
     }).join('') + '</ol>'
     + (sks.length ? (BD.cb.s.length < CB_MAX ? '<button type="button" class="btn ghost" id="cbadd">+ Skill no combo</button>' : '') : '<p class="muted">Coloque skills na build (bloco Skills) para montar o combo.</p>')
-    + (BD.cb.s.length ? '<div class="res" style="margin-top:12px"><div><span class="lbl">MP gasto</span><div class="big">' + fmt(r.start - r.mp) + '</div><small class="muted">' + (r.reserved && !r.stop ? 'inclui ' + fmt(r.reserved) + ' reservados pela Reposição' : 'de ' + fmt(r.start)) + '</small></div><div><span class="lbl">MP no fim</span><div class="big' + (r.mp < 0 ? ' neg' : '') + '">' + fmt(r.mp) + '</div></div>'
+    + (BD.cb.s.length ? '<div class="res" style="margin-top:12px"><div><span class="lbl">MP gasto</span><div class="big">' + fmt(r.start - r.mp) + '</div><small class="muted">' + (r.reserved && !r.stop ? 'inclui ' + fmt(r.reserved) + ' de crédito do Save que sobrou' : 'de ' + fmt(r.start)) + '</small></div><div><span class="lbl">MP no fim</span><div class="big' + (r.mp < 0 ? ' neg' : '') + '">' + fmt(r.mp) + '</div></div>'
       + '<div><span class="lbl">Dano do combo</span><div class="big">' + fmt(Math.floor(r.total)) + '</div><small class="muted">esperado, com acerto e crítico</small></div>' + (r.hp ? '<div><span class="lbl">HP gasto</span><div class="big">' + fmt(r.hp) + '</div></div>' : '') + '</div>' : '')
     + '<p class="note">Regras do glossário: cada skill custa 100 × (posição − 1) de MP a menos e perde 10% de força por vez que já apareceu no combo. Não conta MP recuperado entre as skills. O dano usa o alvo e as opções do bloco Dano.</p>';
   box.onclick = e => {
@@ -3130,6 +3136,86 @@ function cnDraw() {
     $('#cnmsg').textContent = 'Pronto: o bloco Dano agora usa o Magic: Cannon com ' + ch + '% de carga (em "Digitar os valores").';
   };
 }
+
+// ---------- Prorate e Rateio: guia + simulador ----------
+// Explicação baseada no material do Cristian Viciado (guilda TARTAROS BR); rateio de cada boss vem dos guias de batalha.
+const PR_T = [['f', 'Físico', 'Physical'], ['m', 'Mágico', 'Magical'], ['n', 'Neutro', 'Neutral']];
+function prorFicha(g, mode) {
+  const f = g && fichaFor(g); if (!f) return null;
+  const col = f.m ? 1 : Math.max(1, f.d.findIndex(r => r[0] === mode) + 1);
+  const get = p => { const r = f.df.find(x => String(x[0]).startsWith(p + ' Prorate')); if (!r) return null; const v = parseFloat(String(r[col] != null && r[col] !== '' ? r[col] : r[1]).replace(',', '.')); return isNaN(v) ? null : v; };
+  const o = { f: get('Physical'), m: get('Magical'), n: get('Neutral') };
+  return o.f == null && o.m == null && o.n == null ? null : o;
+}
+const PRS = { gid: 0, mode: '', r: { f: 5, m: 5, n: 10 }, p: { f: 0, m: 0, n: 0 }, log: [] };
+const prBosses = () => DB.MONS.filter(g => g.t !== 'N' && g.entries.some(e => prorFicha(g, e.mode))).sort((a, b) => a.name.localeCompare(b.name));
+function prSetBoss(g, mode) {
+  PRS.gid = g ? g.id : 0;
+  if (!g) return;
+  PRS.mode = mode || (g.entries.find(e => e.mode === 'Ultimate') || g.entries[g.entries.length - 1]).mode;
+  const v = prorFicha(g, PRS.mode) || {};
+  PR_T.forEach(([k]) => { if (v[k] != null) PRS.r[k] = v[k]; });
+  PRS.p = { f: 0, m: 0, n: 0 }; PRS.log = [];
+}
+function viewProrate(gid) {
+  setTitle('Prorate e Rateio');
+  if (gid) prSetBoss(DB.GBYID.get(gid));
+  const sec = (t, b) => '<section class="card"><h2>' + t + '</h2><div class="prose">' + b + '</div></section>';
+  view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Prorate e Rateio</h1><p>O sistema que pode cortar seu dano pela metade ou multiplicar por 2,5. Entenda e simule com o rateio de cada boss.</p></div></div>'
+    + '<div class="grid2"><div>'
+    + sec('O que é o prorate', '<p>É o sistema <b>anti-spam</b> do Toram. Repetir o mesmo tipo de dano <b>diminui</b> o dano desse tipo e <b>aumenta</b> o dos outros. Ele vai de <b>−50%</b> a <b>+150%</b>, o mesmo limite em qualquer boss.</p><p>Na prática, um golpe que daria 10M pode sair com 5M ou com 25M. Nenhum equipamento muda isso: é jogando que se acerta.</p>')
+    + sec('Três tipos, três barras', '<p>Existem três barras de prorate, uma para cada tipo de dano: <b>físico</b>, <b>mágico</b> e <b>neutro</b>.</p><ul><li>O <b>ataque básico</b> aplica prorate <b>neutro</b>.</li><li>Nem toda skill física aplica prorate físico, e nem toda mágica aplica mágico. No <a class="tl" href="#/personagem/skills">simulador de skills</a>, toque na skill e veja o campo <b>Inércia</b>.</li><li>Algumas skills contam mais de uma ação (ex.: cada Dash com Shadow Walk do Dual Katana aplica 2 ações físicas).</li></ul>')
+    + sec('Rateio: o tamanho do passo', '<p>O <b>rateio</b> diz quanto cada ação mexe nas barras, e <b>muda de boss para boss</b>. Exemplo, Red Ash Dragon Rudis: físico 5, mágico 5, neutro 10.</p><ul><li>1 ação física: a barra <b>física desce 5%</b>; a mágica sobe 5% e a neutra sobe 10% (cada uma sobe pelo próprio rateio).</li><li>10 ações físicas seguidas travam o físico em −50%.</li><li>Para o físico chegar a +150% nesse boss, são 30 ações de outro tipo (150 ÷ 5).</li></ul><p>Por isso saber o rateio importa: ele diz quantas ações você precisa antes do golpe forte.</p>')
+    + sec('Em equipe', '<p>O prorate é <b>da luta inteira</b>, não de cada jogador: tudo que a party faz mexe nas mesmas barras.</p><ul><li>Quatro magos spamando skills mágicas derrubam o dano uns dos outros. Físico + mágico se ajudam.</li><li>Quando um DPS bate muito mais que os outros, vale a party ajudar o prorate <b>dele</b> e não o próprio.</li><li>Mercenário que só dá ataque básico, ou pet com skill mágica, ajudam a subir a barra que você precisa.</li><li>Katana combina com mago: o mago sobe o físico, a katana sobe o mágico.</li></ul>')
+    + '<p class="note" style="color:var(--ink-2)">Explicação baseada no material do Cristian Viciado (guilda TARTAROS BR). Rateio de cada boss: guias de batalha (Toram Yo).</p>'
+    + '</div><div><section class="card prsim" id="prsim"></section></div></div>';
+  prDraw();
+}
+function prDraw() {
+  const box = $('#prsim'); if (!box) return;
+  const list = prBosses(), g = DB.GBYID.get(PRS.gid);
+  const bar = ([k, l]) => { const v = PRS.p[k], pos = (v + 50) / 200 * 100, zero = 25; return '<div class="prbar"><div class="prhd"><b>' + l + '</b><span class="' + (v > 0 ? 'up' : v < 0 ? 'neg' : '') + '">' + (v > 0 ? '+' : '') + v + '%</span><small>dano ×' + (Math.round((100 + v)) / 100).toLocaleString('pt-BR') + ' · rateio ' + PRS.r[k] + '</small></div><div class="prtrack"><i class="przero" style="left:' + zero + '%"></i><i class="prfill ' + (v >= 0 ? 'pos' : 'neg') + '" style="left:' + Math.min(zero, pos) + '%;width:' + Math.abs(pos - zero) + '%"></i></div></div>'; };
+  const need = k => { const r = PRS.r[k]; if (!r) return '—'; return Math.max(0, Math.ceil((150 - PRS.p[k]) / r)); };
+  box.innerHTML = '<h2>Simulador</h2>'
+    + '<div class="calc"><div class="field full"><label class="lbl" for="prb">Boss</label><select id="prb"><option value="0">Digitar o rateio</option>' + list.map(b => '<option value="' + b.id + '"' + (b.id === PRS.gid ? ' selected' : '') + '>' + esc(b.name) + '</option>').join('') + '</select></div>'
+    + (g ? '<div class="field full"><label class="lbl" for="prd">Dificuldade</label><select id="prd">' + g.entries.filter(e => prorFicha(g, e.mode)).map(e => '<option value="' + esc(e.mode) + '"' + (e.mode === PRS.mode ? ' selected' : '') + '>' + esc(MODE[e.mode] ? MODE[e.mode][2] : e.mode || 'Única') + '</option>').join('') + '</select></div>' : '')
+    + PR_T.map(([k, l]) => '<div class="field"><label class="lbl" for="prr' + k + '">Rateio ' + l.toLowerCase() + '</label><input id="prr' + k + '" data-pr="' + k + '" type="number" inputmode="decimal" min="0" step="any" value="' + PRS.r[k] + '"></div>').join('') + '</div>'
+    + '<div class="prbtns">' + PR_T.map(([k, l]) => '<button type="button" class="btn" data-pa="' + k + '">+1 ' + (k === 'n' ? 'Neutro (ataque básico)' : l) + '</button>').join('') + '<button type="button" class="btn ghost" data-pa="x">Zerar</button></div>'
+    + PR_T.map(bar).join('')
+    + '<p class="note">Ações até o máximo (+150%): ' + PR_T.map(([k, l]) => l.toLowerCase() + ' ' + need(k)).join(' · ') + ' (ações de outro tipo).</p>'
+    + (PRS.log.length ? '<p class="prlog"><span class="lbl">Sequência</span> ' + PRS.log.map(k => '<i class="prl ' + k + '">' + (k === 'f' ? 'F' : k === 'm' ? 'M' : 'N') + '</i>').join('') + '</p>' : '<p class="note">Toque nos botões para aplicar ações e ver as barras mudarem.</p>');
+  box.onclick = e => {
+    const b = e.target.closest('[data-pa]'); if (!b) return;
+    const a = b.dataset.pa;
+    if (a === 'x') { PRS.p = { f: 0, m: 0, n: 0 }; PRS.log = []; }
+    else { PR_T.forEach(([k]) => { PRS.p[k] = k === a ? Math.max(-50, PRS.p[k] - PRS.r[k]) : Math.min(150, PRS.p[k] + PRS.r[k]); PRS.p[k] = Math.round(PRS.p[k] * 100) / 100; }); PRS.log.push(a); if (PRS.log.length > 60) PRS.log.shift(); }
+    prDraw();
+  };
+  box.onchange = e => {
+    if (e.target.id === 'prb') { const ng = DB.GBYID.get(+e.target.value); if (ng) prSetBoss(ng); else PRS.gid = 0; }
+    else if (e.target.id === 'prd') prSetBoss(g, e.target.value);
+    else if (e.target.dataset.pr) PRS.r[e.target.dataset.pr] = Math.max(0, +e.target.value || 0);
+    else return;
+    prDraw();
+  };
+}
+
+// ---------- rota de upar com bosses (lista da guilda TARTAROS BR) ----------
+const ROTA_UP = [['1–37', 'Shell Mask', 'Nisel Mountain'], ['37–57', 'Bone Dragonewt', 'Ancient Empress Tomb: Area 1'], ['57–76', 'Flare Volg', 'Fiery Volcano: Lava Trail'], ['76–96', 'Masked Warrior', 'Land Under Cultivation: Area 4'], ['96–114', 'Don Yeti', 'Polde Ice Valley'], ['104–114', 'Masked Warrior', 'Land Under Cultivation: Area 4'], ['114–125', 'Cerberus', 'Spring of Rebirth: Area 4'], ['125–134', 'Lapin the Necromancer', 'Trace of Dark River'], ['134–146', 'Cerberus', 'Spring of Rebirth: Area 4'], ['146–162', 'Commander Golem', 'Lufenas Mansion: Area 1'], ['162–165', 'Wandering Wheel', 'Ultimea Palace: Demi Machina Storage'], ['165–175', 'Lalvada', 'Monster\'s Forest: Area 3'], ['175–178', 'Altoblepas', 'Rokoko Plains'], ['175–190', 'Maton Sword', 'Buried Tower: Area 3'], ['178–199', 'Venena Coenubia', 'Ultimea Palace: Area 5'], ['190–200', 'Zelbuze', 'Ruins of Mt. Mithurna: Area 3'], ['199–212', 'Finstern the Dark Dragon', 'Dark Dragon Shrine: Area 4'], ['200–211', 'Demonic Quasar', 'Morga Wasteland: Area 4'], ['212–227', 'Kuzto', 'Labilans Sector: Area 4'], ['227–234', 'Demonic Quasar', 'Morga Wasteland: Area 4'], ['229–233', 'Arachnidemon', 'Arche Valley: Area 4'], ['233–246', 'Bullamius', 'Storage Yard: Area 2'], ['234–244', 'Venena Metacoenubia', 'Neo Plastida'], ['246–254', 'Ferzen the Rock Dragon', 'Guardian Forest: Area 3'], ['254–263', 'Trickster Dragon Mimyugon', 'Operation Zone: Area 4'], ['263–272', 'Oculasignio', 'Mt. Vulcani: Area 4'], ['263–272', 'Trus', 'Propulsion System Zone: Area 3'], ['272–286', 'Trickster Dragon Mimyugon', 'Operation System Zone: Area 4'], ['286–296', 'Capo Profundo', 'Abandoned District: Area 3'], ['286–300', 'Mulgoon', 'Menabra Plains'], ['296–302', 'Red Ash Dragon Rudis', 'Espuma Dome: Entrance'], ['300–310', 'Wiltileaf', 'Eumano Village Ruins: Area 2'], ['310–315', 'Mulgoon', 'Menabra Plains'], ['315–320', 'Deformis', 'Eumano Village Ruins'], ['320–325', 'Gula', 'Raden Tower']];
+function rotaHtml() {
+  const find = n => DB.MONS.find(g => g.t !== 'N' && g.name === n) || DB.MONS.find(g => g.t !== 'N' && g.name.startsWith(n));
+  const lv = LV.lv, inR = s => { const [a, b] = s.split('–').map(Number); return lv >= a && lv <= b; };
+  return '<section class="card"><h2>Rota de upar com bosses <small>da comunidade</small></h2><p class="muted" style="margin:0 0 10px;font-size:13.5px">A rota que a guilda TARTAROS BR usa, de boss e miniboss em boss. Na sua faixa de nível, a linha fica marcada.</p>'
+    + '<div class="tblw"><table class="tbl rota"><thead><tr><th>Nível</th><th>Boss</th><th>Mapa</th></tr></thead><tbody>'
+    + ROTA_UP.map(([r, n, m]) => { const g = find(n); return '<tr' + (inR(r) ? ' class="now"' : '') + '><td class="n">' + r + '</td><td>' + (g ? '<a class="tl" href="' + monUrl(g) + '">' + esc(n) + '</a>' : esc(n)) + '</td><td class="muted">' + esc(m) + '</td></tr>'; }).join('')
+    + '</tbody></table></div><p class="note">Lista do Cristian Viciado (TARTAROS BR). Sem buffs de EXP; com buff, dá para subir mais rápido na mesma faixa.</p></section>';
+}
+
+// ---------- dicas de boss da comunidade ----------
+const BOSS_NOTES = {
+  'Trickster Dragon Mimyugon': ['Em 50% de HP, todo dano que passar disso é anulado: um golpe de 70M com o boss em 52% só tira os 2% que faltam. Guarde o golpe mais forte para depois da metade.', 'Nessa transição ele ganha muita resistência a crítico, então o burst rende menos.', 'Tem golpes em área com Interrupt, que cortam a conjuração (atenção, mago).', 'Depois dos 50%, ataca de longe quem estiver mais distante dele.', 'Rateio muito bom para mago: depois de bastante ataque físico ou neutro da party, as skills mágicas chegam perto de +150%.']
+};
+const bossNotes = g => { const n = BOSS_NOTES[g.name]; return n ? '<section class="card"><h2>Dicas da comunidade</h2><ul class="flist">' + n.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul><p class="note">Da guilda TARTAROS BR (Cristian Viciado).</p></section>' : ''; };
 
 // ---------- busca única ----------
 const gq = $('#gq'), gres = $('#gres');

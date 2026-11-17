@@ -811,3 +811,20 @@ body { overflow-x: hidden; }
   .ph, .sect, .top::before, .nav { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
   .ph, .sect { background: #0d1a33; }
 }
+/* prorate */
+.prbtns { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.prbtns .btn { flex: 1 1 140px; }
+.prbar { margin: 10px 0; }
+.prhd { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+.prhd span { font: 600 16px var(--font-mono); }
+.prhd span.up { color: #1d7a3e; } .prhd span.neg { color: var(--event); }
+.prhd small { color: var(--muted); margin-left: auto; }
+.prtrack { position: relative; height: 12px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); margin-top: 4px; overflow: hidden; }
+.prfill { position: absolute; top: 0; bottom: 0; transition: left .25s cubic-bezier(.2,.9,.25,1), width .25s cubic-bezier(.2,.9,.25,1); }
+.prfill.pos { background: #2f9a58; } .prfill.neg { background: var(--event); }
+.przero { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--fg); opacity: .5; }
+.prlog { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; margin: 8px 0 0; }
+.prlog .lbl { margin-right: 6px; }
+.prl { font: 700 11px var(--font-mono); font-style: normal; width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; color: #fff; }
+.prl.f { background: #a5502a; } .prl.m { background: #6f3fa8; } .prl.n { background: #556; }
+.tbl.rota tr.now td { background: color-mix(in srgb, var(--gold-d) 18%, var(--surface)); font-weight: 600; }
