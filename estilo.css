@@ -958,3 +958,9 @@ table th { color: var(--gold-d); }
 .hcont { display: flex; flex-wrap: wrap; gap: 6px; }
 @media (min-width: 1000px) { .igrid.i3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 899px) { .travis { bottom: calc(var(--navh) + 12px + env(safe-area-inset-bottom, 0px)); } }
+
+/* receita do item */
+.rcp { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 2px 0 8px; }
+.rcp span { display: grid; }
+.rcp small { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.rcp b { font: 500 15px var(--font-mono); color: var(--fg); }

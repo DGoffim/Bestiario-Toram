@@ -11,6 +11,10 @@ on:
         description: 'Quantos itens novos ler nesta rodada (vazio = todos)'
         required: false
         default: ''
+      refazer:
+        description: 'Reler os itens que já têm receita (sim/não)'
+        required: false
+        default: 'não'
 
 permissions:
   contents: write
@@ -26,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Ler receitas e origem
-        run: python3 scripts/receitas.py ${{ github.event.inputs.limite }}
+        run: python3 scripts/receitas.py ${{ github.event.inputs.limite }} ${{ github.event.inputs.refazer == 'sim' && 'refazer' || '' }}
       - name: Salvar se mudou
         run: |
           git config user.name "github-actions[bot]"

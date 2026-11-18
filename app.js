@@ -176,7 +176,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
-  ['2026-11-17', ['Códigos de comida: 387 códigos novos e 12 buffs novos (resistências por elemento, barreiras, drop, MATK e DEF)', 'Visual novo: painéis no estilo do jogo, menu lateral no computador e entrada por objetivo', 'Site em inglês, espanhol e indonésio: toque na bandeira no topo', 'Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Página nova: Como o dano funciona', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
+  ['2026-11-17', ['Itens: como obter (NPC, Smith, receita com materiais) e em que receitas cada material é usado', 'Códigos de comida: 387 códigos novos e 12 buffs novos (resistências por elemento, barreiras, drop, MATK e DEF)', 'Visual novo: painéis no estilo do jogo, menu lateral no computador e entrada por objetivo', 'Site em inglês, espanhol e indonésio: toque na bandeira no topo', 'Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Página nova: Como o dano funciona', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
   ['2026-11-10', ['Visual revisado: toque com resposta imediata, títulos mais legíveis, Ferramentas reorganizadas', 'Personagem: blocos Traits e Combo, e atalhos para cada bloco no topo', 'Tabela de poder e resistência por elemento no painel de status', 'Calculadora do Magic: Cannon', 'Todos os ícones de skill completos']],
   ['2026-11-09', ['Novo bloco Dano no Personagem: muda junto com a build', 'Buffs ativos com ligar e desligar: todas as skills que dão status', 'Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
   ['2026-11-08', ['Screenshots da 2ª e da 3ª Raid Tartaros BR', 'Guia de batalha dos bosses cabe na tela do celular']],
@@ -886,14 +886,41 @@ function viewItem(id) {
   const slotFor = SLOTS.find(s => s[2].includes(i.tl)) || SLOTS.find(s => s[3].includes(i.tl));
   const equip = (slotFor || i.by.length || i.stats.length) ? '<p class="chips" style="margin:10px 0 0">' + (slotFor ? '<button type="button" class="btn" id="equip">Equipar na calculadora de status</button>' : '') + (i.by.length ? '<a class="btn ghost" href="#/farmar/' + i.id + '">Onde farmar perto do meu nível</a>' : '') + (i.stats.length ? '<button type="button" class="btn ghost" id="cmpbtn">' + (inCmp(i.id) ? '✓ Na comparação' : 'Comparar') + '</button>' + (CMP.length ? '<a class="tl" href="#/comparar" style="align-self:center">ver comparação (' + CMP.length + ')</a>' : '') : '') + '</p>' : '';
   view.innerHTML = backBtn('#/itens') + '<div class="dhead"><h1>' + esc(i.name) + favBtn('i:' + i.id) + '</h1><div class="dmeta">' + meta.map(([k, v]) => '<span><span class="muted">' + k + '</span> ' + v + '</span>').join('') + itemTags(i) + '</div>'
-    + (i.note ? '<p class="inote">' + esc(i.note) + '</p>' : '') + equip + '</div>' + (list && tree ? '<div class="grid2"><div>' + list + '</div><div>' + tree + '</div></div>' : '<div class="itop">' + list + tree + '</div>') + drops;
+    + (i.note ? '<p class="inote">' + esc(i.note) + '</p>' : '') + equip + '</div>' + (list && tree ? '<div class="grid2"><div>' + list + '</div><div>' + tree + '</div></div>' : '<div class="itop">' + list + tree + '</div>') + '<div id="rcpbox"></div>' + drops;
   const cb = $('#cmpbtn'); if (cb) cb.addEventListener('click', () => { toggleCmp(i.id); viewItem(i.id); });
   if (i.by.length) monTable('i:' + i.id, i.by, { title: 'Onde dropa', events: true });
+  itemOrigin(i);
   if (slotFor) $('#equip').addEventListener('click', () => {
     const s = BD.sl[slotFor[0]];
     if (slotFor[2].includes(i.tl)) s.id = i.id;
     else { s.x = s.x || [0, 0]; const free = s.x.indexOf(0); s.x[free < 0 ? 0 : free] = i.id; }
     saveBuild(); location.hash = '#/build';
+  });
+}
+
+// ---------- origem e receita dos itens (data/receitas.json, lido do coryn.club pelo robô semanal) ----------
+// n: NPCs [nome, mapa]; s: Smith de jogador; o: outras fontes; f/q/l/d: taxa, quantidade, nível e dificuldade da receita; m: materiais [qtd, item].
+let RCP = null, RCP_USE = null;
+const loadRcp = () => RCP ? Promise.resolve(RCP) : load('receitas').then(r => {
+  RCP = r.itens || {}; RCP_USE = new Map();
+  for (const [id, v] of Object.entries(RCP)) (v.m || []).forEach(([q, mid]) => { if (!RCP_USE.has(mid)) RCP_USE.set(mid, []); RCP_USE.get(mid).push([+id, q]); });
+  return RCP;
+}).catch(() => (RCP = {}, RCP_USE = new Map(), RCP));
+function itemOrigin(i) {
+  loadRcp().then(() => {
+    const box = $('#rcpbox'); if (!box) return;
+    const r = RCP[i.id] || {}, il = (id, q) => { const it = DB.ITBYID.get(id); return it ? '<a class="lk" href="' + itemUrl(it) + '">' + (q ? '<b>' + q + '×</b> ' : '') + esc(it.name) + '</a>' : ''; };
+    const grp = (lab, inner) => '<div class="dgroup"><span class="lbl">' + lab + '</span>' + inner + '</div>';
+    let how = '';
+    if (r.n) how += grp('NPC', '<div class="links">' + r.n.map(([nm, mp]) => { const m = DB.MAPS.get(mp); return '<span class="lk">' + esc(nm) + (m ? ' · <a href="' + mapUrl(m) + '">' + esc(m.name) + '</a>' : '') + '</span>'; }).join('') + '</div>');
+    if (r.s) how += grp('Smith', '<div class="links"><span class="lk">Pode ser criado por jogadores (Smith)</span></div>');
+    if (r.o) how += grp('Outras fontes', '<div class="links">' + r.o.map(t => '<span class="lk">' + esc(t) + '</span>').join('') + '</div>');
+    if (r.m) how += grp('Receita', '<div class="rcp">' + [['Taxa', r.f != null ? fmt(r.f) + ' Spina' : ''], ['Faz', r.q ? r.q + ' un.' : ''], ['Nível', r.l || ''], ['Dificuldade', r.d || '']].filter(x => x[1] !== '').map(([k, v]) => '<span><small>' + k + '</small><b>' + v + '</b></span>').join('') + '</div><div class="links">' + r.m.map(([q, id]) => il(id, q)).join('') + '</div>');
+    const use = (RCP_USE.get(i.id) || []).map(([id, q]) => [DB.ITBYID.get(id), q]).filter(x => x[0]).sort((a, b) => a[0].name.localeCompare(b[0].name));
+    const useHtml = use.length ? '<section class="card"><h2>Usado em <small>' + use.length + ' receita' + (use.length > 1 ? 's' : '') + '</small></h2><div class="links" id="uselist">' + use.slice(0, 40).map(([it, q]) => '<a class="lk" href="' + itemUrl(it) + '">' + esc(it.name) + ' <small>' + q + '×</small></a>').join('') + '</div>'
+      + (use.length > 40 ? '<button type="button" class="more" id="usemore">Mostrar todas (' + use.length + ')</button>' : '') + '</section>' : '';
+    box.innerHTML = (how ? '<section class="card"><h2>Como obter</h2>' + how + '<p class="note" style="margin:8px 0 0">Fonte: páginas de item do coryn.club, atualizadas toda semana.</p></section>' : '') + useHtml;
+    const mb = $('#usemore'); if (mb) mb.addEventListener('click', () => { $('#uselist').innerHTML = use.map(([it, q]) => '<a class="lk" href="' + itemUrl(it) + '">' + esc(it.name) + ' <small>' + q + '×</small></a>').join(''); mb.remove(); });
   });
 }
 

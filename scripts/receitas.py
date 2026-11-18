@@ -51,7 +51,7 @@ def ler_item(h):
                 t = texto(primeira)
                 if t:
                     out.setdefault('o', []).append(t)
-    rec = re.search(r'<div>Recipe</div>\s*</div>\s*<div class="item-prop mini">(.*?)</li>', h, re.S)
+    rec = re.search(r'<div>Recipe</div>\s*</div>\s*<div class="item-prop mini">(.*?)</ul>', h, re.S)
     if rec:
         r = rec.group(1)
         campos = dict((texto(k), texto(v)) for k, v in re.findall(r'<p class="accent-bold">(.*?)</p>\s*<div>(.*?)</div>', r, re.S))
@@ -71,11 +71,17 @@ def ler_item(h):
 
 
 if __name__ == '__main__':
-    limite = int(sys.argv[1]) if len(sys.argv) > 1 else 10 ** 9
+    # "refazer" relê só os itens que já têm receita (ex.: depois de corrigir a leitura dos materiais)
+    refazer = 'refazer' in sys.argv[1:]
+    nums = [a for a in sys.argv[1:] if a.isdigit()]
+    limite = int(nums[0]) if nums else 10 ** 9
     base = json.load(open(ARQ, encoding='utf-8')) if os.path.exists(ARQ) else {'lidos': [], 'itens': {}}
     lidos = set(base['lidos'])
     ids = [int(l.split('|')[1]) for l in json.load(open('data/itens.json', encoding='utf-8'))['items'].split('\n') if l.count('|') >= 2]
-    falta = [i for i in sorted(set(ids)) if i not in lidos][:limite]
+    if refazer:
+        falta = sorted(int(k) for k, v in base['itens'].items() if 'm' in v)[:limite]
+    else:
+        falta = [i for i in sorted(set(ids)) if i not in lidos][:limite]
     print(f'receitas: {len(ids)} itens, {len(lidos)} já lidos, lendo {len(falta)} agora')
     n = 0
     for i in falta:
@@ -86,6 +92,8 @@ if __name__ == '__main__':
         info = ler_item(h)
         if info:
             base['itens'][str(i)] = info
+        else:
+            base['itens'].pop(str(i), None)
         lidos.add(i)
         n += 1
         if n % 200 == 0:
