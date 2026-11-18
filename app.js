@@ -176,7 +176,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
-  ['2026-11-17', ['Visual novo: painéis no estilo do jogo, menu lateral no computador e entrada por objetivo', 'Site em inglês, espanhol e indonésio: toque na bandeira no topo', 'Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Página nova: Como o dano funciona', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
+  ['2026-11-17', ['Códigos de comida: 387 códigos novos e 12 buffs novos (resistências por elemento, barreiras, drop, MATK e DEF)', 'Visual novo: painéis no estilo do jogo, menu lateral no computador e entrada por objetivo', 'Site em inglês, espanhol e indonésio: toque na bandeira no topo', 'Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Página nova: Como o dano funciona', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
   ['2026-11-10', ['Visual revisado: toque com resposta imediata, títulos mais legíveis, Ferramentas reorganizadas', 'Personagem: blocos Traits e Combo, e atalhos para cada bloco no topo', 'Tabela de poder e resistência por elemento no painel de status', 'Calculadora do Magic: Cannon', 'Todos os ícones de skill completos']],
   ['2026-11-09', ['Novo bloco Dano no Personagem: muda junto com a build', 'Buffs ativos com ligar e desligar: todas as skills que dão status', 'Skills: toque na skill e mude o nível com − e +', 'Passivas como Godspeed já somam no painel de status', 'Árvores de skill cabem inteiras na tela', 'Site não arrasta mais para o lado no celular']],
   ['2026-11-08', ['Screenshots da 2ª e da 3ª Raid Tartaros BR', 'Guia de batalha dos bosses cabe na tela do celular']],
@@ -1304,37 +1304,49 @@ function viewEvent(key) {
 // ---------- códigos de comida (food buff) ----------
 // Lista da comunidade (post "Food Buff Codes 2025" no r/ToramOnline, tradução enviada pelo Daniel). Sem nota = nível 10.
 const FOOD = [
-  ['STR', 'Bolinho de Arroz Okaka', '4016699 1110033 2020303 2017890 1010055'],
-  ['INT', 'Bolinho de Arroz Umeboshi', '6010701 6061294 5190001 1010498 1032222'],
+  ['STR', 'Bolinho de Arroz Okaka', '4016699 1110033 2020303 2017890 1010055 7070777 5119731 1011069 5050888 2180000 3010095 4010024 1150001 5261919 4260050 1010968 7031997 3010085:9 3010003:9 4010417:9 2060097:9 3010001:9 2022222:9'],
+  ['INT', 'Bolinho de Arroz Umeboshi', '6010701 6061294 5190001 1010498 1032222 2020707 7010018 1047777 1010140 7130001 1010489 1014230:9 6062006:9 6010193:9 1190020:9 1011010:9 5119105:9 1019605:8'],
   ['VIT', 'Bolinho de Arroz com Atum e Maionese', '4032850 5130123 2020909'],
-  ['AGI', 'Bolinho de Arroz Mentaiko', '7162029 1110033 1220777 4262222 2020037'],
-  ['DEX', 'Bolinho de Arroz com Salmão', '2020222 1010261 1160000 1112220 1107777'],
-  ['ATK de Arma', 'Pizza Margherita', '3160777 1067777 2010136 6010024 1011122'],
-  ['ATK', 'Pizza Diavola', '7170717 1119876'],
-  ['Recuperação de MP por ataque', 'Yakisoba', '4040404 4261111 5010031 1016969 4233333'],
-  ['MaxHP', 'Refogado Dourado', '1250015 4262222 3040005 1180755 1010455'],
-  ['MaxMP', 'Arroz Frito Ankake', '1032222 2010079 1091111 1240000 1027777'],
-  ['Taxa crítica', 'Takoyaki', '7010086 1181140 1100000 5119105 2022020 53190003'],
-  ['Precisão', 'Shoyu Ramen', '2010308 4261111 1181220 701007:9'],
-  ['Aggro −', 'Ensopado Branco', '1010147 3190038 1011174 2020808 3010018'],
-  ['Aggro +', 'Ensopado de Carne', '1010207 1140008 1011340 2020606 1130832 53010043'],
-  ['Dano contra Neutro', 'Peperoncino', '1250040 5010098'],
-  ['Dano contra Vento', 'Napolitana', '3030303 2020909:9 1180020:8'],
-  ['Dano contra Água', 'Vongole', '1110111 7150030 7011001:9'],
-  ['Dano contra Fogo', 'Bolognese', '3210106:9 7088807:9'],
-  ['Dano contra Terra', 'Genovese', '2020202 4233333:9 7100666:9'],
-  ['Dano contra Trevas', 'Massa com Tinta de Lula', '6116116 5010092 1190020 2130776'],
-  ['Dano contra Luz', 'Carbonara', '1240000:9 1020345:9 1019696:?'],
-  ['Resistência física', 'Hambúrguer de Carne', '1100000 7010014 4010051 2200117 6010701'],
-  ['Resistência mágica', 'Hambúrguer de Peixe', '6190007 2020505 6234567 7010016 1111757'],
-  ['Barreira fracionada', 'Panqueca', '4010024 6150029 1010013 1012222']
+  ['AGI', 'Bolinho de Arroz Mentaiko', '7162029 1110033 1220777 4262222 2020037 3100301 3053131:9 2020909:9 5130123:9 6269999:9 4010228:8 1010050:8'],
+  ['DEX', 'Bolinho de Arroz com Salmão', '2020222 1010261 1160000 1112220 1107777 5010031 1010106 1016819 1010058 7011001 5010092 1074649 3111999 6010313 3220777 7200002 4084545 6069069:9 1020001:9 6140110:9 1010147:9 3246969:8'],
+  ['ATK de Arma', 'Pizza Margherita', '3160777 1067777 2010136 6010024 1011122 6269999 1011126 1010099 1200200 6100000 1010810 5266667 3010777 4240242 5110834 1180020 3180777 7050301 3081024 1010029 2020404 3070028:9 2221806:9 7162029:9'],
+  ['ATK', 'Pizza Diavola', '7170717 1119876 6100000 5110834 1018215'],
+  ['Recuperação de MP por ataque', 'Yakisoba', '4040404 4261111 5010031 1016969 4233333 1111000 3201003 2110000 1019696 1011010 3063101 1017389 1010017 5252525 4206969 2011234 6030603 1047777 2020909 4083005 7220777 1010036 5236969 3226325 3226969 7069420 2223330 1010596 3020777 2010068 1010006 1023040 3062728 1010092 5240001 1010050 5010103 3062111 1011902 1130000 7088807 8120000 1010001:9 1030002:9 1234321:9 5240202:9 2011111:8 1010058:8'],
+  ['MaxHP', 'Refogado Dourado', '1250015 4262222 3040005 1180755 1010455 6010062 3191130 3092003 1010032 1010084 2060097 1010101 1011945 7121252 1018800 1107777 3100301 1010417 1010356 54154629 1010203 1234567 3011143 3010058 3010006 3066969 1222002 3015555:9 5030666:9 3030324:9 1260303:7 1250555:5'],
+  ['MaxMP', 'Arroz Frito Ankake', '1032222 2010079 1091111 1240000 1027777 3017676 1050105 1010216 3204544 3010069 1020808 5010044 1100017 1010017 2011234 6030603 2020101 4120003 1017676 1010143 6053838 6066666 1011001 7150029 7012828 6052000 3010037 2010510 1200001 1220069 6010021 6070013 1016646 4011793 1010013 1111999 3113105 1100008 5010080 2010091 1010142 3080021 7010047 1011212 7100720 4261111 4046666:9 1010004:9 3033030:9 3210666:9 1059999:8'],
+  ['Taxa crítica', 'Takoyaki', '7010086 1181140 1100000 5119105 2022020 53190003 3261206 3210098 1141414 1037777 1069927 7162029 5010098 1200069 3010048 3010777 7050705 3030159 6181111 1201021 2010044 3061206 3149696 1010006 1010092 1010017 1010050 1011010 1012000 1010433 3020108 6022292 4010000 1010852 6021230 6010340:9'],
+  ['Precisão', 'Shoyu Ramen', '2010308 4261111 1181220 7010077 1010013:9 701007:9 2020333:8 3188000:8'],
+  ['Aggro −', 'Ensopado Branco', '1010147 3190038 1011174 2020808 3010018 1010038 6010998 1010261 6213303 1016646 1010002 6010009 7190001:9 3134610:9 3061206:8 4200963:8 1010207:5'],
+  ['Aggro +', 'Ensopado de Carne', '1010207 1140008 1011340 2020606 1130832 53010043 3053131 3158668 3040005 2010136 7171717 5261002 6150029 4220777 1016646 3030110 1264321 6260113 3204544 1014230:9 1013000:9 6262000:9 1190069:9 3066969:9 1012000:7 7057777:5'],
+  ['Dano contra Neutro', 'Peperoncino', '2020202 3210102 1250040 5010098 1018530 4040088 1014999 7017011 1199999:9 3080888:9 1019696:8 3260178:7 3099876:7 1011902:7 6061294:7 4260050:6 1032727:5 1230500:?'],
+  ['Dano contra Vento', 'Napolitana', '3210101 2210101 3030303:9 2020909:9 1180020:8 1010055:8 3062111:8 4099876:7 1230400:?'],
+  ['Dano contra Água', 'Vongole', '7150030 3210100 1110111:9 7011001:9 3062111:8 2260006:8 1110007:7 6070013:7 1010067:7 3010018:7 1010810:6 3226325:6 1230300:?'],
+  ['Dano contra Fogo', 'Bolognese', '1230200 9181111 8120000 6098888 3210106:9 7088807:9 1121212:9 7011001:8 1010799:7 2010091:6 1012610:5'],
+  ['Dano contra Terra', 'Genovese', '4111113 3210103 2020202 7100666:9 4233333:9 1011001:9 4083005:8 1220777:8 1010002:8 1010216:8 2022222:8 1011111:8 1016646:7 2099876:7 1010174:7 5240001:7 3011143:7 1230100:?'],
+  ['Dano contra Trevas', 'Massa com Tinta de Lula', '6116116 1190020 2130776 3210104 6010003 5010092:9 3210105:9 1020345:9 3210106:9 1250015:9 1010006:7 1016646:7 1091111:7 3030069:7 1230600:?'],
+  ['Dano contra Luz', 'Carbonara', '1240000:9 1020345:9 3210105:9 4046666:8 4016699:6 1019696:? 1230700:?'],
+  ['Resistência física', 'Hambúrguer de Carne', '1100000 7010014 4010051 2200117 6010701 2020111 1020001 1231776 2210000 2020345 1010081 3010034 1018989:9 4200069:9 3011999:9 6011415:9'],
+  ['Resistência mágica', 'Hambúrguer de Peixe', '6190007 2020505 6234567 7010016 1111757 5066605 5246969 6213303 7190000 1111575 1010004 7030023 5200052 4080087:9 7227777:9 7222227:9 1100002:9 4010417:7'],
+  ['Barreira fracionada', 'Panqueca', '4010024 6150029 1012222 1074649 53010043 7010082 1010013:9 3190038:9 1222002:8 6181999:8 6010062:8 3010003:8'],
+  ['Barreira física', 'Bolo de Chocolate', '2020111:8'],
+  ['Barreira mágica', 'Cheesecake', '2020505:9'],
+  ['Resistência a Terra', 'Torrada com Pudim', '2020404:9 6150029:9'],
+  ['Resistência a Fogo', 'Torrada com Ovo Frito', '2020101:9'],
+  ['Resistência a Água', 'Torrada com Anchova', '2020606:9'],
+  ['Resistência a Vento', 'Torrada com Queijo', '2020222:9'],
+  ['Resistência a Luz', 'Torrada com Mel', '2020909 1023040:9 1020001:7 1112220:7 4220777:4'],
+  ['Resistência a Trevas', 'Torrada com Alho', '5010092 2020707:9'],
+  ['Resistência a Neutro', 'Torrada de Baunilha', '2020303 7220777:9'],
+  ['Taxa de drop', 'Parfait de Frutas', '4196969:6 1010085:6 1010018:5 2020096:4 1067777:4 1010216:2'],
+  ['MATK', 'Pizza de Frutos do Mar', '1024649 1021684:9'],
+  ['DEF', 'Ramen Tonkotsu', '2020111:8']
 ];
 let FQ = '';
 function viewFood() {
   setTitle('Códigos de comida');
   view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Códigos de comida</h1><p>Casas de jogadores com comida de buff. Toque num código para copiar e use no jogo para visitar a casa e comprar a comida.</p></div></div>'
     + '<div class="tools"><input id="fq" type="search" placeholder="Status ou comida (ex: DEX, crítico, pizza)" value="' + esc(FQ) + '" aria-label="Buscar buff"></div>'
-    + '<div id="flist"></div><p class="note" style="color:var(--ink-2)">Sem anotação, o código é de comida nível 10. Lista da comunidade (post “Food Buff Codes 2025” do r/ToramOnline). Os códigos mudam quando os donos das casas trocam os pratos; se um não funcionar, tente o próximo.</p>'
+    + '<div id="flist"></div><p class="note" style="color:var(--ink-2)">Sem anotação, o código é de comida nível 10. Lista da comunidade (post “Food Buff Codes 2025” do r/ToramOnline e lista enviada pela comunidade BR em novembro de 2026). Os códigos mudam quando os donos das casas trocam os pratos; se um não funcionar, tente o próximo.</p>'
     + '<div class="toast" id="toast" hidden>Copiado!</div>';
   const list = () => {
     const q = FQ.trim().toLowerCase();
@@ -2036,11 +2048,11 @@ function renderBuild() {
 const BN_CATS = [['com', 'Comida'], ['ava', 'Avatar'], ['pot', 'Poções e buffs'], ['out', 'Outros']];
 const BN_HINT = { com: 'Escolha a comida e digite o valor do buff (aparece no jogo, no ícone da comida). <a class="tl" href="#/comida">Códigos de comida</a>', ava: 'Some os status das peças de avatar: topo, parte de baixo e acessório.', pot: 'Poções, pergaminhos e buffs de skill de outros jogadores.', out: 'Qualquer outro bônus. Todos os status do jogo estão na lista.' };
 // Status de cada comida da lista de códigos.
-const FOOD_STAT = { STR: 'STR', INT: 'INT', VIT: 'VIT', AGI: 'AGI', DEX: 'DEX', 'ATK de Arma': 'Weapon ATK', ATK: 'ATK', 'Recuperação de MP por ataque': 'Attack MP Recovery', MaxHP: 'MaxHP', MaxMP: 'MaxMP', 'Taxa crítica': 'Critical Rate', 'Precisão': 'Accuracy', 'Aggro −': 'Aggro %', 'Aggro +': 'Aggro %', 'Dano contra Neutro': '% stronger against Neutral', 'Dano contra Vento': '% stronger against Wind', 'Dano contra Água': '% stronger against Water', 'Dano contra Fogo': '% stronger against Fire', 'Dano contra Terra': '% stronger against Earth', 'Dano contra Trevas': '% stronger against Dark', 'Dano contra Luz': '% stronger against Light', 'Resistência física': 'Physical Resistance %', 'Resistência mágica': 'Magic Resistance %', 'Barreira fracionada': 'Fractional Barrier %' };
+const FOOD_STAT = { STR: 'STR', INT: 'INT', VIT: 'VIT', AGI: 'AGI', DEX: 'DEX', 'ATK de Arma': 'Weapon ATK', ATK: 'ATK', 'Recuperação de MP por ataque': 'Attack MP Recovery', MaxHP: 'MaxHP', MaxMP: 'MaxMP', 'Taxa crítica': 'Critical Rate', 'Precisão': 'Accuracy', 'Aggro −': 'Aggro %', 'Aggro +': 'Aggro %', 'Dano contra Neutro': '% stronger against Neutral', 'Dano contra Vento': '% stronger against Wind', 'Dano contra Água': '% stronger against Water', 'Dano contra Fogo': '% stronger against Fire', 'Dano contra Terra': '% stronger against Earth', 'Dano contra Trevas': '% stronger against Dark', 'Dano contra Luz': '% stronger against Light', 'Resistência física': 'Physical Resistance %', 'Resistência mágica': 'Magic Resistance %', 'Barreira fracionada': 'Fractional Barrier %', MATK: 'MATK', DEF: 'DEF', 'Barreira física': 'Physical Barrier', 'Barreira mágica': 'Magic Barrier', 'Taxa de drop': 'Drop Rate %', 'Resistência a Terra': 'Earth resistance %', 'Resistência a Fogo': 'Fire resistance %', 'Resistência a Água': 'Water resistance %', 'Resistência a Vento': 'Wind resistance %', 'Resistência a Luz': 'Light resistance %', 'Resistência a Trevas': 'Dark resistance %', 'Resistência a Neutro': 'Neutral resistance %' };
 let BN_TAB = 'com';
 function renderBnAdd() {
   $('#bnhint').innerHTML = BN_HINT[BN_TAB];
-  if (BN_TAB === 'com') { $('#bdexs').innerHTML = FOOD.map(([lab, food], i) => FOOD_STAT[lab] ? '<option value="' + i + '">' + esc(food) + ' — ' + esc(lab) + '</option>' : '').join(''); return; }
+  if (BN_TAB === 'com') { $('#bdexs').innerHTML = FOOD.map(([lab, food], i) => FOOD_STAT[lab] && SI(FOOD_STAT[lab]) >= 0 ? '<option value="' + i + '">' + esc(food) + ' — ' + esc(lab) + '</option>' : '').join(''); return; }
   const opts = statOptList();
   $('#bdexs').innerHTML = opts.map(([s, i]) => '<option value="' + i + '">' + esc(s) + '</option>').join('');
 }
