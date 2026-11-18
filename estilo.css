@@ -964,3 +964,7 @@ table th { color: var(--gold-d); }
 .rcp span { display: grid; }
 .rcp small { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .rcp b { font: 500 15px var(--font-mono); color: var(--fg); }
+.prlow { margin: 0; padding-left: 18px; columns: 2 220px; column-gap: 24px; }
+.prlow li { break-inside: avoid; margin: 0 0 4px; }
+.prlow a { color: var(--gold); }
+.prlow small { color: var(--muted); margin-left: 4px; }
