@@ -370,7 +370,7 @@ function viewRegistlets() {
     + '<div class="tools"><input id="rq" type="search" placeholder="Nome, skill ou efeito (ex: Arrow Rain, Accuracy)" value="' + esc(RS.q) + '" aria-label="Buscar registlet"></div>'
     + '<div class="chips" id="rf" style="margin:0 0 10px">' + [['', 'Todos'], ['skill', 'Mudam uma skill'], ['status', 'Status e outros']].concat(REGS.some(r => { const it = DB.ITBYNAME.get(r[0].toLowerCase()); return it && it.by.length; }) ? [['drop', 'Dropam de monstro']] : []).map(([v, l]) => '<button type="button" class="chip" data-f="' + v + '" aria-pressed="' + (RS.f === v) + '">' + l + '</button>').join('') + '</div>'
     + '<div class="status"><span id="rcount"></span></div><div class="regs" id="rlist"></div>'
-    + '<p class="note" style="color:var(--ink-2)">Efeitos do coryn.club, traduzidos; nomes de skills e status ficam em inglês, como no jogo. “Dropa de” cruza o nome do registlet com os drops do bestiário.</p>';
+    + '<p class="note" style="color:var(--ink-2)">Nomes de skills e status ficam em inglês, como no jogo. “Dropa de” cruza o nome do registlet com os drops do bestiário.</p>';
   const item = n => DB.ITBYNAME.get(n.toLowerCase());
   const draw = () => {
     const q = RS.q.trim().toLowerCase();
@@ -403,11 +403,11 @@ function viewTraits() {
     + '<div class="field"><label class="lbl" for="tft">Nível do trait (tier)</label><select id="tft">' + [1, 2, 3, 4, 5].map(x => '<option>' + x + '</option>').join('') + '</select></div>'
     + '<div class="field"><label class="lbl" for="tfs">ATK/DEF da origem</label><input id="tfs" type="number" inputmode="numeric" min="0" value="0"></div>'
     + '<div class="field"><label class="lbl" for="tfa">ATK/DEF do alvo</label><input id="tfa" type="number" inputmode="numeric" min="0" value="0"></div></div>'
-    + '<div class="res" style="margin-top:12px"><div><span class="lbl">Custo por tentativa</span><div class="big" id="tfr">—</div><small class="muted">spina</small></div></div><p class="note">Fórmula do coryn.club.</p></section></div></div>'
+    + '<div class="res" style="margin-top:12px"><div><span class="lbl">Custo por tentativa</span><div class="big" id="tfr">—</div><small class="muted">spina</small></div></div></section></div></div>'
     + '<h2 class="sect">Lista de traits <small style="font-family:var(--font-body);font-weight:400">' + TRT.traits.length + '</small></h2>'
     + '<div class="tools"><input id="tq" type="search" placeholder="Nome, status ou gatilho (ex: ASPD, HP, Evasion)" value="' + esc(TS.q) + '" aria-label="Buscar trait"></div>'
     + '<div class="chips" id="tc" style="margin:0 0 10px">' + [['', 'Todos']].concat(cats.map(c => [c, TRAIT_CAT[c] || c])).map(([v, l]) => '<button type="button" class="chip" data-c="' + esc(v) + '" aria-pressed="' + (TS.c === v) + '">' + esc(l) + '</button>').join('') + '</div>'
-    + '<div class="regs" id="tlist"></div><p class="note" style="color:var(--ink-2)">Efeitos do coryn.club, em inglês como no jogo. “Tier” é o nível do trait (1 a 5).</p>';
+    + '<div class="regs" id="tlist"></div><p class="note" style="color:var(--ink-2)">Efeitos em inglês, como no jogo. “Tier” é o nível do trait (1 a 5).</p>';
   const fee = () => {
     const eqf = +$('#tfe').value || 0, src = Math.max(0, +$('#tfs').value || 0), tgt = Math.max(0, +$('#tfa').value || 0), tier = Math.max(1, +$('#tft').value || 1);
     const delta = Math.max(0, Math.floor(tgt * eqf / 10000) - Math.floor(src * eqf / 10000));
@@ -663,7 +663,7 @@ function viewMonster(id) {
   if (td) td.addEventListener('click', () => { setTarget(g, (g.entries.find(x => x.mode === 'Ultimate') || g.entries[g.entries.length - 1]).mode); store.set('dano', DM); location.hash = '#/dano'; });
 }
 function dropsHtml(g) {
-  if (!g.items.length) return '<section class="card"><h2>Drops</h2><p class="muted">O coryn.club não tem drops cadastrados para este monstro.</p></section>';
+  if (!g.items.length) return '<section class="card"><h2>Drops</h2><p class="muted">Nenhum drop cadastrado para este monstro.</p></section>';
   const groups = new Map();
   g.items.forEach(i => { if (!groups.has(i.tl)) groups.set(i.tl, []); groups.get(i.tl).push(i); });
   const prio = t => t === 'Material' ? 0 : t === 'Usable' ? 1 : 2;
@@ -919,7 +919,7 @@ function itemOrigin(i) {
     const use = (RCP_USE.get(i.id) || []).map(([id, q]) => [DB.ITBYID.get(id), q]).filter(x => x[0]).sort((a, b) => a[0].name.localeCompare(b[0].name));
     const useHtml = use.length ? '<section class="card"><h2>Usado em <small>' + use.length + ' receita' + (use.length > 1 ? 's' : '') + '</small></h2><div class="links" id="uselist">' + use.slice(0, 40).map(([it, q]) => '<a class="lk" href="' + itemUrl(it) + '">' + esc(it.name) + ' <small>' + q + '×</small></a>').join('') + '</div>'
       + (use.length > 40 ? '<button type="button" class="more" id="usemore">Mostrar todas (' + use.length + ')</button>' : '') + '</section>' : '';
-    box.innerHTML = (how ? '<section class="card"><h2>Como obter</h2>' + how + '<p class="note" style="margin:8px 0 0">Fonte: páginas de item do coryn.club, atualizadas toda semana.</p></section>' : '') + useHtml;
+    box.innerHTML = (how ? '<section class="card"><h2>Como obter</h2>' + how + '</section>' : '') + useHtml;
     const mb = $('#usemore'); if (mb) mb.addEventListener('click', () => { $('#uselist').innerHTML = use.map(([it, q]) => '<a class="lk" href="' + itemUrl(it) + '">' + esc(it.name) + ' <small>' + q + '×</small></a>').join(''); mb.remove(); });
   });
 }
@@ -956,7 +956,7 @@ function viewMap(id) {
   setTitle(m.name); addRecent('p:' + m.id);
   const l = DB.LOC[m.name];
   view.innerHTML = backBtn('#/mapas') + '<div class="dhead"><h1>' + esc(m.name) + favBtn('p:' + m.id) + '</h1><div class="dmeta">' + (l ? '<span class="pill">Mundo ' + WORLDS[l[0]].nome + '</span>' : '') + '<span class="muted">' + m.mons.length + (m.mons.length === 1 ? ' monstro' : ' monstros') + '</span></div></div>'
-    + (m.mons.length ? '<div id="dropbox"></div>' : '<section class="card"><h2>Monstros deste mapa</h2><p class="muted" style="margin:0">O coryn.club não lista monstros neste mapa.</p></section>') + locHtml([m.name]);
+    + (m.mons.length ? '<div id="dropbox"></div>' : '<section class="card"><h2>Monstros deste mapa</h2><p class="muted" style="margin:0">Nenhum registro de monstros neste mapa.</p></section>') + locHtml([m.name]);
   monTable('m:' + m.id, m.mons, { title: 'Monstros deste mapa', noMap: true });
 }
 
@@ -1016,7 +1016,7 @@ function viewLeveling() {
     + '<div class="field full"><span class="lbl">Tipos</span><div class="chips" id="utyp">' + TYPES.map(([k, l]) => '<button type="button" class="chip" data-t="' + k + '" aria-pressed="' + LV.types.has(k) + '">' + l + '</button>').join('') + '</div></div>'
     + '<div class="field full"><span class="lbl">Dificuldades dos bosses</span><div class="chips" id="umod">' + MODES.map(m => '<button type="button" class="chip" data-m="' + m[0] + '" aria-pressed="' + LV.modes.has(m[0]) + '">' + m[2] + '</button>').join('') + '</div></div>'
     + '</div></section><div class="status"><span id="ucount"></span><span id="unext"></span></div><div class="list" id="ulist"></div>'
-    + '<p class="note" style="color:var(--ink-2)">EXP base do coryn.club, sem quebrar partes de boss. O jogo dá menos EXP para monstros muito acima ou abaixo do seu nível, por isso a faixa. "Abates" é quantos você precisa para subir um nível inteiro, pela fórmula de EXP da comunidade (aproximada).</p>';
+    + '<p class="note" style="color:var(--ink-2)">EXP base, sem quebrar partes de boss. O jogo dá menos EXP para monstros muito acima ou abaixo do seu nível, por isso a faixa. "Abates" é quantos você precisa para subir um nível inteiro, pela fórmula de EXP da comunidade (aproximada).</p>';
   const save = () => { store.set('lv', LV.lv); store.set('range', LV.range); store.set('bonus', LV.bonus); store.set('types', [...LV.types]); store.set('modes', [...LV.modes]); store.set('ev', LV.ev); upList(); };
   $('#ulv').addEventListener('input', e => { LV.lv = +e.target.value || 1; save(); });
   $('#urg').addEventListener('input', e => { LV.range = Math.max(0, +e.target.value || 0); save(); });
@@ -1100,7 +1100,7 @@ function viewExp() {
     + '<div class="field full"><label class="check"><input id="xskip" type="checkbox"' + (XS.skip ? ' checked' : '') + '> Pular a luta com Venena Metacoenubia (cap. 9, vale +' + fmt(VENENA_XP) + ' EXP se lutar)</label>'
     + '<label class="check"><input id="xdiary" type="checkbox"' + (XS.diary ? ' checked' : '') + '> Repetir esse trecho com o Diário do Aventureiro até chegar no nível desejado</label></div>'
     + '</div><div id="xmq" style="margin-top:12px"></div></section>'
-    + '<p class="note" style="color:var(--ink-2)">EXP por nível pela fórmula da comunidade: 0,025 × Nível⁴ + 2 × Nível (aproximada). EXP das missões: Toram Tools (Insane23) e catálogo de missões de XPPlayer1337. Os valores podem mudar com os patches.</p>';
+    + '<p class="note" style="color:var(--ink-2)">EXP por nível pela fórmula da comunidade: 0,025 × Nível⁴ + 2 × Nível (aproximada). Os valores podem mudar com os patches.</p>';
   const num = (id, d) => { const v = $(id).value; return v === '' ? d : +v; };
   const calc = () => {
     const lv = Math.max(1, Math.floor(num('#xlv', 1))), pct = Math.min(99.99, Math.max(0, num('#xpct', 0))), tg = Math.floor(num('#xtg', 0));
@@ -1168,7 +1168,7 @@ function viewPoints() {
     + f('pfa', 'Primeiros socorros', sel('pfa', ['0', '100', '400', '700', '1.000'].map((l, i) => [i, l]), PS2.fa))
     + f('pko', 'Nocauteado', sel('pko', ['0', '100', '400', '700', '1.000'].map((l, i) => [i, l]), PS2.ko))
     + '<div class="field full"><label class="check"><input id="pbk" type="checkbox"' + (PS2.bk ? ' checked' : '') + '> 20 mil pontos no minigame do Black Knight (casa)</label><label class="check"><input id="pcg" type="checkbox"' + (PS2.cg ? ' checked' : '') + '> Venceu 10 vezes no jogo de cartas (casa)</label></div>'
-    + '</div></section><p class="note" style="color:var(--ink-2)">Fórmulas do Toram Tools (Insane23). Status: 2 pontos por nível, mais o emblema de maior nível (5 pontos no Lv 5 e mais 5 a cada 10 níveis) e 5 pontos por emblema de função a partir de 100. Skill: 1 ponto por nível e 1 a cada 5 níveis, mais os emblemas.</p>';
+    + '</div></section><p class="note" style="color:var(--ink-2)">Status: 2 pontos por nível, mais o emblema de maior nível (5 pontos no Lv 5 e mais 5 a cada 10 níveis) e 5 pontos por emblema de função a partir de 100. Skill: 1 ponto por nível e 1 a cada 5 níveis, mais os emblemas.</p>';
   const calc = () => {
     const lv = Math.max(1, +$('#plv').value || 1), hi = Math.max(lv, +$('#phi').value || 0);
     const ranks = [0, 1, 2, 3].map(k => +$('#pr' + k).value);
@@ -1200,7 +1200,7 @@ function viewBlacksmith() {
     + '<section class="card"><h2>Seus status <small>sem equipamento</small></h2><div class="calc">' + ['STR', 'DEX', 'INT', 'VIT', 'AGI', 'TEC'].map(s => n(s, s, BS[s])).join('') + '</div></section>'
     + '<section class="card"><h2>Bônus de equipamento</h2><div class="calc">' + n('eSTR', 'STR +', BS.eSTR) + n('eSTRp', 'STR %', BS.eSTRp) + n('eDEX', 'DEX +', BS.eDEX) + n('eDEXp', 'DEX %', BS.eDEXp) + '</div></section>'
     + '<section class="card"><h2>Skills de smith</h2><div class="calc">' + n('prof', 'Proficiência de smith', BS.prof) + n('create', 'Create Equipment (nível)', BS.create, ' max="10"') + n('careful', 'Careful Creation (nível)', BS.careful, ' max="10"') + n('expert', "Expert's Creation (nível)", BS.expert, ' max="10"') + '</div></section>'
-    + '<p class="note" style="color:var(--ink-2)">Fórmulas do Toram Tools (Insane23), a partir dos testes de DOPR e JosuaK62. Dificuldade = proficiência + TEC/2 + DEX/6. Sucesso = (50 + 5 × Create Equipment)% × (10 + sua dificuldade − dificuldade do item + STR/10). Potencial = base × (1 + 1% por nível de Careful + 2% por nível de Expert) + bônus do status da arma.</p>';
+    + '<p class="note" style="color:var(--ink-2)">Dificuldade = proficiência + TEC/2 + DEX/6. Sucesso = (50 + 5 × Create Equipment)% × (10 + sua dificuldade − dificuldade do item + STR/10). Potencial = base × (1 + 1% por nível de Careful + 2% por nível de Expert) + bônus do status da arma.</p>';
   const calc = () => {
     const g = id => Math.max(0, +$('#b' + id).value || 0);
     BS.type = $('#btype').value;
@@ -1242,7 +1242,7 @@ function viewScroll() {
     + '<div class="grid2"><section class="card"><h2>Montar pelas armas</h2><div class="calc"><div class="field full">' + wsel(0) + '</div><div class="field full">' + wsel(1) + '</div><div class="field full">' + wsel(2) + '</div></div><div id="nres" style="margin-top:12px"></div></section>'
     + '<section class="card"><h2>Procurar pelas habilidades</h2><div class="calc"><div class="field full">' + ssel(0) + '</div><div class="field full">' + ssel(1) + '</div><div class="field full">' + ssel(2) + '</div></div><div id="nfind" style="margin-top:12px"></div></section></div>'
     + '<section class="card"><h2>O que cada tipo de pergaminho dá</h2><div class="slist">' + Object.entries(SC_STATS).map(([t, s]) => '<div><span>' + t + '</span><small style="text-align:right">' + s + '</small></div>').join('') + '</div></section>'
-    + '<p class="note" style="color:var(--ink-2)">Combinações da planilha pública de Tamyo02, organizadas pelo Toram Tools (Insane23). "Aleatória (?)" é a habilidade com interrogação. O tipo do pergaminho depende das habilidades.</p>';
+    + '<p class="note" style="color:var(--ink-2)">"Aleatória (?)" é a habilidade com interrogação. O tipo do pergaminho depende das habilidades.</p>';
   const craft = () => {
     NS.w = [0, 1, 2].map(k => $('#nw' + k).value);
     const w = NS.w.filter(Boolean);
@@ -1373,7 +1373,7 @@ function viewFood() {
   setTitle('Códigos de comida');
   view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Códigos de comida</h1><p>Casas de jogadores com comida de buff. Toque num código para copiar e use no jogo para visitar a casa e comprar a comida.</p></div></div>'
     + '<div class="tools"><input id="fq" type="search" placeholder="Status ou comida (ex: DEX, crítico, pizza)" value="' + esc(FQ) + '" aria-label="Buscar buff"></div>'
-    + '<div id="flist"></div><p class="note" style="color:var(--ink-2)">Sem anotação, o código é de comida nível 10. Lista da comunidade (post “Food Buff Codes 2025” do r/ToramOnline e lista enviada pela comunidade BR em novembro de 2026). Os códigos mudam quando os donos das casas trocam os pratos; se um não funcionar, tente o próximo.</p>'
+    + '<div id="flist"></div><p class="note" style="color:var(--ink-2)">Sem anotação, o código é de comida nível 10. Os códigos mudam quando os donos das casas trocam os pratos; se um não funcionar, tente o próximo.</p>'
     + '<div class="toast" id="toast" hidden>Copiado!</div>';
   const list = () => {
     const q = FQ.trim().toLowerCase();
@@ -1422,7 +1422,7 @@ function viewSmithing() {
     + '<p>O refino usa <b>minérios</b> e pode usar <b>itens de suporte</b>, que ajudam no sucesso ou protegem contra a queda. A comunidade costuma calcular o bônus de ATK da arma como cerca de <b>ATK base × refino² ÷ 100 + refino</b>.</p>'
     + '<div class="dgroup"><span class="lbl">Minérios (' + ores.length + ')</span>' + lk(ores) + '</div>'
     + '<div class="dgroup"><span class="lbl">Itens de suporte de refino (' + sup.length + ')</span>' + lk(sup) + '</div></div></section>'
-    + '<p class="note" style="color:var(--ink-2)">Fórmulas de criação: Toram Tools (Insane23), com base nos testes de DOPR e JosuaK62. Texto do guia escrito para o Bestiário de Toram.</p>';
+    + '';
   $('#gsnav').addEventListener('click', e => { const b = e.target.closest('[data-to]'); if (b) document.getElementById(b.dataset.to).scrollIntoView({ behavior: RM(), block: 'start' }); });
 }
 
@@ -1580,7 +1580,7 @@ function viewPetGuide() {
       + '<div class="field full"><label class="lbl" for="pcw">Arma do pet</label><select id="pcw" data-k="w">' + PET_W.map((w, i) => '<option value="' + i + '"' + (+PC.w === i ? ' selected' : '') + '>' + w[0] + '</option>').join('') + '</select></div>'
       + n('L', 'Nível', PC.L) + n('pw', 'Poder da arma', PC.pw) + ['STR', 'INT', 'VIT', 'AGI', 'DEX'].map(s => n(s, s, PC[s])).join('') + n('hp', 'HP Gain (nível)', PC.hp, ' max="10"') + n('mp', 'MP Gain (nível)', PC.mp, ' max="10"')
       + '</div><div class="res" id="psres" style="margin-top:12px"></div><p class="note">Fórmulas medidas pela comunidade. Some depois o bônus da natureza (ex.: Enthusiastic ATK +30%). O MP máximo base é sempre 1000, e o MP por ataque base é 20.</p></section>'
-    + '<p class="note" style="color:var(--ink-2)">Fonte: guia de pet do coryn.club (com dados de さるびあのトーラムメモ), valores das skills conferidos com o Cy\'s Grimoire. Texto escrito para o Bestiário de Toram.</p>';
+    + '';
   const skInfo = i => {
     const s = PET_SK[i], ring = petRing(i), nb = petNb(i);
     let how;
@@ -1780,7 +1780,7 @@ function renderBuffs() {
   box.innerHTML = '<h4 class="sub4">Mais usados</h4>' + ACTB.map(([key, name, what]) => row(key, name, esc(what))).join('')
     + (!SKI || !SKT ? '<p class="muted" style="margin:10px 0 0">Carregando os outros buffs…</p>'
       : (mineL.length ? '<h4 class="sub4">Das suas skills</h4>' + mineL.map(gRow).join('') : '')
-        + '<details class="bfall"' + (BF_ALL ? ' open' : '') + '><summary>Todos os outros buffs (' + others.length + ')</summary>' + others.map(gRow).join('') + '<p class="note">Valores da planilha do Cy\'s Grimoire, no valor padrão de cada skill (algumas mudam um pouco conforme a arma). Os que valem “ao acertar” ou “até a próxima skill” você liga quando quiser simular esse momento.</p></details>');
+        + '<details class="bfall"' + (BF_ALL ? ' open' : '') + '><summary>Todos os outros buffs (' + others.length + ')</summary>' + others.map(gRow).join('') + '<p class="note">Valores no padrão de cada skill (algumas mudam um pouco conforme a arma). Os que valem “ao acertar” ou “até a próxima skill” você liga quando quiser simular esse momento.</p></details>');
   if (!SKI || !SKT) dmReady().then(() => { if ($('#bfbox')) { renderBuffs(); renderBuild(); } });
   box.onchange = e => {
     const s = e.target.closest('[data-ab]'), st = e.target.closest('[data-abs]');
@@ -2066,7 +2066,7 @@ function renderBuild() {
   $('#gstat').innerHTML = '<h2>Status detalhado <small>Lv ' + BD.lv + '</small></h2>'
     + gstatRows(d).map(grp => '<dl>' + grp.map(([l, v, f]) => '<div' + (typeof v === 'number' && v < 0 ? ' class="neg"' : '') + '><dt>' + l + '</dt><dd>' + f(v) + '</dd></div>').join('') + '</dl>').join('') + elemTable(d)
     + (off.length ? '<p class="gnote">Não contam com a arma e armadura atuais: ' + off.map(([it, s]) => { const [nm, vv, c] = sparts(s); return esc(nm + ' ' + vv + ' (' + c + ', ' + it.name + ')'); }).join('; ') + '.</p>' : '')
-    + '<p class="gnote">Fórmulas do Cy\'s Grimoire. As passivas que dão status e os buffs ligados já entram; o que o site ainda não soma vai no bloco “outros bônus”. Como no jogo, efeitos de skills com cálculo especial podem não aparecer.</p>';
+    + '<p class="gnote">As passivas que dão status e os buffs ligados já entram; o que o site ainda não soma vai no bloco “outros bônus”. Como no jogo, efeitos de skills com cálculo especial podem não aparecer.</p>';
   blkSubs();
   if ($('#dmres')) damageCalc();
   if ($('#cbbox') && SKI && !$('#blkb-cb').hidden) cbRender();
@@ -2167,7 +2167,7 @@ function viewNews() {
       const rows = NEWS.itens.filter(n => !NEWSF || n.cat === NEWSF);
       $('#nwbox').innerHTML = '<div class="chips" id="nwcat" style="margin:0 0 10px">' + [''].concat(cats).map(c => '<button type="button" class="chip" data-c="' + c + '" aria-pressed="' + (NEWSF === c) + '">' + (c ? esc(newsCat(c)) : 'Todas') + '</button>').join('') + '</div>'
         + (rows.length ? '<div class="list">' + rows.map(newsRow).join('') + '</div>' : '<p class="empty" style="color:var(--ink-2)">Nenhuma notícia ainda. A busca automática roda a cada 3 horas.</p>')
-        + (NEWS.lido ? '<p class="note" style="color:var(--ink-2)">Última busca: ' + new Date(NEWS.lido).toLocaleString('pt-BR') + '. Fonte: site oficial do Toram Online (en.toram.jp); os textos ficam em inglês, como lá.</p>' : '');
+        + (NEWS.lido ? '<p class="note" style="color:var(--ink-2)">Última busca: ' + new Date(NEWS.lido).toLocaleString('pt-BR') + '. Os textos ficam em inglês, como no site oficial.</p>' : '');
       $('#nwcat').onclick = e => { const b = e.target.closest('[data-c]'); if (b) { NEWSF = b.dataset.c; draw(); } };
     };
     draw();
@@ -2182,7 +2182,7 @@ function viewNewsItem(id) {
     const paras = (n.texto || '').split('\n').filter(Boolean);
     view.innerHTML = backBtn('#/noticias') + '<div class="dhead"><h1>' + esc(n.titulo) + '</h1><div class="dmeta"><span class="ncat c-' + esc(n.cat) + '">' + esc(newsCat(n.cat)) + '</span><span class="muted">' + newsDate(n.data) + '</span></div></div>'
       + '<section class="card prose newsbody">' + (paras.length ? paras.map(p => '<p>' + esc(p) + '</p>').join('') : '<p class="muted">O texto completo só é guardado para as notícias mais recentes.</p>') + '</section>'
-      + '<p class="note" style="color:var(--ink-2)">Texto do site oficial do Toram Online (en.toram.jp), em inglês.</p>';
+      + '<p class="note" style="color:var(--ink-2)">Texto do site oficial, em inglês.</p>';
   });
 }
 
@@ -2279,7 +2279,7 @@ function viewCharRegs(box) {
   box.innerHTML = '<div class="rgtop">'
     + (bonus.length ? '<p style="margin:0 0 8px;font-size:14px"><span class="muted">Somam na build:</span> ' + bonus.map(([s, v]) => '<b>' + esc(s) + ' +' + fmt(v) + '</b>').join(' · ') + '</p>' : '')
     + '<div class="chips"><button type="button" class="btn" id="rgadd"' + (BD.rg.length >= REG_MAX_SLOTS ? ' disabled' : '') + '>+ Adicionar registlet</button></div>'
-    + '<p class="note">Os registlets de status (ATK, MATK, DEF, MDEF, Precisão, Esquiva, ASPD, CSPD, HP e MP) entram na soma da build e nas calculadoras. Os que mudam skills ficam anotados aqui. Efeitos do coryn.club, traduzidos.</p></div>'
+    + '<p class="note">Os registlets de status (ATK, MATK, DEF, MDEF, Precisão, Esquiva, ASPD, CSPD, HP e MP) entram na soma da build e nas calculadoras. Os que mudam skills ficam anotados aqui.</p></div>'
     + (cards ? '<div class="regs">' + cards + '</div>' : '')
     + '<div class="picker" id="rpick" hidden><div class="pbox"><div class="phead"><input id="rpq" type="search" placeholder="Buscar registlet (nome, skill ou efeito)" aria-label="Buscar registlet"><button class="btn ghost" id="rpclose" type="button">Fechar</button></div><div id="rplist" class="plist"></div></div></div>';
   const rerender = () => { saveBuild(); viewCharRegs(box); if ($('#gstat')) renderBuild(); };
@@ -2376,7 +2376,7 @@ function viewSkills(code, box) {
   box.innerHTML = '<p class="muted" style="margin:0 0 10px;font-size:13.5px">Toque numa skill para ver o que ela faz e mudar o nível com <b>−</b> e <b>+</b>. A skill anterior sobe sozinha para o nível 5 quando precisa. As passivas que dão status já entram no painel.</p>'
     + '<div class="sktool" id="sktool"></div><div class="sksel" id="sksel"></div>'
     + cats.map(c => '<h2 class="sect">' + c + '</h2>' + SKT.filter(t => skCat(t) === c).map(t => '<section class="card sktree" data-k="' + t.k + '"><button type="button" class="skhead" data-open="' + t.k + '"><b>' + esc(skTreeName(t)) + '</b><span class="sksp" id="sp-' + t.k + '"></span><span class="skarrow">▸</span></button><div class="skbody" id="skb-' + t.k + '" hidden></div></section>').join('')).join('')
-    + '<p class="note" style="color:var(--ink-2)">Árvores e pré-requisitos do simulador do coryn.club; efeitos da planilha do Cy\'s Grimoire. Os nomes das skills ficam em inglês, como no jogo.</p>';
+    + '<p class="note" style="color:var(--ink-2)">Os nomes das skills ficam em inglês, como no jogo.</p>';
   SKS.open.forEach(k => openTree(k, true));
   skRefresh();
   box.addEventListener('click', skClick);
@@ -2549,7 +2549,7 @@ function skInfo(t, s) {
       + '<div class="skstep gem" role="group" aria-label="Star Gem"><span>★ Star Gem</span><button type="button" data-g="-1" aria-label="Diminuir Star Gem"' + (gm ? '' : ' disabled') + '>−</button><b>' + gm + '</b><button type="button" data-g="1" aria-label="Aumentar Star Gem"' + (gm < 10 ? '' : ' disabled') + '>+</button></div></div>';
     box.querySelector('.skibody').innerHTML = bonus + (info
       ? (info.sk ? '<div class="skistk">' + info.sk.map((x, i) => { const mx = skiEval(x[3], c); return '<label>' + esc(x[0]) + (x[4] ? ' (' + esc(x[4]) + ')' : '') + '<input type="number" inputmode="numeric" data-sk="' + i + '" value="' + st.sk[i] + '" min="' + (+x[2] || 0) + '"' + (mx != null ? ' max="' + mx + '"' : '') + '></label>'; }).join('') + '</div>' : '')
-        + skiBody(t, s, info, c) + '<p class="note">' + (ef ? 'Valores no Lv ' + ef + (gm > v ? ' (Star Gem)' : '') : 'Prévia no Lv 1: aperte + para ver os outros níveis') + ', com os status da build em uso. Dados do Cy\'s Grimoire, traduzidos.</p>'
+        + skiBody(t, s, info, c) + '<p class="note">' + (ef ? 'Valores no Lv ' + ef + (gm > v ? ' (Star Gem)' : '') : 'Prévia no Lv 1: aperte + para ver os outros níveis') + ', com os status da build em uso.</p>'
       : '<p class="muted">Ainda não temos as informações desta skill.</p>');
   };
   box.onclick2 && box.removeEventListener('click', box.onclick2);
@@ -2714,7 +2714,7 @@ function viewStatting(code) {
     + '</div><p class="note">O potencial original é o da receita; o atual é o que o item tem agora (com Careful e Expert\'s Creation). A proficiência reduz os materiais e o nível define até onde cada status pode ir.</p></section>'
     + '<section class="card" id="stsim"></section></div>'
     + '<div><section class="card" id="ststeps"></section></div></div>'
-    + '<p class="note" style="color:var(--ink-2)">Fórmulas e tabelas do simulador de statting do coryn.club. Os nomes dos status ficam em inglês, como no jogo.</p>';
+    + '<p class="note" style="color:var(--ink-2)">Os nomes dos status ficam em inglês, como no jogo.</p>';
   const fillEq = () => { $('#steq').innerHTML = '<option value="">Escolher (ou digite o potencial)</option>' + eqs().map(e => '<option value="' + e[0] + '"' + (String(e[0]) === String(SSET.eq) ? ' selected' : '') + '>' + esc(e[1]) + ' · pot. ' + e[2] + '</option>').join(''); $('#stme').disabled = SSET.type === '8'; };
   fillEq();
   $('#sttype').addEventListener('change', e => { SSET.type = e.target.value; SSET.eq = ''; fillEq(); sSave(); });
@@ -2929,7 +2929,7 @@ function damageCalc() {
     + '<h4 class="sub4">O que entrou na conta</h4><div class="slist">'
     + [[magic ? 'MATK' : 'ATK', fmt(atk)], ['ATK efetivo', fmt(Math.floor(effAtk))], ['Diferença de nível', fmt(BD.lv - DM.lv)], [magic ? 'MDEF do alvo' : 'DEF do alvo', fmt(def)], ['Pierce', pierce + '%'], ['Resistência do alvo', res + '%'], ['Estabilidade', magic ? 'mágica ' + Math.floor(magStab) + '% (' + Math.floor(stLo) + '–' + Math.floor(stHi) + '%)' : physStab + '%'],
       ['Elemento', (wEl ? EL[EL_EN.indexOf(wEl)][0] : 'neutro') + ' contra ' + (mEl ? EL[EL_EN.indexOf(mEl)][0] : '?') + (adv ? ' (+25%)' : '')], ['Dano contra o elemento', '+' + (dte + intBonus) + '%' + (intBonus ? ' (com INT)' : '')], ['Distância', '+' + rng + '%'], ['Desembainhar', '+' + uns + '%'], ['Skill × proration × combo', Math.round(SK.mult * 100) / 100 + '% × ' + DM.pror + '% × ' + DM.combo + '%'], ['Passivas e buffs de dano', db.length ? db.map(x => x[0] + ' ' + (x[1] > 0 ? '+' : '') + x[1] + '%').join(', ') : 'nenhum'], ['Buffs × outros', '+' + DM.buff + '% × ' + DM.other + '%']].map(([k, v]) => '<div><span>' + k + '</span><b>' + v + '</b></div>').join('') + '</div>'
-    + '<p class="note">Fórmulas do glossário (Cy\'s Grimoire e testes da comunidade). Já inclui as passivas e os buffs ativos do Personagem; não inclui guarda/esquiva especial do boss; a parte de Graze é uma estimativa. Bom para comparar builds e skills.</p>';
+    + '<p class="note">Já inclui as passivas e os buffs ativos do Personagem; não inclui guarda/esquiva especial do boss; a parte de Graze é uma estimativa. Bom para comparar builds e skills.</p>';
 }
 
 // ---------- valores de qualquer skill da build (MP, dano, conjuração), com a variante da arma atual ----------
@@ -3168,7 +3168,7 @@ function cnDraw() {
     + '<div class="field full"><label class="lbl" for="cnsec">Segundos carregando (sobe 1% por s até 100%, depois 0,5%)</label><input id="cnsec" type="number" inputmode="numeric" min="0" value="' + (+CN.sec || 0) + '"></div></div>'
     + '<p class="note">Aceleração de conjuração com ' + fmt(cspd) + ' de CSPD: ' + Math.round(acc * 100) + '%.</p>'
     + '<h4 class="sub4">Skills usadas durante a carga</h4><div class="tblw"><table class="tbl cntbl"><thead><tr><th>Skill</th><th class="n">Sobe</th><th>Vezes</th></tr></thead><tbody>' + CN_F.concat(CN_40).map(row).join('') + '</tbody></table></div>'
-    + '<p class="note">Fórmula do Cy: tempo real de conjuração × nível do Cannon + 80 × aceleração (Impact, Enchant Sword e Maximizer depois do MP Charge: 40 × aceleração). Com a carga acima de 100%, o que as skills dão cai pela metade. Só há dados testados com o Cannon no Lv 10.</p></section></div>'
+    + '<p class="note">Fórmula: tempo real de conjuração × nível do Cannon + 80 × aceleração (Impact, Enchant Sword e Maximizer depois do MP Charge: 40 × aceleração). Com a carga acima de 100%, o que as skills dão cai pela metade. Só há dados testados com o Cannon no Lv 10.</p></section></div>'
     + '<div><section class="card"><h2>Disparo <small>' + (mon ? esc(mon.name) : 'alvo do bloco Dano') + '</small></h2><div class="res">'
     + '<div><span class="lbl">Carga</span><div class="big">' + ch + '%</div></div>'
     + (sv ? '<div><span class="lbl">Constante</span><div class="big">' + fmt(Math.floor(sv.cst)) + '</div></div><div><span class="lbl">Multiplicador</span><div class="big">' + fmt(Math.floor(sv.mult)) + '%</div><small class="muted">em ' + sv.hits + (sv.hits === 1 ? ' dano' : ' danos') + '</small></div>' : '')
@@ -3221,7 +3221,7 @@ function viewProrate(gid) {
     + sec('Três tipos, três barras', '<p>Existem três barras de prorate, uma para cada tipo de dano: <b>físico</b>, <b>mágico</b> e <b>neutro</b>.</p><ul><li>O <b>ataque básico</b> aplica prorate <b>neutro</b>.</li><li>Nem toda skill física aplica prorate físico, e nem toda mágica aplica mágico. No <a class="tl" href="#/personagem/skills">simulador de skills</a>, toque na skill e veja o campo <b>Inércia</b>.</li><li>Algumas skills contam mais de uma ação (ex.: cada Dash com Shadow Walk do Dual Katana aplica 2 ações físicas).</li></ul>')
     + sec('Rateio: o tamanho do passo', '<p>O <b>rateio</b> diz quanto cada ação mexe nas barras, e <b>muda de boss para boss</b>. Exemplo, Red Ash Dragon Rudis: físico 5, mágico 5, neutro 10.</p><ul><li>1 ação física: a barra <b>física desce 5%</b>; a mágica sobe 5% e a neutra sobe 10% (cada uma sobe pelo próprio rateio).</li><li>10 ações físicas seguidas travam o físico em −50%.</li><li>Para o físico chegar a +150% nesse boss, são 30 ações de outro tipo (150 ÷ 5).</li></ul><p>Por isso saber o rateio importa: ele diz quantas ações você precisa antes do golpe forte.</p>')
     + sec('Em equipe', '<p>O prorate é <b>da luta inteira</b>, não de cada jogador: tudo que a party faz mexe nas mesmas barras.</p><ul><li>Quatro magos spamando skills mágicas derrubam o dano uns dos outros. Físico + mágico se ajudam.</li><li>Quando um DPS bate muito mais que os outros, vale a party ajudar o prorate <b>dele</b> e não o próprio.</li><li>Mercenário que só dá ataque básico, ou pet com skill mágica, ajudam a subir a barra que você precisa.</li><li>Katana combina com mago: o mago sobe o físico, a katana sobe o mágico.</li></ul>')
-    + '<p class="note" style="color:var(--ink-2)">Explicação baseada no material do Cristian Viciado (guilda TARTAROS BR). Rateio de cada boss: guias de batalha (Toram Yo).</p>'
+    + ''
     + '</div><div><section class="card prsim" id="prsim"></section></div></div>';
   prDraw();
 }
@@ -3262,14 +3262,14 @@ function rotaHtml() {
   return '<section class="card"><h2>Rota de upar com bosses <small>da comunidade</small></h2><p class="muted" style="margin:0 0 10px;font-size:13.5px">A rota que a guilda TARTAROS BR usa, de boss e miniboss em boss. Na sua faixa de nível, a linha fica marcada.</p>'
     + '<div class="tblw"><table class="tbl rota"><thead><tr><th>Nível</th><th>Boss</th><th>Mapa</th></tr></thead><tbody>'
     + ROTA_UP.map(([r, n, m]) => { const g = find(n); return '<tr' + (inR(r) ? ' class="now"' : '') + '><td class="n">' + r + '</td><td>' + (g ? '<a class="tl" href="' + monUrl(g) + '">' + esc(n) + '</a>' : esc(n)) + '</td><td class="muted">' + esc(m) + '</td></tr>'; }).join('')
-    + '</tbody></table></div><p class="note">Lista do Cristian Viciado (TARTAROS BR). Sem buffs de EXP; com buff, dá para subir mais rápido na mesma faixa.</p></section>';
+    + '</tbody></table></div><p class="note">Sem buffs de EXP; com buff, dá para subir mais rápido na mesma faixa.</p></section>';
 }
 
 // ---------- dicas de boss da comunidade ----------
 const BOSS_NOTES = {
   'Trickster Dragon Mimyugon': ['Em 50% de HP, todo dano que passar disso é anulado: um golpe de 70M com o boss em 52% só tira os 2% que faltam. Guarde o golpe mais forte para depois da metade.', 'Nessa transição ele ganha muita resistência a crítico, então o burst rende menos.', 'Tem golpes em área com Interrupt, que cortam a conjuração (atenção, mago).', 'Depois dos 50%, ataca de longe quem estiver mais distante dele.', 'Rateio muito bom para mago: depois de bastante ataque físico ou neutro da party, as skills mágicas chegam perto de +150%.']
 };
-const bossNotes = g => { const n = BOSS_NOTES[g.name]; return n ? '<section class="card"><h2>Dicas da comunidade</h2><ul class="flist">' + n.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul><p class="note">Da guilda TARTAROS BR (Cristian Viciado).</p></section>' : ''; };
+const bossNotes = g => { const n = BOSS_NOTES[g.name]; return n ? '<section class="card"><h2>Dicas da comunidade</h2><ul class="flist">' + n.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></section>' : ''; };
 
 // ---------- Como o dano funciona (explicação simples e com fonte em cada regra) ----------
 // Regras do glossário do Cy's Grimoire (testes da comunidade Phantom Libs) e testes da comunidade BR.
@@ -3285,7 +3285,7 @@ function viewComoDano() {
   const sec = (id, t, badge, body) => '<section class="card cd-sec" id="' + id + '"><h2>' + t + ' ' + badge + '</h2><div class="prose">' + body + '</div></section>';
   view.innerHTML = backBtn('#/ferramentas') + '<div class="ph"><div><h1>Como o dano funciona</h1><p>O dano no Toram em três partes, do jeito mais simples possível e sem perder a precisão. Cada regra mostra de onde vem.</p></div></div>'
     + '<section class="card"><div class="cd-flow" role="list"><div role="listitem"><b>1. Base</b><span>quanto do seu ataque passa pela defesa do alvo</span></div><i aria-hidden="true">→</i><div role="listitem"><b>2. Multiplicadores</b><span>skill, crítico, elemento, prorate, distância…</span></div><i aria-hidden="true">→</i><div role="listitem"><b>3. Sorte</b><span>estabilidade, crítico e acerto decidem o valor do golpe</span></div></div>'
-    + '<p class="cd-leg">' + sel('f') + ' regra medida e conferida pela comunidade (Cy\'s Grimoire / Phantom Libs) · ' + sel('t') + ' observado em testes no jogo · ' + sel('e') + ' aproximação</p></section>'
+    + '<p class="cd-leg">' + sel('f') + ' regra medida e conferida pela comunidade · ' + sel('t') + ' observado em testes no jogo · ' + sel('e') + ' aproximação</p></section>'
     + sec('cd-base', '1. A base', sel('f'),
       '<p>Tudo começa no <b>ATK efetivo</b> (no dano mágico, MATK efetivo): o seu ataque depois de passar pela defesa do alvo.</p>'
       + '<p class="formula">(ATK + seu nível − nível do alvo) × (100% − resistência do alvo) − DEF do alvo × (100% − pierce)</p>'
@@ -3307,7 +3307,7 @@ function viewComoDano() {
       + '<li><b>Prorate não é do jogador</b>: é da luta. Spamar o mesmo tipo derruba o seu dano e o da party.</li>'
       + '<li><b>Equipamento não resolve tudo</b>: ele sobe o teto do dano. Prorate, distância e combo decidem se você chega nele.</li></ul>')
     + '<section class="card"><h2>Use na prática</h2><div class="chips"><a class="btn" href="#/personagem/dano">Calcular o dano da minha build</a><a class="btn ghost" href="#/prorate">Simular o prorate</a><a class="btn ghost" href="#/glossario">Glossário completo</a></div></section>'
-    + '<p class="note" style="color:var(--ink-2)">Fórmulas do glossário do Cy\'s Grimoire, com testes da comunidade Phantom Libs; observações da guilda TARTAROS BR. O exemplo usa números redondos e ignora acerto e prorate da party. Achou algo que não bate com o jogo? Avise no grupo do Bestiário no WhatsApp.</p>';
+    + '<p class="note" style="color:var(--ink-2)">O exemplo usa números redondos e ignora acerto e prorate da party. Achou algo que não bate com o jogo? Avise no grupo do Bestiário no WhatsApp.</p>';
 }
 
 // ---------- busca única ----------
