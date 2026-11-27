@@ -176,6 +176,7 @@ function setTitle(t) { document.title = t ? t + ' · Bestiário de Toram' : 'Bes
 // ---------- início ----------
 // Novidades do próprio site: acrescentar no topo a cada mudança que o público note.
 const SITE_NEWS = [
+  ['2026-11-27', ['Simulador de statting: item personalizado e botão para usar o item na sua build']],
   ['2026-11-19', ['Árvore nova Phalanx (lança e escudo) no simulador de skills, com o que cada skill faz']],
   ['2026-11-17', ['Prorate: como medir o rateio no jogo, exceções (Soul Hunter, Revenir) e bosses com pouco prorate', 'Itens: como obter (NPC, Smith, receita com materiais) e em que receitas cada material é usado', 'Códigos de comida: 387 códigos novos e 12 buffs novos (resistências por elemento, barreiras, drop, MATK e DEF)', 'Visual novo: painéis no estilo do jogo, menu lateral no computador e entrada por objetivo', 'Site em inglês, espanhol e indonésio: toque na bandeira no topo', 'Guia e simulador de Prorate e Rateio, com o rateio de cada boss', 'Página nova: Como o dano funciona', 'Rota de upar com bosses na página Onde upar', 'Dicas da comunidade nos bosses e verbetes novos no glossário', 'Combo com os nomes do jogo: Smite, Save, Swift, Tough...']],
   ['2026-11-10', ['Visual revisado: toque com resposta imediata, títulos mais legíveis, Ferramentas reorganizadas', 'Personagem: blocos Traits e Combo, e atalhos para cada bloco no topo', 'Tabela de poder e resistência por elemento no painel de status', 'Calculadora do Magic: Cannon', 'Todos os ícones de skill completos']],
@@ -2706,20 +2707,22 @@ function viewStatting(code) {
     + '<section class="card"><h2>Equipamento</h2><div class="calc">'
     + '<div class="field"><label class="lbl" for="sttype">Tipo</label><select id="sttype">' + tlist.map(t => '<option value="' + t[0] + '"' + (t[0] === SSET.type ? ' selected' : '') + '>' + esc(t[1]) + '</option>').join('') + '</select></div>'
     + '<div class="field"><label class="lbl" for="steq">Equipamento</label><select id="steq"></select></div>'
+    + '<div class="field full" id="stcnf"' + (SSET.eq === 'c' ? '' : ' hidden') + '><label class="lbl" for="stcn">Nome do item personalizado</label><input id="stcn" type="text" maxlength="40" placeholder="Ex.: Arco novo do evento" value="' + esc(SSET.cn || '') + '"></div>'
     + '<div class="field"><label class="lbl" for="stpot">Potencial atual</label><input id="stpot" type="number" inputmode="numeric" value="' + SSET.pot + '"></div>'
     + '<div class="field"><label class="lbl" for="stori">Potencial original</label><input id="stori" type="number" inputmode="numeric" value="' + SSET.ori + '"></div>'
     + '<div class="field"><label class="lbl" for="stme">Elemento igual ao da arma</label><select id="stme"><option value="0"' + (SSET.me === '0' ? ' selected' : '') + '>Não</option><option value="1"' + (SSET.me === '1' ? ' selected' : '') + '>Sim</option></select></div>'
     + '<div class="field"><label class="lbl" for="stprof">Proficiência de smith</label><input id="stprof" type="number" inputmode="numeric" min="0" value="' + SSET.prof + '"></div>'
     + '<div class="field"><label class="lbl" for="stlv">Nível do personagem</label><input id="stlv" type="number" inputmode="numeric" min="10" value="' + SSET.lv + '"></div>'
     + '<div class="field"><span class="lbl">&nbsp;</span><button class="btn" id="ststart" type="button">' + (SF ? 'Recomeçar' : 'Começar') + '</button></div>'
-    + '</div><p class="note">O potencial original é o da receita; o atual é o que o item tem agora (com Careful e Expert\'s Creation). A proficiência reduz os materiais e o nível define até onde cada status pode ir.</p></section>'
+    + '</div><p class="note">Para um item que não está na lista, escolha “Item personalizado” e digite o potencial. O potencial original é o da receita; o atual é o que o item tem agora (com Careful e Expert\'s Creation). A proficiência reduz os materiais e o nível define até onde cada status pode ir.</p></section>'
     + '<section class="card" id="stsim"></section></div>'
     + '<div><section class="card" id="ststeps"></section></div></div>'
     + '<p class="note" style="color:var(--ink-2)">Os nomes dos status ficam em inglês, como no jogo.</p>';
-  const fillEq = () => { $('#steq').innerHTML = '<option value="">Escolher (ou digite o potencial)</option>' + eqs().map(e => '<option value="' + e[0] + '"' + (String(e[0]) === String(SSET.eq) ? ' selected' : '') + '>' + esc(e[1]) + ' · pot. ' + e[2] + '</option>').join(''); $('#stme').disabled = SSET.type === '8'; };
+  const fillEq = () => { $('#steq').innerHTML = '<option value="">Escolher</option><option value="c"' + (SSET.eq === 'c' ? ' selected' : '') + '>★ Item personalizado</option>' + eqs().map(e => '<option value="' + e[0] + '"' + (String(e[0]) === String(SSET.eq) ? ' selected' : '') + '>' + esc(e[1]) + ' · pot. ' + e[2] + '</option>').join(''); $('#stme').disabled = SSET.type === '8'; };
   fillEq();
   $('#sttype').addEventListener('change', e => { SSET.type = e.target.value; SSET.eq = ''; fillEq(); sSave(); });
-  $('#steq').addEventListener('change', e => { SSET.eq = e.target.value; const it = eqs().find(x => String(x[0]) === e.target.value); if (it) { SSET.pot = SSET.ori = it[2]; $('#stpot').value = $('#stori').value = it[2]; } sSave(); });
+  $('#stcn').addEventListener('input', e => { SSET.cn = e.target.value; sSave(); });
+  $('#steq').addEventListener('change', e => { SSET.eq = e.target.value; $('#stcnf').hidden = SSET.eq !== 'c'; if (SSET.eq === 'c') $('#stpot').focus(); const it = eqs().find(x => String(x[0]) === e.target.value); if (it) { SSET.pot = SSET.ori = it[2]; $('#stpot').value = $('#stori').value = it[2]; } sSave(); });
   [['stpot', 'pot'], ['stori', 'ori'], ['stprof', 'prof'], ['stlv', 'lv']].forEach(([id, k]) => $('#' + id).addEventListener('input', e => { SSET[k] = +e.target.value || 0; sSave(); if (SF && (k === 'prof' || k === 'lv')) sRender(); }));
   $('#stme').addEventListener('change', e => { SSET.me = e.target.value; sSave(); });
   $('#ststart').addEventListener('click', () => {
@@ -2729,6 +2732,21 @@ function viewStatting(code) {
     sStart(); $('#ststart').textContent = 'Recomeçar'; sRender();
   });
   sRender();
+}
+// Leva o item com os status da fórmula para o Personagem, como item personalizado (arma principal ou armadura).
+const ST_TL = { '8': 'Armor', '4': '1 Handed Sword', '5': '2 Handed Sword', '9': 'Bow', '10': 'Bowgun', '13': 'Knuckles', '15': 'Magic Device', '19': 'Staff', '26': 'Halberd', '27': 'Katana' };
+function stToBuild() {
+  if (!SF || !SF.steps.length) return;
+  const slot = SSET.type === '8' ? 'armadura' : 'arma', tl = ST_TL[SSET.type];
+  const eqName = SSET.eq && SSET.eq !== 'c' ? ((SDATA.types.find(t => t[0] === SSET.type) || [, , []])[2].find(x => String(x[0]) === String(SSET.eq)) || [])[1] : '';
+  const base = eqName ? DB.ITBYID.get(+SSET.eq) || DB.ITBYNAME.get(eqName.toLowerCase()) : null;
+  const bv = n => { if (!base) return 0; const i = SI(n), x = base.stats.find(t => t[0] === i); return x ? x[1] : 0; };
+  const st = [];
+  SF.stat.forEach((sid, i) => { if (!sid || !SF.val[i]) return; const n = (SSTAT.get(sid) || [])[1], si = n ? SI(n) : -1; if (si >= 0) st.push([si, SF.val[i]]); });
+  const cur = BD.sl[slot], has = cur && (cur.id || cur.c);
+  if (has && !confirm('Trocar o item da ' + (slot === 'arma' ? 'arma principal' : 'armadura') + ' da sua build por este?')) return;
+  BD.sl[slot].c = { n: (SSET.eq === 'c' ? SSET.cn : eqName) || 'Item do statting', tl, atk: bv('Base ATK'), def: bv('Base DEF'), stb: bv('Base Stability %'), st };
+  BD.sl[slot].id = 0; saveBuild(); location.hash = '#/personagem';
 }
 function sRender() {
   if (!SF) { $('#stsim').innerHTML = '<h2>Status</h2><p class="muted" style="margin:0">Escolha o equipamento e toque em “Começar”.</p>'; $('#ststeps').innerHTML = '<h2>Passos</h2><p class="muted" style="margin:0">Nenhum passo ainda.</p>'; return; }
@@ -2749,7 +2767,7 @@ function sRender() {
   $('#ststeps').innerHTML = '<h2>Passos <small>potencial inicial ' + SF.starting + '</small></h2>'
     + (SF.log.length ? '<ol class="stlog">' + SF.log.map(l => '<li>' + l.parts.map(([n, d]) => '<span class="' + (d < 0 ? 'neg' : '') + '">' + esc(n) + ' ' + (d > 0 ? '+' : '') + d + '</span>').join(', ') + (l.n > 1 ? ' <b>×' + l.n + '</b>' : '') + '</li>').join('') + '</ol>' : '<p class="muted" style="margin:0">Nenhum passo ainda. Escolha os status, ajuste os valores e toque em “Confirmar passo”.</p>')
     + '<h4 class="sub4">Materiais</h4>' + (mats.length ? '<div class="slist">' + mats.map(([m, v]) => '<div><span>' + m + '</span><b>' + fmt(v) + ' pts</b></div>').join('') + '<div><span>Maior passo</span><b>' + fmt(SF.highest) + ' pts</b></div></div>' : '<p class="muted" style="margin:0">—</p>')
-    + '<div class="chips" style="margin-top:12px"><button class="btn" id="stshare" type="button"' + (!SF.steps.length ? ' disabled' : '') + '>Copiar link da fórmula</button></div><p class="note" id="stmsg">A fórmula fica salva neste aparelho.</p>';
+    + '<div class="chips" style="margin-top:12px"><button class="btn" id="stshare" type="button"' + (!SF.steps.length ? ' disabled' : '') + '>Copiar link da fórmula</button><button class="btn ghost" id="stbuild" type="button"' + (!SF.steps.length ? ' disabled' : '') + '>Usar na minha build</button></div><p class="note" id="stmsg">A fórmula fica salva neste aparelho.</p>';
   $('#stsim').onchange = e => { const s = e.target.closest('[data-slot]'); if (!s) return; const i = +s.dataset.slot; SCUR.stat[i] = +s.value; SCUR.val[i] = 0; sRender(); };
   $('#stsim').onclick = e => {
     const p = e.target.closest('[data-pm]'), m = e.target.closest('[data-mm]');
@@ -2759,6 +2777,7 @@ function sRender() {
     if (e.target.closest('#stundo')) { const st = SF.steps.slice(0, -1); SF = sReplay(st); SCUR = { stat: SF.stat.slice(), val: SF.val.slice() }; sSave(); sRender(); }
   };
   $('#ststeps').onclick = e => {
+    if (e.target.closest('#stbuild')) { stToBuild(); return; }
     if (!e.target.closest('#stshare')) return;
     const url = location.href.split('#')[0] + '#/statting/' + b64e(JSON.stringify({ set: SSET, f: { t: SF.type, p: SF.starting, o: SF.original, m: SF.me, s: SF.steps } }));
     const done = () => { $('#stmsg').textContent = 'Link copiado! Cole no grupo para mostrar a fórmula.'; };
